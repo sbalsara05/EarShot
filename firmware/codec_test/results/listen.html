@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compression test: listen</title>
+<style>
+  :root { --bg:#101317; --panel:#191e24; --line:#2a313a; --text:#e7ebf0; --dim:#8b96a3; --green:#2fd67b; --red:#ff6b6b; --amber:#ffb020; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f6f7f9; --panel:#fff; --line:#d9dee5; --text:#16191d; --dim:#5d6875; --green:#0a8f4c; --red:#c62828; --amber:#9a6200; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  h2 { font-size: 17px; margin: 34px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 15px; margin: 0 8px 0 0; }
+  p.lead, .said { color: var(--dim); }
+  .said { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  article { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 10px 0; }
+  article header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .pill { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; color: var(--dim); }
+  .pill.ok { color: var(--green); border-color: var(--green); } .pill.no { color: var(--amber); border-color: var(--amber); }
+  audio { width: 100%; height: 36px; }
+  .heard { margin: 8px 0 0; font-size: 14px; }
+  mark { background: transparent; color: var(--red); font-weight: 600; }
+  del { color: var(--red); opacity: .75; }
+  .key span { margin-right: 14px; }
+  .note { margin: 6px 0 0; font-size: 13px; color: var(--amber); }
+</style></head><body><main>
+  <h1>Compression test: listen for yourself</h1>
+  <p class="lead">One clip from the test, sent every way the test tried. Press play to hear what the tablet would
+  receive, and read what Whisper (base.en) made of it. The percentages are from the whole
+  test (1,200 words per setting), not just this clip.</p>
+  <p class="key"><span><mark>red</mark> = heard but not said</span><span><del>struck out</del> = said but not heard</span></p>
+  <h2>What was said</h2>
+  <p class="said">Hi, my name is Jordan, I&#x27;m a paramedic. Can you tell me what happened today? I was carrying groceries up the stairs and I got this tight pressure in my chest. The pain started about twenty minutes ago and it goes down my left arm. On a scale of one to ten, how bad is the pain right now? It&#x27;s about a seven, and I feel short of breath and a little dizzy. Do you have any allergies to medications?</p>
+  <section><h2>Clean speech</h2>
+      <article>
+        <header>
+          <h3>Raw audio (today)</h3>
+          <span class="pill no">32,000 bytes/s · over budget</span>
+          <span class="pill">whole test: 1.5% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/clean--raw-audio-today.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 48 kbit/s</h3>
+          <span class="pill ok">6,005 bytes/s · fits</span>
+          <span class="pill">whole test: 1.2% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/clean--opus-48-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 32 kbit/s</h3>
+          <span class="pill ok">4,003 bytes/s · fits</span>
+          <span class="pill">whole test: 3.7% wrong*</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/clean--opus-32-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p><p class="note">* 3.7% was a one-off recognizer glitch in this run; re-checking this cell gave 1.4% (17 of 1,200 words)</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 24 kbit/s</h3>
+          <span class="pill ok">3,003 bytes/s · fits</span>
+          <span class="pill">whole test: 2.2% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/clean--opus-24-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 16 kbit/s</h3>
+          <span class="pill ok">2,002 bytes/s · fits</span>
+          <span class="pill">whole test: 2.0% wrong</span>
+          <span class="pill">this clip: 1 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/clean--opus-16-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy <del title="said, but not heard">do</del> you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 12 kbit/s</h3>
+          <span class="pill ok">1,501 bytes/s · fits</span>
+          <span class="pill">whole test: 2.2% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/clean--opus-12-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 8 kbit/s</h3>
+          <span class="pill ok">1,001 bytes/s · fits</span>
+          <span class="pill">whole test: 2.8% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/clean--opus-8-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>ADPCM 4:1</h3>
+          <span class="pill no">8,053 bytes/s · over budget</span>
+          <span class="pill">whole test: 1.9% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/clean--adpcm-4-1.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>8 kHz sampling, uncompressed</h3>
+          <span class="pill no">16,000 bytes/s · over budget</span>
+          <span class="pill">whole test: 1.7% wrong</span>
+          <span class="pill">this clip: 1 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/clean--8-khz-sampling-uncompressed.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy <del title="said, but not heard">do</del> you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>8 kHz sampling + ADPCM</h3>
+          <span class="pill ok">4,040 bytes/s · fits</span>
+          <span class="pill">whole test: 2.3% wrong</span>
+          <span class="pill">this clip: 1 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/clean--8-khz-sampling-adpcm.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy <del title="said, but not heard">do</del> you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 32 kbit/s, 5% of chunks lost</h3>
+          <span class="pill ok">4,003 bytes/s · fits</span>
+          <span class="pill">whole test: 1.4% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/clean--opus-32-kbit-s-5-of-chunks-lost.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article></section><section><h2>Ambulance noise, speech louder by 10 dB</h2>
+      <article>
+        <header>
+          <h3>Raw audio (today)</h3>
+          <span class="pill no">32,000 bytes/s · over budget</span>
+          <span class="pill">whole test: 3.0% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-10dB--raw-audio-today.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 48 kbit/s</h3>
+          <span class="pill ok">6,005 bytes/s · fits</span>
+          <span class="pill">whole test: 3.4% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-10dB--opus-48-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 32 kbit/s</h3>
+          <span class="pill ok">4,003 bytes/s · fits</span>
+          <span class="pill">whole test: 3.0% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-10dB--opus-32-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 24 kbit/s</h3>
+          <span class="pill ok">3,003 bytes/s · fits</span>
+          <span class="pill">whole test: 2.8% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-10dB--opus-24-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 16 kbit/s</h3>
+          <span class="pill ok">2,002 bytes/s · fits</span>
+          <span class="pill">whole test: 3.6% wrong</span>
+          <span class="pill">this clip: 1 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-10dB--opus-16-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries <del title="said, but not heard">up</del> <mark title="heard, but not said">off</mark> the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 12 kbit/s</h3>
+          <span class="pill ok">1,501 bytes/s · fits</span>
+          <span class="pill">whole test: 4.8% wrong</span>
+          <span class="pill">this clip: 3 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-10dB--opus-12-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to <del title="said, but not heard">medications</del> <mark title="heard, but not said">medication</mark></p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 8 kbit/s</h3>
+          <span class="pill ok">1,001 bytes/s · fits</span>
+          <span class="pill">whole test: 7.6% wrong</span>
+          <span class="pill">this clip: 3 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-10dB--opus-8-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to <del title="said, but not heard">medications</del> <mark title="heard, but not said">medication</mark></p>
+      </article>
+      <article>
+        <header>
+          <h3>ADPCM 4:1</h3>
+          <span class="pill no">8,053 bytes/s · over budget</span>
+          <span class="pill">whole test: 2.9% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-10dB--adpcm-4-1.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>8 kHz sampling, uncompressed</h3>
+          <span class="pill no">16,000 bytes/s · over budget</span>
+          <span class="pill">whole test: 4.2% wrong</span>
+          <span class="pill">this clip: 3 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-10dB--8-khz-sampling-uncompressed.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to <del title="said, but not heard">medications</del> <mark title="heard, but not said">medication</mark></p>
+      </article>
+      <article>
+        <header>
+          <h3>8 kHz sampling + ADPCM</h3>
+          <span class="pill ok">4,040 bytes/s · fits</span>
+          <span class="pill">whole test: 4.2% wrong</span>
+          <span class="pill">this clip: 3 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-10dB--8-khz-sampling-adpcm.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to <del title="said, but not heard">medications</del> <mark title="heard, but not said">medication</mark></p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 32 kbit/s, 5% of chunks lost</h3>
+          <span class="pill ok">4,003 bytes/s · fits</span>
+          <span class="pill">whole test: 3.0% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-10dB--opus-32-kbit-s-5-of-chunks-lost.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article></section><section><h2>Ambulance noise, speech louder by 5 dB</h2>
+      <article>
+        <header>
+          <h3>Raw audio (today)</h3>
+          <span class="pill no">32,000 bytes/s · over budget</span>
+          <span class="pill">whole test: 3.2% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-5dB--raw-audio-today.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 48 kbit/s</h3>
+          <span class="pill ok">6,005 bytes/s · fits</span>
+          <span class="pill">whole test: 3.3% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-5dB--opus-48-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 32 kbit/s</h3>
+          <span class="pill ok">4,003 bytes/s · fits</span>
+          <span class="pill">whole test: 3.8% wrong</span>
+          <span class="pill">this clip: 1 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-5dB--opus-32-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to <del title="said, but not heard">medications</del> <mark title="heard, but not said">medication</mark></p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 24 kbit/s</h3>
+          <span class="pill ok">3,003 bytes/s · fits</span>
+          <span class="pill">whole test: 4.2% wrong</span>
+          <span class="pill">this clip: 2 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-5dB--opus-24-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries <del title="said, but not heard">up</del> <mark title="heard, but not said">off</mark> the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to <del title="said, but not heard">medications</del> <mark title="heard, but not said">medication</mark></p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 16 kbit/s</h3>
+          <span class="pill ok">2,002 bytes/s · fits</span>
+          <span class="pill">whole test: 5.0% wrong</span>
+          <span class="pill">this clip: 2 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-5dB--opus-16-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries <del title="said, but not heard">up</del> <mark title="heard, but not said">off</mark> the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to <del title="said, but not heard">medications</del> <mark title="heard, but not said">medication</mark></p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 12 kbit/s</h3>
+          <span class="pill ok">1,501 bytes/s · fits</span>
+          <span class="pill">whole test: 7.9% wrong</span>
+          <span class="pill">this clip: 4 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-5dB--opus-12-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries <del title="said, but not heard">up</del> <mark title="heard, but not said">off</mark> the stairs and i got this tight pressure in my chest the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to <del title="said, but not heard">medications</del> <mark title="heard, but not said">medication</mark></p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 8 kbit/s</h3>
+          <span class="pill ok">1,001 bytes/s · fits</span>
+          <span class="pill">whole test: 15.1% wrong</span>
+          <span class="pill">this clip: 2 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-5dB--opus-8-kbit-s.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries <del title="said, but not heard">up</del> <mark title="heard, but not said">off</mark> the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to <del title="said, but not heard">medications</del> <mark title="heard, but not said">medication</mark></p>
+      </article>
+      <article>
+        <header>
+          <h3>ADPCM 4:1</h3>
+          <span class="pill no">8,053 bytes/s · over budget</span>
+          <span class="pill">whole test: 3.1% wrong</span>
+          <span class="pill">this clip: 0 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-5dB--adpcm-4-1.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to medications</p>
+      </article>
+      <article>
+        <header>
+          <h3>8 kHz sampling, uncompressed</h3>
+          <span class="pill no">16,000 bytes/s · over budget</span>
+          <span class="pill">whole test: 5.2% wrong</span>
+          <span class="pill">this clip: 4 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-5dB--8-khz-sampling-uncompressed.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my <del title="said, but not heard">chest</del> <mark title="heard, but not said">chat</mark> the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to <del title="said, but not heard">medications</del> <mark title="heard, but not said">medication</mark></p>
+      </article>
+      <article>
+        <header>
+          <h3>8 kHz sampling + ADPCM</h3>
+          <span class="pill ok">4,040 bytes/s · fits</span>
+          <span class="pill">whole test: 6.1% wrong</span>
+          <span class="pill">this clip: 3 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-5dB--8-khz-sampling-adpcm.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the <del title="said, but not heard">pain</del> <mark title="heard, but not said">paint</mark> right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to <del title="said, but not heard">medications</del> <mark title="heard, but not said">medication</mark></p>
+      </article>
+      <article>
+        <header>
+          <h3>Opus 32 kbit/s, 5% of chunks lost</h3>
+          <span class="pill ok">4,003 bytes/s · fits</span>
+          <span class="pill">whole test: 4.6% wrong</span>
+          <span class="pill">this clip: 2 of 82 words wrong</span>
+        </header>
+        <audio controls preload="none" src="samples/noise-5dB--opus-32-kbit-s-5-of-chunks-lost.wav"></audio>
+        <p class="heard">hi my name is jordan i am a paramedic can you tell me what happened today i was carrying groceries up the stairs and i got this tight pressure in my chest the pain started about 20 minutes ago and it goes down my left arm on a scale of one to 10 how bad is the pain right now it is about a 7 and i feel short of breath and a little dizzy do you have any allergies to <del title="said, but not heard">medications</del> <mark title="heard, but not said">medication you</mark></p>
+      </article></section>
+</main></body></html>

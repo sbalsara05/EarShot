@@ -4,12 +4,13 @@
 It plays the tablet's side of the clip protocol (see lib/earshot_core/src/protocol.h):
 a WebSocket server on /clip that accepts the clip's events and audio and can send it commands.
 It keeps a ledger of exactly what arrived, so you can see that no audio is received unless the
-clip is listening with consent.
+clip is listening.
 
   python3 sim/tablet.py                 virtual clip + mock tablet, UI at http://localhost:8765
   python3 sim/tablet.py --no-sim --lan  mock tablet only, for a real clip on the same Wi-Fi
 
-Needs the `websockets` package (pip install websockets).
+Needs the `websockets` package (pip install websockets). To play back or inspect Opus audio it
+also needs PyAV (pip install av); without it, compressed audio is still counted but not decoded.
 """
 import argparse
 import asyncio
@@ -27,6 +28,11 @@ from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
 from websockets.exceptions import ConnectionClosed
 from websockets.http11 import Response
+
+try:  # PyAV decodes Opus so compressed audio can be played back and checked; optional
+    import av
+except ImportError:
+    av = None
 
 HERE = pathlib.Path(__file__).resolve().parent
 DEFAULT_SIM_BIN = HERE.parent / "build" / "sim_clip"
@@ -52,6 +58,10 @@ class MockTablet:
         self.save_wav = save_wav
         self.quiet = quiet
 
+        self.codec = "pcm"        # from the clip's hello: how its audio frames are encoded
+        self.bitrate = 256000
+        self._decoder = None
+        self._resampler = None
         self.clip = None          # the clip's WebSocket (one at a time)
         self.uis = set()
         self.sim = None           # simulated clip process
@@ -69,7 +79,7 @@ class MockTablet:
         self.device = None
         self.device_state = "unknown"
         self.listening = False     # the clip says consent is logged and it is capturing
-        self.refusals = 0          # "declined" consent events received
+        self.captures = 0          # "granted" consent events received (captures started)
         self.audio_bytes = 0
         self.audio_frames = 0
         self.lost_frames = 0
@@ -103,10 +113,17 @@ class MockTablet:
             "device": self.device,
             "device_state": self.device_state,
             "listening": self.listening,
-            "refusals": self.refusals,
+            "captures": self.captures,
             "audio_bytes": self.audio_bytes,
             "audio_frames": self.audio_frames,
             "audio_seconds": round(self.audio_frames * 0.02, 2),
+            "codec": self.codec,
+            "bitrate": self.bitrate,
+            # average bytes per second actually received, with and without the 8-byte frame headers
+            "bytes_per_sec": round(self.audio_bytes / (self.audio_frames * 0.02)) if self.audio_frames else 0,
+            "bytes_per_sec_with_headers": round((self.audio_bytes + 8 * self.audio_frames)
+                                                / (self.audio_frames * 0.02)) if self.audio_frames else 0,
+            "can_decode": self.codec == "pcm" or self._decoder is not None,
             "lost_frames": self.lost_frames,
             "violations": self.violations,
             "markers": self.markers[-20:],
@@ -175,7 +192,7 @@ class MockTablet:
         await self.sim.stdin.drain()
 
     async def send_command(self, cmd: str):
-        """Tablet -> clip command: ask, consent_grant, consent_decline, stop, marker."""
+        """Tablet -> clip command: start, stop, marker."""
         if self.clip is None:
             return False
         await self.clip.send(json.dumps({"cmd": cmd}))
@@ -240,7 +257,8 @@ class MockTablet:
         if len(msg) < 8:
             return
         seq, _t_ms = struct.unpack_from("<II", msg, 0)
-        pcm = msg[8:]
+        payload = msg[8:]
+        pcm = self._decode(payload)
         if not self.listening:
             self.violations += 1
             self._say(f"!! audio frame seq={seq} arrived while the clip was NOT listening")
@@ -248,7 +266,7 @@ class MockTablet:
             self.lost_frames += seq - self.last_seq - 1
         self.last_seq = seq
         self.audio_frames += 1
-        self.audio_bytes += len(pcm)
+        self.audio_bytes += len(payload)   # bytes on the wire, before decoding
         self._last_pcm = pcm[: len(pcm) & ~1]
         self._received += self._last_pcm
         excess = len(self._received) - KEEP_SECONDS * SAMPLE_RATE * 2
@@ -257,6 +275,35 @@ class MockTablet:
         if self.save_wav:
             self._wav_write(pcm)
         self._dirty = True
+
+    def _decode(self, payload: bytes) -> bytes:
+        """One received audio frame -> 16 kHz mono int16 samples (empty if it cannot be decoded)."""
+        if self.codec == "pcm":
+            return payload
+        if self._decoder is None:
+            return b""
+        try:
+            out = bytearray()
+            for frame in self._decoder.decode(av.Packet(payload)):
+                for r in self._resampler.resample(frame):
+                    out += r.to_ndarray().tobytes()
+            return bytes(out)
+        except Exception as e:  # a corrupt packet must not take the tablet down
+            self._say(f"could not decode an audio frame: {e}")
+            return b""
+
+    def _set_codec(self, audio: dict):
+        self.codec = audio.get("codec", "pcm")
+        self.bitrate = audio.get("bitrate", 256000)
+        self._decoder = self._resampler = None
+        if self.codec == "opus":
+            if av is None:
+                self._say("clip is sending Opus; install PyAV (pip install av) to decode it for playback")
+                return
+            self._decoder = av.CodecContext.create("libopus", "r")
+            self._decoder.sample_rate = 48000
+            self._decoder.layout = "mono"
+            self._resampler = av.AudioResampler(format="s16", layout="mono", rate=SAMPLE_RATE)
 
     def _on_event(self, text: str):
         try:
@@ -268,6 +315,7 @@ class MockTablet:
         if kind == "hello":
             self.device = ev.get("device")
             self.last_seq = None
+            self._set_codec(ev.get("audio") or {})
         elif kind == "state":
             self.device_state = ev.get("state", "unknown")
             self.listening = bool(ev.get("listening"))
@@ -275,11 +323,10 @@ class MockTablet:
             what = ev.get("event")
             if what == "granted":
                 self.listening = True
+                self.captures += 1
                 self.last_seq = None  # each capture restarts the clip's frame counter
-            elif what in ("declined", "stopped"):
+            elif what == "stopped":
                 self.listening = False
-                if what == "declined":
-                    self.refusals += 1
         elif kind == "marker":
             self.markers.append({"id": ev.get("id"), "t_ms": ev.get("t_ms"),
                                  "audio_seq": ev.get("audio_seq"), "source": ev.get("source"),
@@ -366,9 +413,10 @@ class MockTablet:
 
     def _log_ledger(self):
         ledger = {"clip_connected": self.clip is not None, "device_state": self.device_state,
-                  "listening": self.listening, "audio_bytes_received": self.audio_bytes,
+                  "listening": self.listening, "codec": self.codec,
+                  "audio_bytes_received": self.audio_bytes,
                   "audio_frames_received": self.audio_frames, "lost_frames": self.lost_frames,
-                  "audio_frames_without_consent": self.violations, "refusals_logged": self.refusals,
+                  "audio_frames_without_consent": self.violations, "captures_started": self.captures,
                   "markers": len(self.markers)}
         if self.sim_status:
             ledger["sim_clip"] = {k: self.sim_status.get(k) for k in

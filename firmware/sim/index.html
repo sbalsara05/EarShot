@@ -80,8 +80,8 @@
       <div id="hold"><i></i></div>
       <div class="state" id="clipState">—</div>
       <div class="hint">
-        Click: ask for consent<br>Click again: the patient said yes<br>
-        Hold 1.5 s: stop, or “no” while asking<br>Double-click while listening: marker<br>
+        Click: start (the patient has agreed)<br>Hold 1.5 s: stop<br>
+        Double-click while listening: marker<br>
         Space bar works too.
       </div>
       <div class="mic">
@@ -97,7 +97,7 @@
         <tr><td>Link to tablet</td><td id="sLink">—</td></tr>
         <tr><td>Frames captured by mic</td><td id="sCap">0</td></tr>
         <tr><td>Sent to tablet</td><td id="sSent">0</td></tr>
-        <tr><td>Refusals logged</td><td id="sRef">0</td></tr>
+        <tr><td>Captures started</td><td id="sRef">0</td></tr>
         <tr><td>Dropped (link down)</td><td id="sDrop">0</td></tr>
       </table>
       <div class="hint" id="simNote"></div>
@@ -111,14 +111,14 @@
       <div><small>Seconds of audio</small><span class="big" id="tSecs">0.0</span></div>
       <div><small>Clip</small><span class="pill" id="tClip">—</span></div>
       <div><small>Audio without consent</small><span class="pill" id="tViol">0 frames</span></div>
-      <div><small>Refusals logged</small><span class="pill" id="tRef">0</span></div>
+      <div><small>Consent logged</small><span class="pill" id="tRef">0 times</span></div>
       <div><small>Lost frames</small><span class="pill" id="tLost">0</span></div>
+      <div><small>Sent as</small><span class="pill" id="tCodec">—</span></div>
+      <div><small>Data rate</small><span class="pill" id="tRate">—</span></div>
     </div>
     <div id="meter"><i></i></div>
     <div class="buttons">
-      <button data-cmd="ask">Ask for consent</button>
-      <button data-cmd="consent_grant">Patient said yes</button>
-      <button data-cmd="consent_decline">Patient said no</button>
+      <button data-cmd="start">Start</button>
       <button data-cmd="stop">Stop</button>
       <button data-cmd="marker">Add marker</button>
       <button id="reset">Clear ledger</button>
@@ -157,19 +157,24 @@ function handle(m) {
 
   $('tBytes').textContent = m.audio_bytes.toLocaleString();
   $('tSecs').textContent = m.audio_seconds.toFixed(1);
-  const stateText = {not_listening: 'not listening', asking: 'asking', listening: 'listening'}[m.device_state] || m.device_state;
+  const stateText = {not_listening: 'not listening', listening: 'listening'}[m.device_state] || m.device_state;
   pill('tClip', !m.clip_connected ? 'not connected' : stateText,
-       !m.clip_connected ? 'bad' : m.device_state === 'listening' ? 'ok' : m.device_state === 'asking' ? 'warn' : '');
+       !m.clip_connected ? 'bad' : m.device_state === 'listening' ? 'ok' : '');
   pill('tViol', m.violations + ' frames', m.violations ? 'bad' : 'ok');
-  pill('tRef', String(m.refusals), '');
+  pill('tRef', m.captures + (m.captures === 1 ? ' time' : ' times'), '');
   pill('tLost', String(m.lost_frames), m.lost_frames ? 'warn' : 'ok');
+  pill('tCodec', !m.clip_connected ? '—' : m.codec === 'opus' ? `Opus ${m.bitrate / 1000} kbit/s` : 'raw audio', '');
+  const rate = m.bytes_per_sec_with_headers;   // 8,000 bytes/s is roughly what Bluetooth to iOS can carry
+  pill('tRate', rate ? rate.toLocaleString() + ' bytes/s' : '—', !rate ? '' : rate <= 8000 ? 'ok' : 'warn');
   $('meter').firstElementChild.style.width = Math.round(m.level * 100) + '%';
   $('markers').innerHTML = m.markers.map(k =>
     `<li>#${k.id} at ${k.wall} · clip clock ${k.t_ms} ms · audio frame ${k.audio_seq} · ${k.source}</li>`).join('');
 
-  $('playNote').textContent = m.playback_seconds
-    ? `${m.playback_seconds.toFixed(1)} s available (last 2 minutes are kept, in memory only).`
-    : 'Nothing received yet.';
+  $('playNote').textContent = !m.can_decode
+    ? 'Audio is arriving as Opus, but this tablet cannot decode it for playback (pip install av).'
+    : m.playback_seconds
+      ? `${m.playback_seconds.toFixed(1)} s available (last 2 minutes are kept, in memory only).`
+      : 'Nothing received yet.';
 
   const s = m.sim || {};
   simRunning = !!s.running;
@@ -182,9 +187,8 @@ function handle(m) {
   $('btn').disabled = !simRunning;
   if (simRunning) {
     setLed(s.led || 'off');
-    $('clipState').textContent = ({not_listening: 'Not listening', asking: 'Asking for consent…',
-                                   listening: 'Listening · with consent'})[s.state] || '—';
-    $('sRef').textContent = (s.refusals ?? 0).toLocaleString();
+    $('clipState').textContent = ({not_listening: 'Not listening', listening: 'Listening'})[s.state] || '—';
+    $('sRef').textContent = (s.captures ?? 0).toLocaleString();
     $('sLink').textContent = s.link ? 'connected' : 'down';
     $('sCap').textContent = (s.captured ?? 0).toLocaleString();
     $('sSent').textContent = (s.sent ?? 0).toLocaleString();

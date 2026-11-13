@@ -12,3 +12,6 @@ __pycache__/
 firmware/evidence/**/*.mp4
 firmware/evidence/**/*.gif
 firmware/evidence/**/*.mov
+
+# compression test audio samples (large); the results table is kept
+firmware/codec_test/results/samples/

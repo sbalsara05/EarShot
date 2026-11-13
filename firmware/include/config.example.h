@@ -9,6 +9,11 @@
 #define GATEWAY_HOST "192.168.1.50"
 #define GATEWAY_PORT 8765
 
+// Audio compression. 32 = Opus at 32 kbit/s: 4,400 bytes per second with headers, which fits a
+// Bluetooth link to iOS and tested the same as raw audio for transcripts.
+// 0 = raw audio: 32,000 bytes per second, fine over Wi-Fi only.
+#define AUDIO_OPUS_KBPS 32
+
 // Software gain on the microphone. Leave unset for the board default (1); raise it (2, 4, 8)
 // if the audio the tablet receives is too quiet.
 // #define MIC_MAGNIFICATION 4

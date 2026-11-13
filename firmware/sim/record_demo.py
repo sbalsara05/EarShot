@@ -126,15 +126,11 @@ class Recorder:
 async def scenario(cdp, rec):
     btn = "#btn"
     rec.say("Power on. Ring dark: not listening. Microphone off, tablet has received 0 bytes.")
-    await asyncio.sleep(3.0)
-
-    rec.say("Press: the medic asks for consent. Ring amber. Still nothing captured or sent.")
-    await cdp.press(btn, 0.12)
     await asyncio.sleep(3.5)
 
-    rec.say("Press again: the patient said yes. Ring green; audio now reaches the tablet.")
+    rec.say("One press: the patient has agreed. Consent is logged, ring green, audio reaches the tablet.")
     await cdp.press(btn, 0.12)
-    await asyncio.sleep(3.5)
+    await asyncio.sleep(4.0)
 
     rec.say("Double tap: timestamp marker. It appears in the tablet's marker list.")
     await cdp.press(btn, 0.09)
@@ -142,25 +138,27 @@ async def scenario(cdp, rec):
     await cdp.press(btn, 0.09)
     await asyncio.sleep(3.0)
 
-    rec.say("Hold 1.5 s: stop. Ring dark; the byte count stops.")
-    await cdp.press(btn, 1.8)
-    await asyncio.sleep(3.0)
-
-    rec.say("Second patient. Press: the medic asks again. Ring amber, nothing captured.")
+    rec.say("A stray press while listening is ignored, so a bump cannot cut the capture.")
     await cdp.press(btn, 0.12)
-    await asyncio.sleep(3.0)
+    await asyncio.sleep(2.5)
 
-    rec.say("The patient says no. Hold: ring dark, refusal logged, not one byte sent.")
+    rec.say("Hold 1.5 s: stop. Ring dark; the byte count stops.")
     await cdp.press(btn, 1.8)
     await asyncio.sleep(3.5)
 
-    rec.say("The tablet can run the same flow: it sends 'ask', then the patient's yes.")
-    await cdp.press('[data-cmd="ask"]', 0.08)
-    await asyncio.sleep(1.5)
-    await cdp.press('[data-cmd="consent_grant"]', 0.08)
+    rec.say("Next patient. One press starts a new capture; consent is logged again.")
+    await cdp.press(btn, 0.12)
+    await asyncio.sleep(3.5)
+
+    rec.say("Hold: stop.")
+    await cdp.press(btn, 1.8)
     await asyncio.sleep(3.0)
 
-    rec.say("The tablet stops the capture. 'Audio without consent' stayed at 0 frames throughout.")
+    rec.say("The tablet can start a capture too (the PCR app sends 'start').")
+    await cdp.press('[data-cmd="start"]', 0.08)
+    await asyncio.sleep(3.5)
+
+    rec.say("The tablet stops it. No audio ever arrived while the clip was not listening.")
     await cdp.press('[data-cmd="stop"]', 0.08)
     await asyncio.sleep(3.0)
 
@@ -307,7 +305,7 @@ async def main():
             final = await cdp.evaluate(
                 "JSON.stringify({bytes: document.getElementById('tBytes').innerText,"
                 " audioWithoutConsent: document.getElementById('tViol').innerText,"
-                " refusalsLogged: document.getElementById('tRef').innerText,"
+                " consentLogged: document.getElementById('tRef').innerText,"
                 " lost: document.getElementById('tLost').innerText,"
                 " markers: document.getElementById('markers').childElementCount})")
             cdp.reader.cancel()

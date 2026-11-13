@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "clip_app.h"
+#include "opus_audio_encoder.h"
 
 using namespace earshot;
 
@@ -133,8 +134,7 @@ class SimHal : public Hal {
     return button_;
   }
   void setLed(LedColor c) override {
-    const char* name = c == LedColor::Amber ? "amber" : c == LedColor::Green ? "green"
-                     : c == LedColor::White ? "white" : "off";
+    const char* name = c == LedColor::Green ? "green" : c == LedColor::White ? "white" : "off";
     out("{\"sim\":\"led\",\"color\":\"%s\"}", name);
   }
   bool micStart() override {
@@ -280,6 +280,7 @@ int main(int argc, char** argv) {
   signal(SIGPIPE, SIG_IGN);
 
   std::string host = "127.0.0.1";
+  int opus_kbps = 32;
   ClipConfig cfg;
   SimHal hal;
   for (int i = 1; i < argc; ++i) {
@@ -292,15 +293,27 @@ int main(int argc, char** argv) {
       if (!hal.loadWav(v)) { fprintf(stderr, "cannot read WAV %s\n", v); return 2; }
       ++i;
     }
+    else if (a == "--pcm") { opus_kbps = 0; }
+    else if (a == "--opus" && v) { opus_kbps = atoi(v); ++i; }
     else {
       fprintf(stderr,
-              "usage: sim_clip [--host H] [--port P] [--tone HZ | --wav FILE]\n"
+              "usage: sim_clip [--host H] [--port P] [--tone HZ | --wav FILE] [--opus KBPS | --pcm]\n"
+              "  audio is sent as Opus at 32 kbit/s unless --opus or --pcm says otherwise\n"
               "stdin commands: down, up, short, long, double, quit\n");
       return 2;
     }
   }
   cfg.gateway_host = host.c_str();
   cfg.device_id = "earshot-clip-sim";
+  OpusAudioEncoder* opus = NULL;
+  if (opus_kbps > 0) {
+    opus = new OpusAudioEncoder((uint32_t)opus_kbps * 1000, 1);
+    if (!opus->ok()) {
+      fprintf(stderr, "Opus encoder failed to start\n");
+      return 2;
+    }
+    cfg.encoder = opus;
+  }
 
   PosixTransport transport;
   ClipApp app(hal, transport, cfg, (uint32_t)monoMs() | 1u);
@@ -314,9 +327,11 @@ int main(int argc, char** argv) {
       last_status = now;
       const ClipStats& s = app.stats();
       out("{\"sim\":\"status\",\"state\":\"%s\",\"link\":%s,\"captured\":%u,\"sent\":%u,"
-          "\"dropped\":%u,\"markers\":%u,\"refusals\":%u,\"mic\":\"%s\"}",
+          "\"dropped\":%u,\"markers\":%u,\"captures\":%u,\"audio_bytes\":%u,\"codec\":\"%s\","
+          "\"mic\":\"%s\"}",
           stateName(app.state()), app.linkOpen() ? "true" : "false", s.frames_captured,
-          s.frames_sent, s.frames_dropped, s.markers, s.refusals, hal.micSource());
+          s.frames_sent, s.frames_dropped, s.markers, s.captures, s.audio_bytes_sent,
+          opus ? "opus" : "pcm", hal.micSource());
     }
   }
   return 0;

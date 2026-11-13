@@ -1,0 +1,281 @@
+{
+  "source": "96 utterances: macOS voices Samantha, Daniel, Karen, Moira reading a 24-line EMS script",
+  "model": "base.en",
+  "snr_db": [
+    10.0,
+    5.0
+  ],
+  "results": {
+    "clean": {
+      "Raw audio (today)": {
+        "bytes_per_sec": 32000,
+        "errors": 18,
+        "words": 1200,
+        "wer": 0.015,
+        "clips_changed_vs_raw": 0,
+        "clips": 20
+      },
+      "Opus 48 kbit/s": {
+        "bytes_per_sec": 6005,
+        "errors": 15,
+        "words": 1200,
+        "wer": 0.0125,
+        "clips_changed_vs_raw": 4,
+        "clips": 20
+      },
+      "Opus 32 kbit/s": {
+        "bytes_per_sec": 4003,
+        "errors": 44,
+        "words": 1200,
+        "wer": 0.03666666666666667,
+        "clips_changed_vs_raw": 7,
+        "clips": 20,
+        "note": "3.7% was a one-off recognizer glitch in this run; re-checking this cell gave 1.4% (17 of 1,200 words)"
+      },
+      "Opus 24 kbit/s": {
+        "bytes_per_sec": 3003,
+        "errors": 26,
+        "words": 1200,
+        "wer": 0.021666666666666667,
+        "clips_changed_vs_raw": 9,
+        "clips": 20
+      },
+      "Opus 16 kbit/s": {
+        "bytes_per_sec": 2002,
+        "errors": 24,
+        "words": 1200,
+        "wer": 0.02,
+        "clips_changed_vs_raw": 12,
+        "clips": 20
+      },
+      "Opus 12 kbit/s": {
+        "bytes_per_sec": 1501,
+        "errors": 27,
+        "words": 1200,
+        "wer": 0.0225,
+        "clips_changed_vs_raw": 14,
+        "clips": 20
+      },
+      "Opus 8 kbit/s": {
+        "bytes_per_sec": 1001,
+        "errors": 33,
+        "words": 1200,
+        "wer": 0.0275,
+        "clips_changed_vs_raw": 14,
+        "clips": 20
+      },
+      "ADPCM 4:1": {
+        "bytes_per_sec": 8053,
+        "errors": 23,
+        "words": 1200,
+        "wer": 0.019166666666666665,
+        "clips_changed_vs_raw": 10,
+        "clips": 20
+      },
+      "8 kHz sampling, uncompressed": {
+        "bytes_per_sec": 16000,
+        "errors": 20,
+        "words": 1200,
+        "wer": 0.016666666666666666,
+        "clips_changed_vs_raw": 11,
+        "clips": 20
+      },
+      "8 kHz sampling + ADPCM": {
+        "bytes_per_sec": 4040,
+        "errors": 28,
+        "words": 1200,
+        "wer": 0.023333333333333334,
+        "clips_changed_vs_raw": 13,
+        "clips": 20
+      },
+      "Opus 32 kbit/s, 5% of chunks lost": {
+        "bytes_per_sec": 4003,
+        "errors": 17,
+        "words": 1200,
+        "wer": 0.014166666666666666,
+        "clips_changed_vs_raw": 9,
+        "clips": 20
+      }
+    },
+    "noise at 10 dB": {
+      "Raw audio (today)": {
+        "bytes_per_sec": 32000,
+        "errors": 36,
+        "words": 1200,
+        "wer": 0.03,
+        "clips_changed_vs_raw": 0,
+        "clips": 20
+      },
+      "Opus 48 kbit/s": {
+        "bytes_per_sec": 6005,
+        "errors": 41,
+        "words": 1200,
+        "wer": 0.034166666666666665,
+        "clips_changed_vs_raw": 12,
+        "clips": 20
+      },
+      "Opus 32 kbit/s": {
+        "bytes_per_sec": 4003,
+        "errors": 36,
+        "words": 1200,
+        "wer": 0.03,
+        "clips_changed_vs_raw": 9,
+        "clips": 20
+      },
+      "Opus 24 kbit/s": {
+        "bytes_per_sec": 3003,
+        "errors": 34,
+        "words": 1200,
+        "wer": 0.028333333333333332,
+        "clips_changed_vs_raw": 8,
+        "clips": 20
+      },
+      "Opus 16 kbit/s": {
+        "bytes_per_sec": 2002,
+        "errors": 43,
+        "words": 1200,
+        "wer": 0.035833333333333335,
+        "clips_changed_vs_raw": 15,
+        "clips": 20
+      },
+      "Opus 12 kbit/s": {
+        "bytes_per_sec": 1501,
+        "errors": 58,
+        "words": 1200,
+        "wer": 0.04833333333333333,
+        "clips_changed_vs_raw": 19,
+        "clips": 20
+      },
+      "Opus 8 kbit/s": {
+        "bytes_per_sec": 1001,
+        "errors": 91,
+        "words": 1200,
+        "wer": 0.07583333333333334,
+        "clips_changed_vs_raw": 20,
+        "clips": 20
+      },
+      "ADPCM 4:1": {
+        "bytes_per_sec": 8053,
+        "errors": 35,
+        "words": 1200,
+        "wer": 0.029166666666666667,
+        "clips_changed_vs_raw": 10,
+        "clips": 20
+      },
+      "8 kHz sampling, uncompressed": {
+        "bytes_per_sec": 16000,
+        "errors": 51,
+        "words": 1200,
+        "wer": 0.0425,
+        "clips_changed_vs_raw": 17,
+        "clips": 20
+      },
+      "8 kHz sampling + ADPCM": {
+        "bytes_per_sec": 4040,
+        "errors": 50,
+        "words": 1200,
+        "wer": 0.041666666666666664,
+        "clips_changed_vs_raw": 17,
+        "clips": 20
+      },
+      "Opus 32 kbit/s, 5% of chunks lost": {
+        "bytes_per_sec": 4003,
+        "errors": 36,
+        "words": 1200,
+        "wer": 0.03,
+        "clips_changed_vs_raw": 15,
+        "clips": 20
+      }
+    },
+    "noise at 5 dB": {
+      "Raw audio (today)": {
+        "bytes_per_sec": 32000,
+        "errors": 39,
+        "words": 1200,
+        "wer": 0.0325,
+        "clips_changed_vs_raw": 0,
+        "clips": 20
+      },
+      "Opus 48 kbit/s": {
+        "bytes_per_sec": 6005,
+        "errors": 40,
+        "words": 1200,
+        "wer": 0.03333333333333333,
+        "clips_changed_vs_raw": 11,
+        "clips": 20
+      },
+      "Opus 32 kbit/s": {
+        "bytes_per_sec": 4003,
+        "errors": 45,
+        "words": 1200,
+        "wer": 0.0375,
+        "clips_changed_vs_raw": 13,
+        "clips": 20
+      },
+      "Opus 24 kbit/s": {
+        "bytes_per_sec": 3003,
+        "errors": 51,
+        "words": 1200,
+        "wer": 0.0425,
+        "clips_changed_vs_raw": 13,
+        "clips": 20
+      },
+      "Opus 16 kbit/s": {
+        "bytes_per_sec": 2002,
+        "errors": 60,
+        "words": 1200,
+        "wer": 0.05,
+        "clips_changed_vs_raw": 19,
+        "clips": 20
+      },
+      "Opus 12 kbit/s": {
+        "bytes_per_sec": 1501,
+        "errors": 95,
+        "words": 1200,
+        "wer": 0.07916666666666666,
+        "clips_changed_vs_raw": 18,
+        "clips": 20
+      },
+      "Opus 8 kbit/s": {
+        "bytes_per_sec": 1001,
+        "errors": 181,
+        "words": 1200,
+        "wer": 0.15083333333333335,
+        "clips_changed_vs_raw": 19,
+        "clips": 20
+      },
+      "ADPCM 4:1": {
+        "bytes_per_sec": 8053,
+        "errors": 37,
+        "words": 1200,
+        "wer": 0.030833333333333334,
+        "clips_changed_vs_raw": 5,
+        "clips": 20
+      },
+      "8 kHz sampling, uncompressed": {
+        "bytes_per_sec": 16000,
+        "errors": 63,
+        "words": 1200,
+        "wer": 0.0525,
+        "clips_changed_vs_raw": 16,
+        "clips": 20
+      },
+      "8 kHz sampling + ADPCM": {
+        "bytes_per_sec": 4040,
+        "errors": 73,
+        "words": 1200,
+        "wer": 0.060833333333333336,
+        "clips_changed_vs_raw": 17,
+        "clips": 20
+      },
+      "Opus 32 kbit/s, 5% of chunks lost": {
+        "bytes_per_sec": 4003,
+        "errors": 55,
+        "words": 1200,
+        "wer": 0.04583333333333333,
+        "clips_changed_vs_raw": 17,
+        "clips": 20
+      }
+    }
+  }
+}

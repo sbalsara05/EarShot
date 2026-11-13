@@ -17,6 +17,7 @@ ClipApp::ClipApp(Hal& hal, Transport& transport, const ClipConfig& config, uint3
       announced_(false),
       tried_connect_(false),
       last_attempt_(0),
+      enc_(config.encoder ? config.encoder : &pcm_),
       audio_seq_(0),
       flashing_(false),
       flash_start_(0),
@@ -25,7 +26,7 @@ ClipApp::ClipApp(Hal& hal, Transport& transport, const ClipConfig& config, uint3
 }
 
 void ClipApp::begin() {
-  // Power-on state: not listening, mic off, ring dark. Nothing happens until someone asks.
+  // Power-on state: not listening, mic off, ring dark. Nothing happens until the medic presses.
   refreshLed(hal_.millis(), true);
 }
 
@@ -56,24 +57,19 @@ void ClipApp::apply(Input input, const char* source) {
   switch (tr.effect) {
     case Effect::None:
       return;
-    case Effect::Asked:
-      emit(consentJson("asked", source, now));
-      break;
-    case Effect::Granted:
-      // Consent is logged first; only then does the microphone start.
+    case Effect::Started:
+      // Pressing start is the medic's confirmation of consent. It is logged first; only then
+      // does the microphone start.
       emit(consentJson("granted", source, now));
       audio_seq_ = 0;
+      enc_->reset();  // no codec state carries over from the previous capture
+      ++stats_.captures;
       if (!hal_.micStart()) hal_.log("mic failed to start");
-      break;
-    case Effect::Declined:
-      hal_.micStop();
-      memset(frame_, 0, sizeof frame_);
-      ++stats_.refusals;
-      emit(consentJson("declined", source, now));
       break;
     case Effect::Stopped:
       hal_.micStop();
       memset(frame_, 0, sizeof frame_);
+      memset(packet_, 0, sizeof packet_);
       emit(consentJson("stopped", source, now));
       break;
     case Effect::Marker:
@@ -95,7 +91,7 @@ void ClipApp::emit(const std::string& json) {
 
 void ClipApp::announce(uint32_t now) {
   announced_ = true;
-  ws_.sendText(helloJson(cfg_.device_id));
+  ws_.sendText(helloJson(cfg_.device_id, enc_->codecName(), enc_->bitrate()));
   while (!pending_.empty() && ws_.isOpen()) {
     if (!ws_.sendText(pending_.front())) break;
     pending_.pop_front();
@@ -156,25 +152,24 @@ void ClipApp::serviceAudio(uint32_t now) {
   uint8_t header[kAudioHeaderBytes];
   putLe32(header, audio_seq_++);
   putLe32(header + 4, now);
-  if (linkOpen() &&
-      ws_.sendBinary(header, sizeof header, (const uint8_t*)frame_, sizeof frame_)) {
+  size_t n = enc_->encode(frame_, kFrameSamples, packet_, sizeof packet_);
+  if (n > 0 && linkOpen() && ws_.sendBinary(header, sizeof header, packet_, n)) {
     ++stats_.frames_sent;
+    stats_.audio_bytes_sent += (uint32_t)n;
   } else {
     ++stats_.frames_dropped;  // no buffering of audio on the clip
   }
 }
 
 void ClipApp::refreshLed(uint32_t now, bool force) {
-  LedColor want = LedColor::Off;
-  if (state_ == ClipState::Asking) want = LedColor::Amber;
-  if (state_ == ClipState::Listening) want = LedColor::Green;
+  LedColor want = state_ == ClipState::Listening ? LedColor::Green : LedColor::Off;
 
   if (flashing_) {
     if ((uint32_t)(now - flash_start_) < cfg_.marker_flash_ms) want = LedColor::White;
     else flashing_ = false;
   } else if (cfg_.gateway_enabled && state_ != ClipState::NotListening && !linkOpen() &&
              ((now / 500) % 2) == 1) {
-    want = LedColor::Off;  // blinking = asking or listening, but not connected to the tablet
+    want = LedColor::Off;  // blinking = listening, but not connected to the tablet
   }
 
   if (force || want != led_) {

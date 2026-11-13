@@ -1,6 +1,6 @@
 // Earshot clip firmware for the M5Stack Atom VoiceS3R (ESP32-S3, ES8311 mic codec).
 //
-// All behaviour (button gestures, consent states, streaming once consent is logged, protocol)
+// All behaviour (button gestures, listening state, streaming, protocol)
 // lives in lib/earshot_core and is shared with the laptop simulator. This file only connects
 // that core to the real hardware: button pin, LED ring, microphone and Wi-Fi.
 //
@@ -35,6 +35,21 @@
 #endif
 
 #include "clip_app.h"
+
+// Audio compression: Opus at AUDIO_OPUS_KBPS kbit/s, or raw audio when it is 0.
+#ifndef AUDIO_OPUS_KBPS
+#define AUDIO_OPUS_KBPS 32
+#endif
+#ifdef EARSHOT_WOKWI
+#undef AUDIO_OPUS_KBPS
+#define AUDIO_OPUS_KBPS 0  // Wokwi's emulated chip is too slow to encode Opus in real time
+#endif
+#if AUDIO_OPUS_KBPS > 0
+#include "opus_audio_encoder.h"
+// Opus keeps its working buffers on the stack; the default 8 KB loop stack is far too small.
+SET_LOOP_TASK_STACK_SIZE(48 * 1024);
+static earshot::OpusAudioEncoder* g_opus = nullptr;
+#endif
 
 // ---------------------------------------------------------------- network transport
 
@@ -79,7 +94,6 @@ class Esp32Hal : public earshot::Hal {
   void setLed(earshot::LedColor color) override {
     uint32_t c = 0;
     switch (color) {
-      case earshot::LedColor::Amber: c = ring_.Color(255, 110, 0); break;
       case earshot::LedColor::Green: c = ring_.Color(0, 255, 60); break;
       case earshot::LedColor::White: c = ring_.Color(255, 255, 255); break;
       case earshot::LedColor::Off: c = 0; break;
@@ -230,6 +244,17 @@ void setup() {
 #ifdef EARSHOT_STANDALONE
   app_cfg.gateway_enabled = false;  // no tablet to reach (the Wokwi website)
 #endif
+#if AUDIO_OPUS_KBPS > 0
+  g_opus = new earshot::OpusAudioEncoder(AUDIO_OPUS_KBPS * 1000UL, 1);
+  if (g_opus->ok()) {
+    app_cfg.encoder = g_opus;
+    Serial.printf("[clip] audio: Opus at %d kbit/s\n", AUDIO_OPUS_KBPS);
+  } else {
+    Serial.println("[clip] WARNING: Opus encoder failed to start; sending raw audio instead");
+  }
+#else
+  Serial.println("[clip] audio: raw (uncompressed)");
+#endif
   g_app = new earshot::ClipApp(g_hal, g_transport, app_cfg, esp_random());
   g_app->begin();
 }
@@ -245,11 +270,17 @@ void loop() {
   if (now - last_report >= 5000) {
     last_report = now;
     const earshot::ClipStats& s = g_app->stats();
-    Serial.printf("[clip] state=%s wifi=%s link=%s captured=%lu sent=%lu dropped=%lu markers=%lu refusals=%lu\n",
+    Serial.printf("[clip] state=%s wifi=%s link=%s captured=%lu sent=%lu dropped=%lu markers=%lu captures=%lu\n",
                   earshot::stateName(g_app->state()),
                   WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "down",
                   g_app->linkOpen() ? "open" : "closed", (unsigned long)s.frames_captured,
                   (unsigned long)s.frames_sent, (unsigned long)s.frames_dropped,
-                  (unsigned long)s.markers, (unsigned long)s.refusals);
+                  (unsigned long)s.markers, (unsigned long)s.captures);
+#if AUDIO_OPUS_KBPS > 0
+    // Each frame is 20 ms long, so encoding one must take well under 20 ms to keep up.
+    if (g_opus && s.frames_captured > 0)
+      Serial.printf("[clip] slowest Opus encode so far: %.1f ms per 20 ms frame\n",
+                    g_opus->maxEncodeMicros() / 1000.0f);
+#endif
   }
 }

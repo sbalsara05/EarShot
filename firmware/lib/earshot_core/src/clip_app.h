@@ -1,4 +1,4 @@
-// The clip application: button -> consent state machine -> audio streaming once consent is logged.
+// The clip application: button -> state machine -> audio streaming while listening.
 // Everything here is platform-neutral; the hardware sits behind the Hal interface.
 #pragma once
 #include <stddef.h>
@@ -6,6 +6,7 @@
 #include <deque>
 #include <string>
 
+#include "audio_encoder.h"
 #include "button.h"
 #include "clip_fsm.h"
 #include "protocol.h"
@@ -13,7 +14,7 @@
 
 namespace earshot {
 
-enum class LedColor : uint8_t { Off, Amber, Green, White };
+enum class LedColor : uint8_t { Off, Green, White };
 
 // Hardware abstraction. One implementation for the ESP32, one for the laptop simulator.
 class Hal {
@@ -39,6 +40,7 @@ struct ClipConfig {
   const char* device_id;
   bool poll_button;             // false: the platform detects gestures itself and calls onButtonEvent()
   bool gateway_enabled;         // false: standalone, never tries to reach a tablet (e.g. on wokwi.com)
+  AudioEncoder* encoder;        // how frames are encoded for the link; null = uncompressed PCM
   uint32_t reconnect_ms;
   uint32_t handshake_timeout_ms;
   uint32_t marker_flash_ms;
@@ -50,6 +52,7 @@ struct ClipConfig {
         device_id("earshot-clip"),
         poll_button(true),
         gateway_enabled(true),
+        encoder(NULL),
         reconnect_ms(2000),
         handshake_timeout_ms(3000),
         marker_flash_ms(200) {}
@@ -58,10 +61,13 @@ struct ClipConfig {
 struct ClipStats {
   uint32_t frames_captured;  // every frame read from the mic (the mic only runs while listening)
   uint32_t frames_sent;      // frames that reached the tablet link
-  uint32_t frames_dropped;   // captured while the link was down; not stored
+  uint32_t frames_dropped;   // captured while the link was down (or failed to encode); not stored
+  uint32_t audio_bytes_sent; // encoded audio bytes sent, excluding the 8-byte frame header
   uint32_t markers;
-  uint32_t refusals;         // times a patient declined or withdrew
-  ClipStats() : frames_captured(0), frames_sent(0), frames_dropped(0), markers(0), refusals(0) {}
+  uint32_t captures;         // times capture was started
+  ClipStats()
+      : frames_captured(0), frames_sent(0), frames_dropped(0), audio_bytes_sent(0), markers(0),
+        captures(0) {}
 };
 
 class ClipApp {
@@ -99,8 +105,11 @@ class ClipApp {
   uint32_t last_attempt_;
   std::deque<std::string> pending_;  // events (never audio) waiting for the link
 
+  PcmEncoder pcm_;
+  AudioEncoder* enc_;
   uint32_t audio_seq_;
   int16_t frame_[kFrameSamples];
+  uint8_t packet_[kFrameSamples * 2];  // one encoded frame; PCM is the largest case
 
   bool flashing_;
   uint32_t flash_start_;
