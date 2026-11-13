@@ -1,0 +1,30 @@
+name: Earshot
+options:
+  deploymentTarget:
+    iOS: "26.0"
+targets:
+  Earshot:
+    type: application
+    platform: iOS
+    sources: [Earshot]
+    info:
+      path: Earshot/Info.plist
+      properties:
+        CFBundleDisplayName: Earshot
+        UIAppFonts: [Doto.ttf, Geist.ttf]
+        UILaunchScreen: {}
+        NSMicrophoneUsageDescription: Earshot listens to the call so it can write the transcript.
+        NSSpeechRecognitionUsageDescription: Earshot turns what is said on the call into text.
+        UIStatusBarHidden: true
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mihirargulkar.earshot
+        DEVELOPMENT_TEAM: JLPY9QPX7B
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
