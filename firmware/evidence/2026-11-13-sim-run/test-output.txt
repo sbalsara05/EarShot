@@ -1,0 +1,72 @@
+Earshot clip firmware 0.3.0: laptop test results
+Run at: 2026-11-13 10:21:21 EST
+Machine: macOS 27.3, Apple clang version 21.0.0 (clang-2100.4.1.1)
+
+================ make test (unit tests of the firmware core) ================
+./build/test_core
+button
+state machine
+websocket client
+app: ask, yes, listen, mark, stop
+app: the patient says no
+app: tablet commands
+app: link loss
+app: platform-detected button events
+app: standalone (no tablet)
+
+211 checks, 0 failed
+
+================ make e2e (simulated clip against mock tablet, real socket) ================
+python3 sim/e2e_test.py
+power-on: not listening
+  ok    clip connects and says hello
+  ok    clip reports not listening
+  ok    microphone is off: nothing captured   (0 frames captured)
+  ok    tablet received 0 audio bytes   (0 bytes)
+  ok    ring is dark   (off)
+press = ask for consent
+  ok    clip reports asking
+  ok    ring is amber   (amber)
+  ok    still nothing captured while asking
+  ok    tablet still at 0 audio bytes   (0 bytes)
+press again = the patient said yes
+  ok    clip reports listening
+  ok    audio now arrives   (50 frames, 32000 bytes)
+  ok    frames are 640 bytes of PCM
+  ok    no frames lost   (0 lost)
+  ok    ring is green   (green)
+  ok    consent events so far: asked, granted   (['asked', 'granted'])
+double tap = marker
+  ok    marker 1 received
+  ok    still listening after the marker
+hold = stop
+  ok    clip reports not listening
+  ok    audio stops
+  ok    ring is dark   (off)
+  ok    a stop is not logged as a refusal
+the next patient says no
+  ok    clip reports asking
+  ok    hold while asking returns to not listening
+  ok    the refusal is logged
+  ok    no audio was captured or sent for that patient
+  ok    ring is dark   (off)
+tablet commands
+  ok    tablet can start the ask
+  ok    tablet can log the yes
+  ok    audio flows again
+  ok    a new capture restarts the frame counter without a false loss
+  ok    tablet-requested marker received
+  ok    patient withdrawing stops the capture
+  ok    the withdrawal is logged as a refusal
+  ok    audio stops after withdrawal   (0 extra frames)
+external microphone (what the browser's laptop-mic option uses)
+  ok    clip reports external mic
+  ok    speech while not listening never reaches the tablet
+  ok    consent logged
+  ok    the tablet receives the microphone signal intact   (16000 of 21440 samples match)
+  ok    playback WAV is well formed
+  ok    tablet can stop the capture
+ledger
+  ok    no audio frame ever arrived while the clip was not listening   (0)
+
+PASS: 0 failed

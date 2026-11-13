@@ -1,0 +1,14 @@
+.DS_Store
+.claude/
+
+# firmware
+firmware/build/
+firmware/.pio/
+firmware/include/config.h
+firmware/sim/out/
+__pycache__/
+
+# recordings are for viewing locally, not for the repo
+firmware/evidence/**/*.mp4
+firmware/evidence/**/*.gif
+firmware/evidence/**/*.mov

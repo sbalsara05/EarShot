@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "author": "Earshot",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-s3-devkitc-1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn",
+      "top": 60,
+      "left": 190,
+      "attrs": {
+        "color": "blue",
+        "key": "b",
+        "label": "Clip button (B key)"
+      }
+    },
+    {
+      "type": "wokwi-led-ring",
+      "id": "ring",
+      "top": -150,
+      "left": 170,
+      "attrs": {
+        "pixels": "12"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "esp:TX",
+      "$serialMonitor:RX",
+      "",
+      []
+    ],
+    [
+      "esp:RX",
+      "$serialMonitor:TX",
+      "",
+      []
+    ],
+    [
+      "btn:1.l",
+      "esp:41",
+      "blue",
+      []
+    ],
+    [
+      "btn:2.l",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "ring:DIN",
+      "esp:2",
+      "green",
+      []
+    ],
+    [
+      "ring:VCC",
+      "esp:5V",
+      "red",
+      []
+    ],
+    [
+      "ring:GND",
+      "esp:GND.3",
+      "black",
+      []
+    ]
+  ],
+  "dependencies": {}
+}

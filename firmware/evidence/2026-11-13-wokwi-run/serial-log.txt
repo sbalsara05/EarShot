@@ -1,0 +1,13 @@
+[clip] Earshot clip firmware 0.3.0 (Wokwi build, tone instead of microphone)
+[clip] state=not_listening wifi=10.10.0.2 link=closed captured=0 sent=0 dropped=0 markers=0 refusals=0
+[clip] state=not_listening wifi=10.10.0.2 link=closed captured=0 sent=0 dropped=0 markers=0 refusals=0
+[clip] state=not_listening wifi=10.10.0.2 link=closed captured=0 sent=0 dropped=0 markers=0 refusals=0
+[clip] state=asking wifi=10.10.0.2 link=closed captured=0 sent=0 dropped=0 markers=0 refusals=0
+[clip] state=listening wifi=10.10.0.2 link=closed captured=55 sent=0 dropped=55 markers=0 refusals=0
+[clip] state=listening wifi=10.10.0.2 link=closed captured=118 sent=0 dropped=118 markers=0 refusals=0
+[clip] state=listening wifi=10.10.0.2 link=closed captured=181 sent=0 dropped=181 markers=0 refusals=0
+[clip] state=listening wifi=10.10.0.2 link=closed captured=244 sent=0 dropped=244 markers=0 refusals=0
+[clip] state=listening wifi=10.10.0.2 link=closed captured=309 sent=0 dropped=309 markers=1 refusals=0
+[clip] state=not_listening wifi=10.10.0.2 link=closed captured=330 sent=0 dropped=330 markers=1 refusals=0
+[clip] state=asking wifi=10.10.0.2 link=closed captured=330 sent=0 dropped=330 markers=1 refusals=0
+[clip] state=not_listening wifi=10.10.0.2 link=closed captured=330 sent=0 dropped=330 markers=1 refusals=1
