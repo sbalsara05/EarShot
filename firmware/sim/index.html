@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Earshot clip simulator</title>
+<style>
+  :root {
+    --bg: #101317; --panel: #191e24; --line: #2a313a; --text: #e7ebf0; --dim: #8b96a3;
+    --amber: #ffb020; --green: #2fd67b; --red: #ff5a5a; --white: #ffffff; --accent: #5aa9ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex;
+           gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  header span { color: var(--dim); font-size: 13px; }
+  main { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 16px; padding: 16px 20px; }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin: 0 0 12px; }
+  .clip { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .ring { width: 190px; height: 190px; border-radius: 50%; display: grid; place-items: center;
+          border: 10px solid #2b323b; }  /* no transition: the ring must never lag the real state */
+  .ring.amber { border-color: var(--amber); box-shadow: 0 0 34px rgba(255,176,32,.45); }
+  .ring.green { border-color: var(--green); box-shadow: 0 0 34px rgba(47,214,123,.45); }
+  .ring.white { border-color: var(--white); box-shadow: 0 0 40px rgba(255,255,255,.7); }
+  #btn { width: 132px; height: 132px; border-radius: 50%; border: 0; cursor: pointer; color: var(--text);
+         background: radial-gradient(circle at 35% 30%, #4a5563, #2a313a); font-size: 13px;
+         user-select: none; -webkit-user-select: none; touch-action: none; }
+  #btn.down { transform: scale(.95); background: radial-gradient(circle at 35% 30%, #3a4450, #20262d); }
+  #btn:disabled { opacity: .4; cursor: default; }
+  #hold { width: 190px; height: 6px; background: #2b323b; border-radius: 3px; overflow: hidden; }
+  #hold i { display: block; height: 100%; width: 0; background: var(--accent); }
+  .state { font-size: 20px; font-weight: 600; }
+  .hint { color: var(--dim); font-size: 13px; text-align: center; }
+  table { border-collapse: collapse; width: 100%; }
+  td { padding: 3px 0; }
+  td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  .big { font-size: 34px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .row { display: flex; gap: 22px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
+  .row > div > small { display: block; color: var(--dim); }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px;
+          border: 1px solid var(--line); }
+  .pill.ok { color: var(--green); border-color: var(--green); }
+  .pill.warn { color: var(--amber); border-color: var(--amber); }
+  .pill.bad { color: var(--red); border-color: var(--red); }
+  .buttons { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+  .buttons button { background: #232a32; color: var(--text); border: 1px solid var(--line);
+                    border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 13px; }
+  .buttons button:hover { border-color: var(--accent); }
+  #meter, .meter { height: 8px; background: #2b323b; border-radius: 4px; overflow: hidden; max-width: 320px; }
+  #meter i, .meter i { display: block; height: 100%; width: 0; background: var(--green); }
+  .mic { width: 100%; border-top: 1px solid var(--line); padding-top: 12px; }
+  .mic .meter { max-width: none; margin-bottom: 6px; }
+  .mic .meter i { background: var(--accent); }
+  .mic .hint { text-align: left; }
+  .buttons button.on { border-color: var(--accent); color: var(--accent); }
+  #player { display: none; width: 100%; max-width: 420px; margin: 8px 0 16px; }
+  #log { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; background: #0c0f12;
+         border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; height: 260px;
+         overflow: auto; white-space: pre-wrap; word-break: break-word; }
+  #log .in { color: #9fd0ff; } #log .out { color: #ffd28a; } #log .t { color: var(--dim); }
+  #markers { margin: 0; padding-left: 18px; color: var(--dim); font-size: 13px; max-height: 90px; overflow: auto; }
+  #conn { margin-left: auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Earshot clip simulator</h1>
+  <span>Left: the clip, running the real firmware logic. Right: exactly what the tablet received.</span>
+  <span id="conn" class="pill bad">UI disconnected</span>
+</header>
+<main>
+  <section>
+    <h2>Clip</h2>
+    <div class="clip">
+      <div id="ring" class="ring"><button id="btn">press / hold</button></div>
+      <div id="hold"><i></i></div>
+      <div class="state" id="clipState">—</div>
+      <div class="hint">
+        Click: ask for consent<br>Click again: the patient said yes<br>
+        Hold 1.5 s: stop, or “no” while asking<br>Double-click while listening: marker<br>
+        Space bar works too.
+      </div>
+      <div class="mic">
+        <h2>Clip microphone</h2>
+        <div class="buttons" style="margin:0 0 8px">
+          <button id="micTone" class="on">Test tone</button>
+          <button id="micLaptop">Laptop mic</button>
+        </div>
+        <div id="micMeter" class="meter"><i></i></div>
+        <div class="hint" id="micNote">The clip hears a generated tone.</div>
+      </div>
+      <table>
+        <tr><td>Link to tablet</td><td id="sLink">—</td></tr>
+        <tr><td>Frames captured by mic</td><td id="sCap">0</td></tr>
+        <tr><td>Sent to tablet</td><td id="sSent">0</td></tr>
+        <tr><td>Refusals logged</td><td id="sRef">0</td></tr>
+        <tr><td>Dropped (link down)</td><td id="sDrop">0</td></tr>
+      </table>
+      <div class="hint" id="simNote"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tablet (mock) — what actually arrived</h2>
+    <div class="row">
+      <div><small>Audio received</small><span class="big" id="tBytes">0</span> <span>bytes</span></div>
+      <div><small>Seconds of audio</small><span class="big" id="tSecs">0.0</span></div>
+      <div><small>Clip</small><span class="pill" id="tClip">—</span></div>
+      <div><small>Audio without consent</small><span class="pill" id="tViol">0 frames</span></div>
+      <div><small>Refusals logged</small><span class="pill" id="tRef">0</span></div>
+      <div><small>Lost frames</small><span class="pill" id="tLost">0</span></div>
+    </div>
+    <div id="meter"><i></i></div>
+    <div class="buttons">
+      <button data-cmd="ask">Ask for consent</button>
+      <button data-cmd="consent_grant">Patient said yes</button>
+      <button data-cmd="consent_decline">Patient said no</button>
+      <button data-cmd="stop">Stop</button>
+      <button data-cmd="marker">Add marker</button>
+      <button id="reset">Clear ledger</button>
+    </div>
+    <div class="buttons" style="margin-top:0">
+      <button id="play">Play received audio</button>
+      <span class="hint" id="playNote" style="align-self:center">Nothing received yet.</span>
+    </div>
+    <audio id="player" controls></audio>
+    <h2>Markers</h2>
+    <ol id="markers"></ol>
+    <h2 style="margin-top:14px">Messages</h2>
+    <div id="log"></div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const LONG_MS = 1500;
+let ws, downAt = 0, holdTimer = null, simRunning = false;
+
+function connect() {
+  ws = new WebSocket(`ws://${location.host}/ui`);
+  ws.onopen = () => { $('conn').textContent = 'UI connected'; $('conn').className = 'pill ok'; };
+  ws.onclose = () => { $('conn').textContent = 'UI disconnected'; $('conn').className = 'pill bad'; setTimeout(connect, 1000); };
+  ws.onmessage = e => handle(JSON.parse(e.data));
+}
+function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+
+function setLed(color) { $('ring').className = 'ring ' + (color === 'off' ? '' : color); }
+
+function handle(m) {
+  if (m.kind === 'led') return setLed(m.color);
+  if (m.kind === 'cleared') { $('log').textContent = ''; return; }
+  if (m.kind === 'event') return logEvent(m);
+  if (m.kind !== 'tablet') return;
+
+  $('tBytes').textContent = m.audio_bytes.toLocaleString();
+  $('tSecs').textContent = m.audio_seconds.toFixed(1);
+  const stateText = {not_listening: 'not listening', asking: 'asking', listening: 'listening'}[m.device_state] || m.device_state;
+  pill('tClip', !m.clip_connected ? 'not connected' : stateText,
+       !m.clip_connected ? 'bad' : m.device_state === 'listening' ? 'ok' : m.device_state === 'asking' ? 'warn' : '');
+  pill('tViol', m.violations + ' frames', m.violations ? 'bad' : 'ok');
+  pill('tRef', String(m.refusals), '');
+  pill('tLost', String(m.lost_frames), m.lost_frames ? 'warn' : 'ok');
+  $('meter').firstElementChild.style.width = Math.round(m.level * 100) + '%';
+  $('markers').innerHTML = m.markers.map(k =>
+    `<li>#${k.id} at ${k.wall} · clip clock ${k.t_ms} ms · audio frame ${k.audio_seq} · ${k.source}</li>`).join('');
+
+  $('playNote').textContent = m.playback_seconds
+    ? `${m.playback_seconds.toFixed(1)} s available (last 2 minutes are kept, in memory only).`
+    : 'Nothing received yet.';
+
+  const s = m.sim || {};
+  simRunning = !!s.running;
+  $('micTone').classList.toggle('on', s.mic !== 'ext');
+  $('micLaptop').classList.toggle('on', s.mic === 'ext');
+  if (simRunning && micStream && s.mic !== 'ext' && performance.now() - micAskedAt > 1000) {
+    micAskedAt = performance.now();          // the simulated clip restarted: point it at the mic again
+    send({ui: 'mic', source: 'laptop'});
+  }
+  $('btn').disabled = !simRunning;
+  if (simRunning) {
+    setLed(s.led || 'off');
+    $('clipState').textContent = ({not_listening: 'Not listening', asking: 'Asking for consent…',
+                                   listening: 'Listening · with consent'})[s.state] || '—';
+    $('sRef').textContent = (s.refusals ?? 0).toLocaleString();
+    $('sLink').textContent = s.link ? 'connected' : 'down';
+    $('sCap').textContent = (s.captured ?? 0).toLocaleString();
+    $('sSent').textContent = (s.sent ?? 0).toLocaleString();
+    $('sDrop').textContent = (s.dropped ?? 0).toLocaleString();
+    $('simNote').textContent = '';
+  } else {
+    setLed('off');
+    $('clipState').textContent = 'No simulated clip';
+    $('simNote').textContent = m.clip_connected
+      ? 'A real clip is connected. Use its physical button; this panel is inactive.'
+      : 'Started with --no-sim. Waiting for a real clip to connect.';
+  }
+}
+
+function pill(id, text, cls) { $(id).textContent = text; $(id).className = 'pill ' + (cls || ''); }
+
+function logEvent(m) {
+  const log = $('log'), line = document.createElement('div');
+  const inbound = m.dir.startsWith('clip');
+  line.innerHTML = `<span class="t">${m.wall}</span> <span class="${inbound ? 'in' : 'out'}">${m.dir}</span> `;
+  line.appendChild(document.createTextNode(JSON.stringify(m.event)));
+  log.appendChild(line);
+  while (log.childElementCount > 300) log.removeChild(log.firstChild);
+  log.scrollTop = log.scrollHeight;
+}
+
+// ---- the button: real press and release timing goes to the firmware's own gesture detector.
+// A trackpad tap can be shorter than the firmware's 30 ms debounce (a finger on a real button
+// never is), so each level is held for at least MIN_LEVEL_MS before the next change is sent.
+const MIN_LEVEL_MS = 60;
+let nextSlot = 0;
+function sendButton(down) {
+  const now = performance.now(), at = Math.max(now, nextSlot);
+  nextSlot = at + MIN_LEVEL_MS;
+  if (at <= now) send({ui: 'button', down});
+  else setTimeout(() => send({ui: 'button', down}), at - now);
+}
+function press() {
+  if (downAt || !simRunning) return;
+  downAt = performance.now();
+  $('btn').classList.add('down');
+  sendButton(true);
+  holdTimer = setInterval(() => {
+    const p = Math.min(1, (performance.now() - downAt) / LONG_MS);
+    $('hold').firstElementChild.style.width = (p * 100) + '%';
+  }, 30);
+}
+function release() {
+  if (!downAt) return;
+  downAt = 0;
+  clearInterval(holdTimer);
+  $('hold').firstElementChild.style.width = '0';
+  $('btn').classList.remove('down');
+  sendButton(false);
+}
+$('btn').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  try { $('btn').setPointerCapture(e.pointerId); } catch (_) { /* scripted events have no live pointer */ }
+  press();
+});
+$('btn').addEventListener('pointerup', release);
+$('btn').addEventListener('pointercancel', release);
+window.addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat) { e.preventDefault(); press(); } });
+window.addEventListener('keyup', e => { if (e.code === 'Space') { e.preventDefault(); release(); } });
+window.addEventListener('blur', release);
+
+// ---- laptop microphone as the clip's microphone
+// The browser captures the mic, converts it to what the clip's codec produces (16 kHz, mono,
+// 16-bit, 20 ms frames) and hands it to the simulated clip. The clip's firmware then decides,
+// exactly as on the device, whether any of it may be streamed.
+const WORKLET = `
+class Capture extends AudioWorkletProcessor {
+  constructor() { super(); this.out = new Int16Array(320); this.n = 0; this.ratio = sampleRate / 16000;
+                  this.pos = 0; this.sum = 0; this.cnt = 0; }
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0];
+    if (!ch) return true;
+    for (let i = 0; i < ch.length; i++) {
+      this.sum += ch[i]; this.cnt++; this.pos += 1;
+      if (this.pos >= this.ratio) {            // average-and-decimate down to 16 kHz
+        this.pos -= this.ratio;
+        const s = Math.max(-1, Math.min(1, this.sum / this.cnt));
+        this.sum = 0; this.cnt = 0;
+        this.out[this.n++] = s < 0 ? s * 32768 : s * 32767;
+        if (this.n === 320) { this.port.postMessage(this.out.slice(0)); this.n = 0; }
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('capture', Capture);`;
+let micStream = null, micCtx = null, micAskedAt = 0;
+
+async function startLaptopMic() {
+  if (micStream) return;
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+      throw new Error('this browser does not offer microphone access here (open http://localhost:8765 in Chrome or Safari)');
+    micStream = await navigator.mediaDevices.getUserMedia({audio: {
+      channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false}});
+    let src;
+    try {             // let the browser resample to 16 kHz where it can
+      micCtx = new AudioContext({sampleRate: 16000});
+      src = micCtx.createMediaStreamSource(micStream);
+    } catch (e) {     // otherwise capture at the native rate; the worklet decimates
+      if (micCtx) micCtx.close();
+      micCtx = new AudioContext();
+      src = micCtx.createMediaStreamSource(micStream);
+    }
+    await micCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], {type: 'application/javascript'})));
+    const node = new AudioWorkletNode(micCtx, 'capture');
+    node.port.onmessage = e => {
+      const frame = e.data;
+      if (ws && ws.readyState === 1) ws.send(frame.buffer);
+      let sum = 0;
+      for (let i = 0; i < frame.length; i++) sum += frame[i] * frame[i];
+      micLevel = Math.min(1, Math.sqrt(sum / frame.length) / 8000);
+    };
+    const mute = micCtx.createGain();
+    mute.gain.value = 0;                       // keeps the graph running without playing the mic back
+    src.connect(node).connect(mute).connect(micCtx.destination);
+    await micCtx.resume();
+    micAskedAt = performance.now();
+    send({ui: 'mic', source: 'laptop'});
+    $('micNote').textContent = 'The clip hears your laptop microphone, but only while it is listening (green). Speak, then press Play received audio to hear what the tablet got.';
+  } catch (err) {
+    stopLaptopMic();
+    $('micNote').textContent = 'Microphone not available: ' + err.message;
+  }
+}
+function stopLaptopMic() {
+  if (micStream) micStream.getTracks().forEach(t => t.stop());
+  if (micCtx) micCtx.close();
+  micStream = micCtx = null;
+  micLevel = 0;
+  send({ui: 'mic', source: 'tone'});
+  $('micNote').textContent = 'The clip hears a generated tone.';
+}
+let micLevel = 0;
+setInterval(() => { $('micMeter').firstElementChild.style.width = Math.round(micLevel * 100) + '%'; }, 100);
+$('micLaptop').addEventListener('click', () => { startLaptopMic(); $('micLaptop').blur(); });
+$('micTone').addEventListener('click', () => { stopLaptopMic(); $('micTone').blur(); });
+
+// ---- listen to exactly what the tablet received
+$('play').addEventListener('click', async () => {
+  $('play').blur();
+  const blob = await (await fetch('/received.wav?t=' + Date.now())).blob();
+  if (blob.size <= 44) { $('playNote').textContent = 'Nothing received yet.'; return; }
+  const player = $('player');
+  if (player.src) URL.revokeObjectURL(player.src);
+  player.src = URL.createObjectURL(blob);
+  player.style.display = 'block';
+  player.play().catch(() => {});
+});
+
+document.querySelectorAll('[data-cmd]').forEach(b =>
+  b.addEventListener('click', () => { send({ui: 'cmd', cmd: b.dataset.cmd}); b.blur(); }));
+$('reset').addEventListener('click', () => { send({ui: 'reset'}); $('reset').blur(); });
+
+connect();
+</script>
+</body>
+</html>

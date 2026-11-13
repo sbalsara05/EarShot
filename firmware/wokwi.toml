@@ -1,0 +1,6 @@
+# Wokwi for VS Code / wokwi-cli: runs the `wokwi` PlatformIO build on a virtual ESP32-S3.
+# Build first:  pio run -e wokwi
+[wokwi]
+version = 1
+firmware = '.pio/build/wokwi/firmware.bin'
+elf = '.pio/build/wokwi/firmware.elf'
