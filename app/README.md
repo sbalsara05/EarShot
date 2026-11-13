@@ -1,0 +1,108 @@
+# Earshot app
+
+The iPhone and iPad app. It records a call from the device microphone, shows a live transcript with
+marks, then drafts a nurse handoff and a PCR for the medic to edit and sign.
+
+The clip is simulated in the app for now. Every recording comes from the phone or tablet microphone.
+
+## What you need
+
+| | |
+|---|---|
+| Mac | Xcode 26 or later |
+| Device or simulator | iOS or iPadOS 26 or later |
+| For live transcription | A real iPhone or iPad. It does not work in the simulator |
+| For AI drafts | Apple Intelligence turned on (iPhone 15 Pro or later, or an iPad with an M1 or A17 Pro chip or later) |
+
+## Run it in the simulator
+
+1. Open `Earshot.xcodeproj` in Xcode.
+2. Pick an iPhone or iPad simulator and press Run.
+
+The simulator is good for checking screens and the flow. Two things do not work there:
+
+- **Recording.** The simulator has no speech model, so a recording stops straight away with
+  "Failed to initialize recognizer". That is expected.
+- **Drafts.** They only run if Apple Intelligence is turned on in the Mac's System Settings. Without
+  it, the handoff opens blank with a yellow note.
+
+## Run it on a real iPhone or iPad
+
+1. Plug the device into the Mac, unlock it and tap Trust.
+2. On the device, turn on Developer Mode: Settings > Privacy & Security > Developer Mode, then restart.
+3. Set your own signing team. In Xcode, select the Earshot target, open Signing & Capabilities, and
+   choose your team. Change the bundle identifier to one of your own, since the committed one belongs
+   to another account.
+4. Pick the device in Xcode and press Run.
+5. On first recording, allow Speech Recognition and the Microphone.
+
+If Xcode says the device is not registered, or mentions the Program License Agreement, sign in at
+developer.apple.com/account and accept the latest agreement, then run again.
+
+To keep your team and bundle identifier between regenerations, set `DEVELOPMENT_TEAM` and
+`PRODUCT_BUNDLE_IDENTIFIER` in `project.yml` instead (see below).
+
+## Using it
+
+1. **New call**, then **Start recording**. Speak; each pause starts a new line with its clock time.
+2. **Mark** drops a numbered mark at that moment. The red button stops the recording.
+3. Record again for another segment, or tap **Analyze** to draft the handoff and PCR.
+4. Fix any line. Yellow lines are ones the AI did not hear.
+5. **Sign off** by drawing a signature or typing your name. The call moves to Past calls on Home.
+
+A call that is not signed stays open, even if the app is closed. To throw one away, use
+**Discard call** on Home. Past calls open with a tap and delete with a swipe.
+
+## Messages you may see
+
+| Message | What it means |
+|---|---|
+| "This iPhone cannot transcribe English on the device yet" | The device has no on-device speech model, so the app will not record. It never sends call audio to a server |
+| "Nothing was drafted. Apple Intelligence is turned off" | Turn Apple Intelligence on in Settings, then Analyze again |
+| "The on-device model is still downloading" | Apple Intelligence was just turned on. Wait a few minutes |
+| "Transcription stopped" | The recogniser failed. In the simulator this is expected |
+
+## Changing the project
+
+`Earshot.xcodeproj` is generated from `project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+You only need XcodeGen if you add or remove files, or change settings.
+
+```bash
+brew install xcodegen
+```
+
+```bash
+xcodegen generate
+```
+
+Run the second command inside `app/` after adding a Swift file, then commit both the file and the
+regenerated project.
+
+To build from the command line:
+
+```bash
+xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
+```
+
+## Where things are
+
+| File | What is in it |
+|---|---|
+| `Earshot/EarshotApp.swift` | App state, saving to disk, the header and tabs, Home, Clip |
+| `Earshot/CallScreens.swift` | Live Call, AI Drafts, and the past-call screen |
+| `Earshot/Recorder.swift` | Microphone to text, and transcript to drafts |
+| `Earshot/Signature.swift` | The sign-off sheet and signature drawing |
+| `Earshot/Components.swift` | Colours, fonts, dot-matrix drawing, shared controls |
+| `Earshot/Fonts/` | Doto and Geist, both under the Open Font License |
+
+## Not built yet
+
+- **The clip.** The Clip tab is a stand-in. Nothing talks to the hardware.
+- **Sign-in and audit trail.** Anyone holding the device can open the app and read past calls.
+- **Audio.** Only the transcript is kept. No audio file is saved.
+- **Long calls.** The on-device model reads about 4,000 tokens. Longer calls fail to draft with a
+  message, and the handoff has to be filled in by hand.
+- **Languages.** English (US) only.
+
+Calls are stored only on the device, encrypted while it is locked, and kept out of iCloud backups.
+Do not record real patients until the privacy and consent questions are settled for your service.
