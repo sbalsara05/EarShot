@@ -1,5 +1,9 @@
 # Wokwi run, 13 Nov 2026
 
+> This run was recorded with firmware 0.3.0, which used a two-press consent flow (press to ask,
+> press again for yes, hold while asking to log a refusal). The firmware has since changed to one
+> press to start. The button, LED ring and Wi-Fi code this run exercises are the same.
+
 The Earshot clip firmware 0.3.0 running on Wokwi's website (wokwi.com) on a virtual ESP32-S3,
 captured around 10:10 local time. Unlike the laptop simulator, Wokwi compiles the firmware for
 the ESP32 and runs that program on an emulated chip, so this exercises the hardware layer too:

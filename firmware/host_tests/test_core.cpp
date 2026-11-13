@@ -122,59 +122,37 @@ static void test_fsm() {
   printf("state machine\n");
   Transition t;
 
-  // Not listening: a press starts the ask; holding does nothing; no markers.
+  // Not listening: a press starts; nothing else does anything.
   t = step(ClipState::NotListening, Input::ShortPress);
-  CHECK(t.next == ClipState::Asking && t.effect == Effect::Asked);
-  t = step(ClipState::NotListening, Input::CmdAsk);
-  CHECK(t.next == ClipState::Asking && t.effect == Effect::Asked);
+  CHECK(t.next == ClipState::Listening && t.effect == Effect::Started);
+  t = step(ClipState::NotListening, Input::CmdStart);
+  CHECK(t.next == ClipState::Listening && t.effect == Effect::Started);
   t = step(ClipState::NotListening, Input::LongPress);
   CHECK(t.next == ClipState::NotListening && t.effect == Effect::None);
-  t = step(ClipState::NotListening, Input::DoubleTap);
+  t = step(ClipState::NotListening, Input::DoubleTap);  // a double tap never starts a capture
   CHECK(t.next == ClipState::NotListening && t.effect == Effect::None);
   t = step(ClipState::NotListening, Input::CmdMarker);
   CHECK(t.next == ClipState::NotListening && t.effect == Effect::None);
-  t = step(ClipState::NotListening, Input::CmdConsentDecline);
+  t = step(ClipState::NotListening, Input::CmdStop);
   CHECK(t.next == ClipState::NotListening && t.effect == Effect::None);
-  t = step(ClipState::NotListening, Input::CmdConsentGrant);  // tablet ran the consent conversation
-  CHECK(t.next == ClipState::Listening && t.effect == Effect::Granted);
-
-  // Asking: a press is the "yes"; a hold is the "no".
-  t = step(ClipState::Asking, Input::ShortPress);
-  CHECK(t.next == ClipState::Listening && t.effect == Effect::Granted);
-  t = step(ClipState::Asking, Input::CmdConsentGrant);
-  CHECK(t.next == ClipState::Listening && t.effect == Effect::Granted);
-  t = step(ClipState::Asking, Input::LongPress);
-  CHECK(t.next == ClipState::NotListening && t.effect == Effect::Declined);
-  t = step(ClipState::Asking, Input::CmdConsentDecline);
-  CHECK(t.next == ClipState::NotListening && t.effect == Effect::Declined);
-  t = step(ClipState::Asking, Input::CmdStop);
-  CHECK(t.next == ClipState::NotListening && t.effect == Effect::Stopped);
-  t = step(ClipState::Asking, Input::DoubleTap);  // a double tap is never a "yes"
-  CHECK(t.next == ClipState::Asking && t.effect == Effect::None);
-  t = step(ClipState::Asking, Input::CmdAsk);
-  CHECK(t.next == ClipState::Asking && t.effect == Effect::None);
 
   // Listening: hold stops; double tap marks; a stray press does nothing.
   t = step(ClipState::Listening, Input::ShortPress);
+  CHECK(t.next == ClipState::Listening && t.effect == Effect::None);
+  t = step(ClipState::Listening, Input::CmdStart);
   CHECK(t.next == ClipState::Listening && t.effect == Effect::None);
   t = step(ClipState::Listening, Input::LongPress);
   CHECK(t.next == ClipState::NotListening && t.effect == Effect::Stopped);
   t = step(ClipState::Listening, Input::CmdStop);
   CHECK(t.next == ClipState::NotListening && t.effect == Effect::Stopped);
-  t = step(ClipState::Listening, Input::CmdConsentDecline);  // patient withdrew
-  CHECK(t.next == ClipState::NotListening && t.effect == Effect::Declined);
   t = step(ClipState::Listening, Input::DoubleTap);
   CHECK(t.next == ClipState::Listening && t.effect == Effect::Marker);
   t = step(ClipState::Listening, Input::CmdMarker);
   CHECK(t.next == ClipState::Listening && t.effect == Effect::Marker);
-  t = step(ClipState::Listening, Input::CmdConsentGrant);
-  CHECK(t.next == ClipState::Listening && t.effect == Effect::None);
 
   Input in;
-  CHECK(parseCommand("{\"cmd\":\"ask\"}", in) && in == Input::CmdAsk);
-  CHECK(parseCommand("{\"cmd\":\"consent_grant\"}", in) && in == Input::CmdConsentGrant);
-  CHECK(parseCommand("{ \"cmd\" : \"consent_decline\" }", in) && in == Input::CmdConsentDecline);
-  CHECK(parseCommand("{\"cmd\":\"stop\"}", in) && in == Input::CmdStop);
+  CHECK(parseCommand("{\"cmd\":\"start\"}", in) && in == Input::CmdStart);
+  CHECK(parseCommand("{ \"cmd\" : \"stop\" }", in) && in == Input::CmdStop);
   CHECK(parseCommand("{\"cmd\":\"marker\"}", in) && in == Input::CmdMarker);
   CHECK(!parseCommand("{\"cmd\":\"format_disk\"}", in));
   CHECK(!parseCommand("hello", in));
@@ -436,14 +414,14 @@ static uint32_t seqOf(const WsFrame& f) {
   return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
-static void test_app_consent_flow() {
-  printf("app: ask, yes, listen, mark, stop\n");
+static void test_app_press_to_start() {
+  printf("app: press to start, mark, hold to stop\n");
   AppRig r;
   r.app.begin();
   CHECK(r.app.state() == ClipState::NotListening);
   CHECK(!r.hal.mic_on);
 
-  r.run(1000);                                      // powered, connected, nobody has asked
+  r.run(1000);                                      // powered, connected, nobody has pressed
   CHECK(r.app.linkOpen());
   CHECK(r.hal.led == LedColor::Off);                // ring dark = not listening
   CHECK_EQ(r.hal.mic_starts, 0);                    // the microphone has never been on
@@ -452,21 +430,13 @@ static void test_app_consent_flow() {
   CHECK_EQ(r.textCount("\"type\":\"hello\""), 1);
   CHECK_EQ(r.textCount("\"state\":\"not_listening\",\"listening\":false"), 1);
 
-  r.shortPress();                                   // press: ask for consent
-  CHECK(r.app.state() == ClipState::Asking);
-  CHECK(r.hal.led == LedColor::Amber);
-  CHECK_EQ(r.textCount("\"type\":\"consent\",\"event\":\"asked\",\"source\":\"button\""), 1);
-  r.run(1000);
-  CHECK(!r.hal.mic_on);                             // asking is not listening
+  r.doubleTap();                                    // a double tap does not start a capture
+  r.longPress();                                    // nor does a hold
+  CHECK(r.app.state() == ClipState::NotListening);
   CHECK_EQ(r.hal.mic_starts, 0);
-  CHECK_EQ(r.app.stats().frames_captured, 0);
   CHECK_EQ(r.audioFrames(), 0);
 
-  r.doubleTap();                                    // a double tap is not a "yes"
-  CHECK(r.app.state() == ClipState::Asking);
-  CHECK_EQ(r.app.stats().markers, 0);
-
-  r.shortPress();                                   // press again: the patient said yes
+  r.shortPress();                                   // one press: consent logged, capture starts
   CHECK(r.app.state() == ClipState::Listening);
   CHECK(r.hal.led == LedColor::Green);
   CHECK(r.hal.mic_on);
@@ -478,23 +448,23 @@ static void test_app_consent_flow() {
   CHECK(sent > 20);
   CHECK_EQ(sent, (int)r.app.stats().frames_sent);
 
-  // Order on the wire: asked, then granted, then (and only then) audio. Frames count from 0.
+  // Order on the wire: the consent event, then (and only then) audio. Frames count from 0.
   std::vector<WsFrame> f = r.frames();
-  size_t asked_at = 0, granted_at = 0, first_audio_at = 0;
+  size_t granted_at = 0, first_audio_at = 0;
   uint32_t expect_seq = 0;
   bool layout_ok = true;
   for (size_t i = 0; i < f.size(); ++i) {
-    if (!asked_at && f[i].payload.find("\"event\":\"asked\"") != std::string::npos) asked_at = i;
     if (!granted_at && f[i].payload.find("\"event\":\"granted\"") != std::string::npos) granted_at = i;
     if (f[i].opcode != 0x2) continue;
     if (!first_audio_at) first_audio_at = i;
     if (f[i].payload.size() != 648 || seqOf(f[i]) != expect_seq++) layout_ok = false;
   }
-  CHECK(asked_at > 0 && granted_at > asked_at && first_audio_at > granted_at);
+  CHECK(granted_at > 0 && first_audio_at > granted_at);
   CHECK(layout_ok);
 
   r.shortPress();                                   // a stray press while listening does nothing
   CHECK(r.app.state() == ClipState::Listening);
+  CHECK_EQ(r.textCount("\"event\":\"granted\""), 1);
 
   r.doubleTap();                                    // double tap: timestamp marker
   CHECK_EQ(r.app.stats().markers, 1);
@@ -509,7 +479,6 @@ static void test_app_consent_flow() {
   CHECK(!r.hal.mic_on);
   CHECK(r.hal.led == LedColor::Off);
   CHECK_EQ(r.textCount("\"type\":\"consent\",\"event\":\"stopped\",\"source\":\"button\""), 1);
-  CHECK_EQ(r.app.stats().refusals, 0);              // stopping is not a refusal
   int after_stop = r.audioFrames();
   r.run(1000);
   CHECK_EQ(r.audioFrames(), after_stop);            // nothing more is sent
@@ -517,39 +486,13 @@ static void test_app_consent_flow() {
 
   r.doubleTap();                                    // no markers when not listening
   CHECK_EQ(r.app.stats().markers, 1);
-  r.longPress();                                    // holding when already stopped does nothing
-  CHECK(r.app.state() == ClipState::NotListening);
-}
 
-static void test_app_refusal() {
-  printf("app: the patient says no\n");
-  AppRig r;
-  r.app.begin();
-  r.run(200);
-
-  r.shortPress();                                   // ask
-  CHECK(r.app.state() == ClipState::Asking);
-  r.longPress();                                    // hold while asking = "no"
-  CHECK(r.app.state() == ClipState::NotListening);
-  CHECK(r.hal.led == LedColor::Off);
-  CHECK_EQ(r.textCount("\"type\":\"consent\",\"event\":\"declined\",\"source\":\"button\""), 1);
-  CHECK_EQ(r.app.stats().refusals, 1);              // the refusal is logged
-  CHECK_EQ(r.hal.mic_starts, 0);                    // and the microphone was never on
-  CHECK_EQ(r.app.stats().frames_captured, 0);
-  r.run(1000);
-  CHECK_EQ(r.audioFrames(), 0);
-
-  // The next patient says yes; each capture starts its frame counter at 0 again.
-  r.shortPress();
+  // The next patient: each capture starts its frame counter at 0 again.
   r.shortPress();
   CHECK(r.app.state() == ClipState::Listening);
+  CHECK_EQ(r.app.stats().captures, 2);
   r.run(300);
-  r.longPress();
-  r.shortPress();
-  r.shortPress();
-  CHECK(r.app.state() == ClipState::Listening);
-  r.run(300);
-  std::vector<WsFrame> f = r.frames();
+  f = r.frames();
   size_t last_granted = 0;
   for (size_t i = 0; i < f.size(); ++i)
     if (f[i].opcode == 0x1 && f[i].payload.find("\"event\":\"granted\"") != std::string::npos) last_granted = i;
@@ -566,48 +509,36 @@ static void test_app_tablet_commands() {
   r.app.begin();
   r.run(200);
 
-  r.command("ask");
-  CHECK(r.app.state() == ClipState::Asking);
-  CHECK_EQ(r.textCount("\"event\":\"asked\",\"source\":\"tablet\""), 1);
-  r.command("consent_decline");
+  r.command("marker");                              // ignored when not listening
+  r.command("stop");
   CHECK(r.app.state() == ClipState::NotListening);
-  CHECK_EQ(r.textCount("\"event\":\"declined\",\"source\":\"tablet\""), 1);
-  CHECK_EQ(r.app.stats().refusals, 1);
+  CHECK_EQ(r.app.stats().markers, 0);
   CHECK_EQ(r.audioFrames(), 0);
 
-  r.command("consent_grant");                       // the tablet starts the recording
+  r.command("start");                               // the tablet starts the recording
   CHECK(r.app.state() == ClipState::Listening);
   CHECK(r.hal.mic_on);
   r.run(300);
   CHECK(r.audioFrames() > 5);
   CHECK_EQ(r.textCount("\"event\":\"granted\",\"source\":\"tablet\""), 1);
 
+  r.command("start");                               // already listening: no second consent event
+  CHECK_EQ(r.textCount("\"event\":\"granted\""), 1);
+
   r.command("marker");
   CHECK_EQ(r.textCount("\"type\":\"marker\",\"id\":1,\"source\":\"tablet\""), 1);
 
-  r.command("consent_decline");                     // the patient withdraws mid-call
+  r.command("stop");
   CHECK(r.app.state() == ClipState::NotListening);
   CHECK(!r.hal.mic_on);
-  CHECK_EQ(r.app.stats().refusals, 2);
+  CHECK_EQ(r.textCount("\"event\":\"stopped\",\"source\":\"tablet\""), 1);
   int n = r.audioFrames();
   r.run(500);
   CHECK_EQ(r.audioFrames(), n);
 
-  r.command("marker");                              // ignored when not listening
-  CHECK_EQ(r.app.stats().markers, 1);
-
-  r.command("ask");
-  r.command("stop");                                // cancelling the ask is not a refusal
-  CHECK(r.app.state() == ClipState::NotListening);
-  CHECK_EQ(r.textCount("\"event\":\"stopped\",\"source\":\"tablet\""), 1);
-  CHECK_EQ(r.app.stats().refusals, 2);
-
+  r.command("ask");                                 // old commands are no longer understood
   r.command("consent_grant");
-  r.run(200);
-  r.command("stop");
   CHECK(r.app.state() == ClipState::NotListening);
-  CHECK(!r.hal.mic_on);
-  CHECK_EQ(r.textCount("\"event\":\"stopped\",\"source\":\"tablet\""), 2);
 }
 
 static void test_app_link_loss() {
@@ -615,7 +546,6 @@ static void test_app_link_loss() {
   AppRig r;
   r.app.begin();
   r.run(200);
-  r.shortPress();
   r.shortPress();
   CHECK(r.app.state() == ClipState::Listening);
   r.run(200);
@@ -625,7 +555,7 @@ static void test_app_link_loss() {
   r.tr.drop();
   r.run(1000);
   CHECK(!r.app.linkOpen());
-  CHECK(r.app.state() == ClipState::Listening);       // consent state lives on the clip
+  CHECK(r.app.state() == ClipState::Listening);       // the clip keeps its state
   uint32_t sent_before = r.app.stats().frames_sent;
   CHECK(r.app.stats().frames_dropped > 20);           // audio is dropped, not buffered
 
@@ -657,19 +587,24 @@ static void test_app_link_loss() {
   r.run(3000);
   CHECK(r.app.linkOpen());
 
-  // A refusal made while offline is queued and delivered, never lost.
+  // A capture started and stopped while offline is still reported, in order, on reconnect.
   AppRig q;
   q.tr.up = false;
   q.app.begin();
   q.run(200);
   q.shortPress();
   q.longPress();
-  CHECK_EQ(q.app.stats().refusals, 1);
   q.tr.up = true;
   q.run(3000);
   CHECK(q.app.linkOpen());
-  CHECK_EQ(q.textCount("\"event\":\"asked\""), 1);
-  CHECK_EQ(q.textCount("\"event\":\"declined\""), 1);
+  std::vector<WsFrame> g = q.frames();
+  size_t granted = 0, stopped = 0;
+  for (size_t i = 0; i < g.size(); ++i) {
+    if (g[i].payload.find("\"event\":\"granted\"") != std::string::npos) granted = i;
+    if (g[i].payload.find("\"event\":\"stopped\"") != std::string::npos) stopped = i;
+  }
+  CHECK(granted > 0 && stopped > granted);
+  CHECK_EQ(q.audioFrames(), 0);                       // that offline audio is gone, not sent late
 }
 
 static void test_app_external_button() {
@@ -684,8 +619,6 @@ static void test_app_external_button() {
   for (int i = 0; i < 200; ++i) app.tick();
   CHECK(app.state() == ClipState::NotListening);
   hal.button = false;
-  app.onButtonEvent(ButtonEvent::ShortPress);
-  CHECK(app.state() == ClipState::Asking);
   app.onButtonEvent(ButtonEvent::ShortPress);
   CHECK(app.state() == ClipState::Listening);
   app.onButtonEvent(ButtonEvent::DoubleTap);
@@ -707,14 +640,10 @@ static void test_app_standalone() {
   CHECK(!app.linkOpen());
   app.onButtonEvent(ButtonEvent::ShortPress);
   for (int i = 0; i < 100; ++i) app.tick();
-  CHECK(app.state() == ClipState::Asking);
+  CHECK(app.state() == ClipState::Listening);
   bool blinked = false;
   for (size_t i = 1; i < hal.led_history.size(); ++i) blinked |= hal.led_history[i] == LedColor::Off;
-  CHECK(!blinked);                                    // amber stays steady, no "not connected" blink
-  CHECK(hal.led == LedColor::Amber);
-  app.onButtonEvent(ButtonEvent::ShortPress);
-  for (int i = 0; i < 100; ++i) app.tick();
-  CHECK(app.state() == ClipState::Listening);
+  CHECK(!blinked);                                    // green stays steady, no "not connected" blink
   CHECK(hal.led == LedColor::Green);
   CHECK(app.stats().frames_captured > 50);
   CHECK_EQ(app.stats().frames_sent, 0);
@@ -724,16 +653,92 @@ static void test_app_standalone() {
   CHECK_EQ(tr.connects, 0);
 }
 
+// A stand-in codec: every frame becomes 80 bytes, like Opus at 32 kbit/s.
+class FakeEncoder : public AudioEncoder {
+ public:
+  int resets, frames;
+  bool fail;
+  FakeEncoder() : resets(0), frames(0), fail(false) {}
+  const char* codecName() const override { return "opus"; }
+  uint32_t bitrate() const override { return 32000; }
+  void reset() override { ++resets; }
+  size_t encode(const int16_t* pcm, size_t samples, uint8_t* out, size_t out_max) override {
+    if (fail || samples != kFrameSamples || out_max < 80) return 0;
+    ++frames;
+    for (size_t i = 0; i < 80; ++i) out[i] = (uint8_t)(pcm[i] & 0xFF);
+    return 80;
+  }
+};
+
+static void test_app_encoder() {
+  printf("app: compressed audio\n");
+  FakeHal hal;
+  FakeTransport tr;
+  FakeEncoder enc;
+  ClipConfig cfg;
+  cfg.encoder = &enc;
+  ClipApp app(hal, tr, cfg, 7);
+  app.begin();
+  for (int i = 0; i < 50; ++i) app.tick();
+  CHECK(app.linkOpen());
+  CHECK_EQ(enc.frames, 0);                             // nothing is encoded while not listening
+
+  app.onButtonEvent(ButtonEvent::ShortPress);
+  for (int i = 0; i < 50; ++i) app.tick();
+  CHECK_EQ(enc.resets, 1);                             // codec state is reset at the start of a capture
+  CHECK(enc.frames >= 45);
+
+  std::string http;
+  std::vector<WsFrame> f;
+  CHECK(tr.decode(http, f));
+  int audio = 0;
+  bool sizes_ok = true, hello_ok = false;
+  for (size_t i = 0; i < f.size(); ++i) {
+    if (f[i].opcode == 0x1 && f[i].payload.find("\"type\":\"hello\"") != std::string::npos)
+      hello_ok = f[i].payload.find("\"audio\":{\"codec\":\"opus\",\"rate\":16000,\"channels\":1,"
+                                   "\"frame_ms\":20,\"bitrate\":32000}") != std::string::npos;
+    if (f[i].opcode != 0x2) continue;
+    ++audio;
+    if (f[i].payload.size() != 8 + 80) sizes_ok = false;  // header + one encoded frame
+  }
+  CHECK(hello_ok);                                     // the tablet is told how to decode
+  CHECK(audio >= 45);
+  CHECK(sizes_ok);
+  CHECK_EQ(app.stats().audio_bytes_sent, 80u * app.stats().frames_sent);
+
+  enc.fail = true;                                     // a frame that fails to encode is dropped
+  uint32_t sent = app.stats().frames_sent, dropped = app.stats().frames_dropped;
+  for (int i = 0; i < 10; ++i) app.tick();
+  CHECK_EQ(app.stats().frames_sent, sent);
+  CHECK(app.stats().frames_dropped > dropped);
+  enc.fail = false;
+
+  app.onButtonEvent(ButtonEvent::LongPress);
+  app.onButtonEvent(ButtonEvent::ShortPress);          // next capture
+  CHECK_EQ(enc.resets, 2);
+
+  // With no encoder configured, audio is raw PCM and the hello says so.
+  FakeHal hal2;
+  FakeTransport tr2;
+  ClipApp plain(hal2, tr2, ClipConfig(), 7);
+  plain.begin();
+  for (int i = 0; i < 20; ++i) plain.tick();
+  std::vector<WsFrame> g;
+  CHECK(tr2.decode(http, g));
+  CHECK(!g.empty() && g[0].payload.find("\"codec\":\"pcm\"") != std::string::npos &&
+        g[0].payload.find("\"bitrate\":256000") != std::string::npos);
+}
+
 int main() {
   test_button();
   test_fsm();
   test_ws_client();
-  test_app_consent_flow();
-  test_app_refusal();
+  test_app_press_to_start();
   test_app_tablet_commands();
   test_app_link_loss();
   test_app_external_button();
   test_app_standalone();
+  test_app_encoder();
   printf("\n%d checks, %d failed\n", g_checks, g_failed);
   return g_failed ? 1 : 0;
 }

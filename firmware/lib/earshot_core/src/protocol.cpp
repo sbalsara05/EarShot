@@ -5,12 +5,13 @@
 
 namespace earshot {
 
-std::string helloJson(const char* device_id) {
-  char buf[200];
+std::string helloJson(const char* device_id, const char* codec, uint32_t bitrate) {
+  char buf[240];
   snprintf(buf, sizeof buf,
            "{\"type\":\"hello\",\"device\":\"%s\",\"fw\":\"%s\","
-           "\"audio\":{\"rate\":%u,\"bits\":16,\"channels\":1,\"frame_ms\":%u}}",
-           device_id, kFirmwareVersion, (unsigned)kSampleRate, (unsigned)kFrameMs);
+           "\"audio\":{\"codec\":\"%s\",\"rate\":%u,\"channels\":1,\"frame_ms\":%u,\"bitrate\":%lu}}",
+           device_id, kFirmwareVersion, codec, (unsigned)kSampleRate, (unsigned)kFrameMs,
+           (unsigned long)bitrate);
   return buf;
 }
 
@@ -49,9 +50,7 @@ bool parseCommand(const std::string& json, Input& out) {
   if (q2 == std::string::npos) return false;
   std::string cmd = json.substr(q1 + 1, q2 - q1 - 1);
 
-  if (cmd == "ask") out = Input::CmdAsk;
-  else if (cmd == "consent_grant") out = Input::CmdConsentGrant;
-  else if (cmd == "consent_decline") out = Input::CmdConsentDecline;
+  if (cmd == "start") out = Input::CmdStart;
   else if (cmd == "stop") out = Input::CmdStop;
   else if (cmd == "marker") out = Input::CmdMarker;
   else return false;

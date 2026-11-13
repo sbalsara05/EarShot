@@ -1,15 +1,15 @@
-// Consent state machine for the clip, following the PRD:
-//   "press to ask consent, hold to stop"
-//   ring: off = not listening, amber = asking, green = listening with consent
+// State machine for the clip: press to start, hold to stop.
 //
-//   NotListening ──press──▶ Asking ──press (patient said yes)──▶ Listening
-//        ▲                    │                                      │
-//        ├──hold (a "no", logged as a refusal)──┘                    │
-//        └────────────────────hold (stop)────────────────────────────┘
+//   NotListening ──press──▶ Listening
+//        ▲                      │
+//        └────────hold──────────┘
 //
 // NotListening: mic off, ring dark. Nothing is captured.
-// Asking:       the medic is asking the patient. Mic still off, ring amber.
-// Listening:    consent logged. Mic on, audio streams to the tablet, ring green.
+// Listening:    mic on, audio streams to the tablet, ring green.
+//
+// The medic asks the patient for consent out loud, as they already do. Pressing the button is
+// the medic's confirmation that consent was given: the press is logged as a consent event and
+// only then does capture start. If the patient says no, the medic does not press.
 // Double tap while Listening drops a timestamp marker.
 // The tablet can drive the same transitions with commands (see protocol.h).
 #pragma once
@@ -17,25 +17,14 @@
 
 namespace earshot {
 
-enum class ClipState : uint8_t { NotListening, Asking, Listening };
+enum class ClipState : uint8_t { NotListening, Listening };
 
-enum class Input : uint8_t {
-  ShortPress,
-  LongPress,
-  DoubleTap,
-  CmdAsk,
-  CmdConsentGrant,
-  CmdConsentDecline,
-  CmdStop,
-  CmdMarker
-};
+enum class Input : uint8_t { ShortPress, LongPress, DoubleTap, CmdStart, CmdStop, CmdMarker };
 
 enum class Effect : uint8_t {
   None,
-  Asked,     // consent ask started
-  Granted,   // consent logged: capture starts
-  Declined,  // the patient said no (while asking) or withdrew (while listening): capture off
-  Stopped,   // the medic or the tablet ended the capture, or cancelled the ask
+  Started,  // consent logged, capture starts
+  Stopped,  // capture ended
   Marker
 };
 
@@ -46,7 +35,7 @@ struct Transition {
 
 Transition step(ClipState state, Input input);
 
-// Wire names: "not_listening", "asking", "listening".
+// Wire names: "not_listening", "listening".
 const char* stateName(ClipState state);
 
 }  // namespace earshot

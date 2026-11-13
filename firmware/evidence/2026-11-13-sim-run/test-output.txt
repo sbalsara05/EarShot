@@ -1,5 +1,5 @@
-Earshot clip firmware 0.3.0: laptop test results
-Run at: 2026-11-13 10:21:21 EST
+Earshot clip firmware 0.5.0: laptop test results
+Run at: 2026-11-13 16:00:00 EST
 Machine: macOS 27.3, Apple clang version 21.0.0 (clang-2100.4.1.1)
 
 ================ make test (unit tests of the firmware core) ================
@@ -7,66 +7,65 @@ Machine: macOS 27.3, Apple clang version 21.0.0 (clang-2100.4.1.1)
 button
 state machine
 websocket client
-app: ask, yes, listen, mark, stop
-app: the patient says no
+app: press to start, mark, hold to stop
 app: tablet commands
 app: link loss
 app: platform-detected button events
 app: standalone (no tablet)
+app: compressed audio
 
-211 checks, 0 failed
+183 checks, 0 failed
 
 ================ make e2e (simulated clip against mock tablet, real socket) ================
-python3 sim/e2e_test.py
+build/codec-test-venv/bin/python sim/e2e_test.py
 power-on: not listening
   ok    clip connects and says hello
   ok    clip reports not listening
   ok    microphone is off: nothing captured   (0 frames captured)
   ok    tablet received 0 audio bytes   (0 bytes)
   ok    ring is dark   (off)
-press = ask for consent
-  ok    clip reports asking
-  ok    ring is amber   (amber)
-  ok    still nothing captured while asking
-  ok    tablet still at 0 audio bytes   (0 bytes)
-press again = the patient said yes
+gestures that must not start a capture
+  ok    double tap and hold do nothing while not listening
+press = start (consent logged)
   ok    clip reports listening
-  ok    audio now arrives   (50 frames, 32000 bytes)
-  ok    frames are 640 bytes of PCM
+  ok    audio now arrives   (50 frames, 4000 bytes)
+  ok    clip says it is sending Opus at 32 kbit/s   (opus 32000)
+  ok    every frame is one 80-byte Opus packet   (4000 bytes in 50 frames)
+  ok    data rate with headers is under 8,000 bytes per second   (4400 bytes/s)
   ok    no frames lost   (0 lost)
   ok    ring is green   (green)
-  ok    consent events so far: asked, granted   (['asked', 'granted'])
+  ok    the press was logged as consent   (['granted'])
 double tap = marker
   ok    marker 1 received
   ok    still listening after the marker
+a stray press while listening
+  ok    is ignored
 hold = stop
   ok    clip reports not listening
   ok    audio stops
   ok    ring is dark   (off)
-  ok    a stop is not logged as a refusal
-the next patient says no
-  ok    clip reports asking
-  ok    hold while asking returns to not listening
-  ok    the refusal is logged
-  ok    no audio was captured or sent for that patient
-  ok    ring is dark   (off)
+  ok    the stop was logged   (['granted', 'stopped'])
 tablet commands
-  ok    tablet can start the ask
-  ok    tablet can log the yes
+  ok    tablet can start a capture
   ok    audio flows again
   ok    a new capture restarts the frame counter without a false loss
   ok    tablet-requested marker received
-  ok    patient withdrawing stops the capture
-  ok    the withdrawal is logged as a refusal
-  ok    audio stops after withdrawal   (0 extra frames)
+  ok    tablet can stop the capture
+  ok    audio stops after the tablet's stop   (0 extra frames)
 external microphone (what the browser's laptop-mic option uses)
   ok    clip reports external mic
   ok    speech while not listening never reaches the tablet
-  ok    consent logged
-  ok    the tablet receives the microphone signal intact   (16000 of 21440 samples match)
+  ok    capture started
+  ok    decoded audio has the microphone's pitch   (250 Hz, expected 250)
+  ok    decoded audio has the microphone's loudness   (rms 12189)
   ok    playback WAV is well formed
-  ok    tablet can stop the capture
+  ok    capture stopped
 ledger
   ok    no audio frame ever arrived while the clip was not listening   (0)
+  ok    consent was logged once per capture   (3)
+raw audio setting (fallback)
+  ok    clip says it is sending raw audio   (pcm)
+  ok    frames are 640 bytes of PCM
+  ok    raw audio arrives sample for sample   (16000 of 21440 samples match)
 
 PASS: 0 failed

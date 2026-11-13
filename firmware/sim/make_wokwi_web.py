@@ -26,7 +26,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 CORE = ROOT / "lib" / "earshot_core" / "src"
 OUT = ROOT / "build" / "wokwi_web"
 
-HEADERS = ["button.h", "clip_fsm.h", "ws_client.h", "protocol.h", "clip_app.h"]
+HEADERS = ["button.h", "clip_fsm.h", "ws_client.h", "protocol.h", "audio_encoder.h", "clip_app.h"]
 SOURCES = ["button.cpp", "clip_fsm.cpp", "ws_client.cpp", "protocol.cpp", "clip_app.cpp"]
 OURS = set(HEADERS) | {"config.h", "config.example.h"}
 
