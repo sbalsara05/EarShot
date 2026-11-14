@@ -25,7 +25,11 @@ public struct ASRToken: Equatable, Sendable {
     public var charOffset: Int
     public var startMs: Int64
     public var endMs: Int64
-    public init(charOffset: Int, startMs: Int64, endMs: Int64) { self.charOffset = charOffset; self.startMs = startMs; self.endMs = endMs }
+    /// The engine's probability for this token (0...1), when it gives one.
+    public var p: Double?
+    public init(charOffset: Int, startMs: Int64, endMs: Int64, p: Double? = nil) {
+        self.charOffset = charOffset; self.startMs = startMs; self.endMs = endMs; self.p = p
+    }
 }
 
 extension ASRPiece {
@@ -62,7 +66,7 @@ extension ASRPiece {
             lp = ((x * wa + y * wb) / (wa + wb) * 1000).rounded() / 1000
         } else { lp = avgLogprob ?? b.avgLogprob }
         return ASRPiece(startMs: min(startMs, b.startMs), endMs: max(endMs, b.endMs), text: text + b.text, avgLogprob: lp,
-                        tokens: tokens + b.tokens.map { ASRToken(charOffset: $0.charOffset + shift, startMs: $0.startMs, endMs: $0.endMs) })
+                        tokens: tokens + b.tokens.map { ASRToken(charOffset: $0.charOffset + shift, startMs: $0.startMs, endMs: $0.endMs, p: $0.p) })
     }
 
     /// Raw segment with call-relative times taken from the first/last token when available
@@ -73,13 +77,15 @@ extension ASRPiece {
         guard !t.isEmpty else { return nil }
         var start = chunkStartMs + startMs, end = min(chunkEndMs, chunkStartMs + endMs)
         var wt: [[Int64]]? = nil
+        var conf: [Double]? = nil
         let toks = tokens.filter { $0.endMs >= $0.startMs }
         if let f = toks.first, let l = toks.last {
             start = max(start, chunkStartMs + f.startMs)
             end = max(start, min(chunkEndMs, chunkStartMs + max(l.endMs, l.startMs)))
             wt = toks.map { [Int64(max(0, $0.charOffset - lead)), chunkStartMs + $0.startMs] }
+            if toks.allSatisfy({ $0.p != nil }) { conf = toks.map { ($0.p! * 1000).rounded() / 1000 } }
         }
-        return RawSegment(id: id, startMs: start, endMs: end, text: t, avgLogprob: avgLogprob, wordTimes: wt)
+        return RawSegment(id: id, startMs: start, endMs: end, text: t, avgLogprob: avgLogprob, wordTimes: wt, wordConf: conf)
     }
 }
 
@@ -108,8 +114,16 @@ public struct PipelineConfig: Codable, Sendable {
         public var beamSize: Int = 5
         /// Re-decode low-confidence windows at higher temperature (whisper.cpp fallback; deterministic seed).
         public var temperatureFallback: Bool = true
+        /// Bias decoding toward the formulary's drug names (BiasTrie). Logit bonuses: for the first
+        /// token of a name (can create a name that was not said: keep small) and for continuing one.
+        public var bias: Bool = true
+        public var biasFirst: Double = 0.5
+        public var biasNext: Double = 2.0
+        /// A drug, dose or vital whose words include a token below this probability is "please confirm". 0 = off.
+        public var minWordConfidence: Double = 0.5
         public init() {}
-        enum CodingKeys: String, CodingKey { case engine, model, name, threads, useInitialPrompt = "use_initial_prompt", prompt, beamSize = "beam_size", temperatureFallback = "temperature_fallback" }
+        enum CodingKeys: String, CodingKey { case engine, model, name, threads, useInitialPrompt = "use_initial_prompt", prompt, beamSize = "beam_size", temperatureFallback = "temperature_fallback"
+            case bias, biasFirst = "bias_first", biasNext = "bias_next", minWordConfidence = "min_word_confidence" }
         public init(from d: Decoder) throws {
             let c = try d.container(keyedBy: CodingKeys.self)
             engine = try c.decodeIfPresent(String.self, forKey: .engine) ?? "whisper.cpp"
@@ -120,6 +134,10 @@ public struct PipelineConfig: Codable, Sendable {
             prompt = try c.decodeIfPresent(String.self, forKey: .prompt)
             beamSize = try c.decodeIfPresent(Int.self, forKey: .beamSize) ?? 5
             temperatureFallback = try c.decodeIfPresent(Bool.self, forKey: .temperatureFallback) ?? true
+            bias = try c.decodeIfPresent(Bool.self, forKey: .bias) ?? true
+            biasFirst = try c.decodeIfPresent(Double.self, forKey: .biasFirst) ?? 0.5
+            biasNext = try c.decodeIfPresent(Double.self, forKey: .biasNext) ?? 2.0
+            minWordConfidence = try c.decodeIfPresent(Double.self, forKey: .minWordConfidence) ?? 0.5
         }
     }
     public var callId: String = "c1"
@@ -254,7 +272,9 @@ public final class EarshotPipeline {
         // extraction
         let rules = RulesExtractor(dict: dict)
         var findings: [Finding] = []
-        timed("extract_rules") { for c in cleanSegs { findings += rules.extract(c) } }
+        timed("extract_rules") {
+            for c in cleanSegs { findings += ConfidenceFlags.apply(rules.extract(c), seg: c, minConfidence: config.asr.minWordConfidence) }
+        }
         if let tg = tagger {
             try timed("extract_tagger") { findings += try TaggerMerge(dict: dict, tagger: tg).findings(cleanSegs, existing: findings) }
         }

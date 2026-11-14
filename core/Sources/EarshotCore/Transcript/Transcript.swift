@@ -10,10 +10,13 @@ public struct RawSegment: Codable, Equatable, Sendable {
     public var avgLogprob: Double?
     /// ASR token times: [character offset in `text`, call ms]. Nil when the engine gave none.
     public var wordTimes: [[Int64]]?
-    public init(id: String, startMs: Int64, endMs: Int64, text: String, avgLogprob: Double? = nil, wordTimes: [[Int64]]? = nil) {
+    /// ASR token probabilities, one per `wordTimes` entry. Nil when the engine gave none.
+    public var wordConf: [Double]?
+    public init(id: String, startMs: Int64, endMs: Int64, text: String, avgLogprob: Double? = nil, wordTimes: [[Int64]]? = nil, wordConf: [Double]? = nil) {
         self.id = id; self.startMs = startMs; self.endMs = endMs; self.text = text; self.avgLogprob = avgLogprob; self.wordTimes = wordTimes
+        self.wordConf = wordConf
     }
-    enum CodingKeys: String, CodingKey { case id, startMs = "start_ms", endMs = "end_ms", text, avgLogprob = "avg_logprob", wordTimes = "word_times" }
+    enum CodingKeys: String, CodingKey { case id, startMs = "start_ms", endMs = "end_ms", text, avgLogprob = "avg_logprob", wordTimes = "word_times", wordConf = "word_conf" }
 }
 
 public struct RawTranscript: Codable, Sendable {
@@ -55,6 +58,7 @@ public struct CleanSegment: Equatable, Sendable {
     public var rawText: String
     public var tokens: [CleanToken]
     public var wordTimes: [[Int64]]? = nil
+    public var wordConf: [Double]? = nil
     public var text: String { tokens.map(\.text).joined(separator: " ") }
 
     /// Exact raw quote for clean tokens [a, b].

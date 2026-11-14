@@ -101,7 +101,7 @@ final class CallEngine {
         session?.wipe()
         callStart = start
         guard let dict else { return }
-        if transcriber == nil { transcriber = Self.loadWhisper(&recordProblem) }
+        if transcriber == nil { transcriber = Self.loadWhisper(&recordProblem, dict: dict) }
         let s = LiveSession(dict: dict, config: PipelineConfig(), callId: "c\(Int(start.timeIntervalSince1970))",
                             startEpochMs: Int64(start.timeIntervalSince1970 * 1000), tzOffsetSeconds: TimeZone.current.secondsFromGMT(),
                             transcriber: transcriber)
@@ -258,10 +258,13 @@ final class CallEngine {
     private func micClock() -> UInt32 { UInt32(max(0, Date().timeIntervalSince(boot) * 1000)) }
     private func date(_ tMs: Int64) -> Date { callStart.addingTimeInterval(Double(tMs) / 1000) }
 
-    private static func loadWhisper(_ problem: inout String?) -> Transcriber? {
+    private static func loadWhisper(_ problem: inout String?, dict: EMSDictionary) -> Transcriber? {
+        let asr = PipelineConfig().asr
         for name in ["whisper-ems-small.en-q5", "ggml-small.en", "ggml-base.en", "ggml-tiny.en"] {
             if let url = ModelFiles.find(name, ext: "bin"),
                let t = try? WhisperTranscriber(modelPath: url.path, threads: ProcessInfo.processInfo.activeProcessorCount > 4 ? 4 : 2) {
+                // lean toward the formulary's drug names while decoding (BiasTrie)
+                if asr.bias { t.setBias(phrases: dict.biasPhrases(), firstBonus: asr.biasFirst, nextBonus: asr.biasNext) }
                 problem = nil
                 return t
             }

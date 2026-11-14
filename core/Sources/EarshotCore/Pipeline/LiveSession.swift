@@ -434,7 +434,7 @@ public final class LiveSession {
         for s in pendingClean {
             let (c, _) = cleaner.clean(s)
             clean[s.id] = c
-            var f = rules.extract(c)
+            var f = ConfidenceFlags.apply(rules.extract(c), seg: c, minConfidence: config.asr.minWordConfidence)
             if let tg = tagger, let extra = try? TaggerMerge(dict: dict, tagger: tg).findings([c], existing: f) { f += extra }
             findings[s.id] = f
         }

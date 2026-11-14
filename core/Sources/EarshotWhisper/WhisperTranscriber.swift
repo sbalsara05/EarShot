@@ -16,6 +16,23 @@ public final class WhisperTranscriber: Transcriber {
 
     public var beamSize: Int32 = 5
     public var temperatureFallback = true
+    /// Contextual biasing toward drug names (see BiasTrie). Nil: off.
+    public private(set) var bias: BiasTrie?
+
+    /// Tokenizes `phrases` with this model's tokenizer and biases decoding toward them.
+    /// Returns the number of phrases in the tree.
+    @discardableResult
+    public func setBias(phrases: [String], firstBonus: Double, nextBonus: Double) -> Int {
+        guard !phrases.isEmpty, firstBonus != 0 || nextBonus != 0 else { bias = nil; return 0 }
+        var seqs: [[Int32]] = []
+        var buf = [whisper_token](repeating: 0, count: 64)
+        for ph in phrases {
+            let n = ph.withCString { whisper_tokenize(ctx, $0, &buf, Int32(buf.count)) }
+            if n > 0 { seqs.append(Array(buf[0..<Int(n)])) }
+        }
+        bias = BiasTrie(sequences: seqs, firstBonus: Float(firstBonus), nextBonus: Float(nextBonus), textTokenLimit: whisper_token_eot(ctx))
+        return bias?.phraseCount ?? 0
+    }
 
     public init(modelPath: String, name: String? = nil, threads: Int = 4, beamSize: Int = 5, temperatureFallback: Bool = true) throws {
         var cp = whisper_context_default_params()
@@ -63,6 +80,16 @@ public final class WhisperTranscriber: Transcriber {
         p.suppress_blank = true
         p.suppress_nst = true
         p.no_timestamps = false
+        if let b = bias {
+            p.logits_filter_callback = { _, _, tokens, n, logits, user in
+                guard let user, let logits else { return }
+                let trie = Unmanaged<BiasTrie>.fromOpaque(user).takeUnretainedValue()
+                var history: [Int32] = []
+                if let tokens, n > 0 { history.reserveCapacity(Int(n)); for i in 0..<Int(n) { history.append(tokens[i].id) } }
+                for (t, bonus) in trie.bonuses(history: history) { logits[Int(t)] += bonus }
+            }
+            p.logits_filter_callback_user_data = Unmanaged.passUnretained(b).toOpaque()
+        }
         let rc: Int32 = "en".withCString { lang in
             p.language = lang
             if let prompt = prompt {
@@ -95,7 +122,7 @@ public final class WhisperTranscriber: Transcriber {
                 if d.id >= eot { continue }                       // special / timestamp tokens carry no text
                 let lead = piece.prefix { $0.isWhitespace }.count  // time the word, not its leading space
                 if !piece.trimmingCharacters(in: .whitespaces).isEmpty {
-                    toks.append(ASRToken(charOffset: offset + lead, startMs: Int64(d.t0) * 10, endMs: Int64(d.t1) * 10))
+                    toks.append(ASRToken(charOffset: offset + lead, startMs: Int64(d.t0) * 10, endMs: Int64(d.t1) * 10, p: Double(d.p)))
                 }
                 offset += piece.count
             }

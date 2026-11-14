@@ -42,6 +42,10 @@ OPTIONS
   --no-prompt             disable the EMS initial prompt for whisper
   --prompt-file <f>       use this initial prompt instead of the dictionary's
   --beam <n>              beam size (default 5); --greedy = beam 1, no temperature fallback (fastest)
+  --no-bias               turn off biasing Whisper toward drug names
+  --bias-first <x>        logit bonus for the first token of a drug name (default 0.5)
+  --bias-next <x>         logit bonus for continuing a drug name (default 2.0)
+  --min-conf <p>          flag drugs/doses/vitals whose words fall below this token probability (default 0.5; 0 = off)
   --pii-scrub             replace names/DOB/addresses/phones in quotes and fields with tokens (off by default)
 """
 
@@ -147,6 +151,10 @@ if let pf = opt("--prompt-file") { config.asr.prompt = (try? String(contentsOfFi
 if flag("--greedy") { config.asr.beamSize = 1; config.asr.temperatureFallback = false }
 if let b = opt("--beam"), let n = Int(b) { config.asr.beamSize = n }
 if flag("--pii-scrub") { config.piiScrub = true }
+if flag("--no-bias") { config.asr.bias = false }
+if let v = opt("--bias-first"), let x = Double(v) { config.asr.biasFirst = x }
+if let v = opt("--bias-next"), let x = Double(v) { config.asr.biasNext = x }
+if let v = opt("--min-conf"), let x = Double(v) { config.asr.minWordConfidence = x }
 _ = flag("--no-pii") // old flag, now the default
 let tapsPath = opt("--taps")
 let outOpt = opt("--out")
@@ -174,8 +182,12 @@ let t0 = Date()
 if ext != "json" {
     #if canImport(EarshotWhisper)
     let model = config.asr.model ?? ProcessInfo.processInfo.environment["EARSHOT_ASR_MODEL"] ?? "models/ggml-small.en.bin"
-    do { transcriber = try WhisperTranscriber(modelPath: model, name: config.asr.model == nil ? nil : config.asr.name, threads: config.asr.threads,
-                                              beamSize: config.asr.beamSize, temperatureFallback: config.asr.temperatureFallback) }
+    do {
+        let w = try WhisperTranscriber(modelPath: model, name: config.asr.model == nil ? nil : config.asr.name, threads: config.asr.threads,
+                                       beamSize: config.asr.beamSize, temperatureFallback: config.asr.temperatureFallback)
+        if config.asr.bias { w.setBias(phrases: dict.biasPhrases(), firstBonus: config.asr.biasFirst, nextBonus: config.asr.biasNext) }
+        transcriber = w
+    }
     catch { fail("\(error.localizedDescription). Download: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin and pass --asr-model") }
     #else
     fail("this build has no whisper.cpp; pass a transcript .json instead")

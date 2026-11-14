@@ -200,7 +200,7 @@ public final class Cleanup {
             out.replaceSubrange((k + 1)...end, with: [merged])
             k += 2
         }
-        return (CleanSegment(rawSpan: seg.id, startMs: seg.startMs, endMs: seg.endMs, rawText: seg.text, tokens: out, wordTimes: seg.wordTimes), corr)
+        return (CleanSegment(rawSpan: seg.id, startMs: seg.startMs, endMs: seg.endMs, rawText: seg.text, tokens: out, wordTimes: seg.wordTimes, wordConf: seg.wordConf), corr)
     }
 
     /// "1410" -> "14:10" when it can be a 24-hour time.
