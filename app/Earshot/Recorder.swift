@@ -40,6 +40,22 @@ final class Transcriber {
     private static let mayUseServers = false
     #endif
 
+    init() {
+        // A phone call or Siri takes the microphone away for a while. When it is given back, carry on in a new line.
+        NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, self.running, self.source == .mic,
+                  let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  AVAudioSession.InterruptionType(rawValue: raw) == .ended else { return }
+            do {
+                try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+                try self.engine.start()
+                self.newSegment()
+            } catch {
+                self.onProblem("The microphone could not be taken back after an interruption. \(error.localizedDescription)")
+            }
+        }
+    }
+
     /// Asks for speech access, and for the microphone unless the audio comes from the clip.
     /// Returns what to tell the user if either is refused.
     static func authorize(microphone: Bool = true) async -> String? {

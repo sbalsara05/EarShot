@@ -23,7 +23,8 @@ targets:
         NSMicrophoneUsageDescription: Earshot listens to the call so it can write the transcript.
         NSSpeechRecognitionUsageDescription: Earshot turns what is said on the call into text.
         NSBluetoothAlwaysUsageDescription: Earshot uses Bluetooth to connect to your clip.
-        UIBackgroundModes: [bluetooth-central]
+        # audio: a recording carries on when the app is not on screen. bluetooth-central: so does the link to the clip.
+        UIBackgroundModes: [audio, bluetooth-central]
         UIStatusBarHidden: true
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]

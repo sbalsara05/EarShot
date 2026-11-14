@@ -200,7 +200,6 @@ struct Call: Identifiable, Codable {
             }
             live = .listening
             startAsked = nil
-            UIApplication.shared.isIdleTimerDisabled = true   // a locked screen would end the recording
             if source == .clip { watchForSilence() }
         } catch {
             problem = error.localizedDescription
@@ -224,7 +223,6 @@ struct Call: Identifiable, Codable {
         live = next
         silenceTimer?.invalidate()
         clipSilent = false
-        UIApplication.shared.isIdleTimerDisabled = false
         save()
     }
 
@@ -487,8 +485,10 @@ struct Call: Identifiable, Codable {
     func save() {
         do {
             try FileManager.default.createDirectory(at: Self.file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            // Calls hold patient information: encrypted while the device is locked, and kept out of iCloud backups.
-            try JSONEncoder().encode(Saved(open: live != .none ? call : nil, past: past, review: review)).write(to: Self.file, options: [.atomic, .completeFileProtection])
+            // Calls hold patient information: encrypted on disk and kept out of iCloud backups. The file has to stay
+            // writable while the device is locked, since a recording carries on then, so it is protected until the
+            // device is first unlocked after a restart, not every time it locks.
+            try JSONEncoder().encode(Saved(open: live != .none ? call : nil, past: past, review: review)).write(to: Self.file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
             var file = Self.file, values = URLResourceValues()
             values.isExcludedFromBackup = true
             try file.setResourceValues(values)
@@ -599,8 +599,8 @@ struct EarshotApp: App {
             .preferredColorScheme(.dark)
             .environment(model)
             .onChange(of: scenePhase) { _, phase in
-                // The microphone stops when the app leaves the screen, so the recording ends there too.
-                if phase == .background { model.stop() }
+                // A recording carries on when the app leaves the screen or the device locks: the app is allowed to
+                // keep the microphone and the clip link in the background. Only its state is saved here.
                 if phase != .active { model.save() }
             }
         }
