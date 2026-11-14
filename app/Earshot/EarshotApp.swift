@@ -689,7 +689,7 @@ struct HomeScreen: View {
                     Text(model.call.recordings.isEmpty ? "No recordings yet" : "\(plural(model.call.recordings.count, "recording")), \(plural(model.call.markCount, "mark"))").font(geist(22)).foregroundStyle(Color.dim)
                     let actions = phone ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 16))
                     actions {
-                        Button("Resume call") { model.tab = .live }.buttonStyle(Pill(height: fit(76, 68), size: 22, minWidth: fit(260, nil), grow: phone))
+                        Button(model.live == .listening ? "Live call →" : "Resume call") { model.tab = .live }.buttonStyle(Pill(height: fit(76, 68), size: 22, minWidth: fit(260, nil), grow: phone))
                         Button("Discard call") { discarding = true }.buttonStyle(Pill(fill: nil, height: fit(76, 56), size: fit(22, 17), grow: phone))
                             .confirmationDialog("Discard this call?", isPresented: $discarding, titleVisibility: .visible) {
                                 Button("Discard call", role: .destructive) { model.discard() }
