@@ -68,6 +68,7 @@ struct Call: Identifiable, Codable {
     var clipName: String?                  // the last clip that said hello, like "Earshot-A3F2"
     var clipState = ClipLink.State.idle
     var clipsNearby: [ClipLink.Found] = []   // clips heard while searching, for the medic to pick from
+    var clipSilent = false                 // recording from the clip, but no audio has arrived for a few seconds
     var live = Live.none
     var drafts = Drafts.none
 
@@ -80,12 +81,19 @@ struct Call: Identifiable, Codable {
     @ObservationIgnored private let transcriber = Transcriber()
     @ObservationIgnored private let link = ClipLink()
     @ObservationIgnored private var source = Transcriber.Source.mic   // where the current recording's audio comes from
+    @ObservationIgnored private var lastClipAudio = Date()
+    @ObservationIgnored private var silenceTimer: Timer?
+    @ObservationIgnored private var startAsked: Date?                 // when the clip was last told to start, until it answers
 
     init() {
         link.onState = { [weak self] state in self?.clipChanged(to: state) }
         link.onFound = { [weak self] clips in self?.clipsNearby = clips }
         link.onEvent = { [weak self] event in self?.clipSaid(event) }
-        link.onAudio = { [weak self] buffer in self?.transcriber.push(buffer) }
+        link.onProblem = { [weak self] message in self?.problem = message }
+        link.onAudio = { [weak self] buffer in
+            self?.lastClipAudio = Date()
+            self?.transcriber.push(buffer)
+        }
         transcriber.onLevel = { [weak self] level in
             self?.levels.removeFirst()
             self?.levels.append(level)
@@ -130,7 +138,18 @@ struct Call: Identifiable, Codable {
             problem = await Transcriber.authorize(microphone: !clip)
             guard problem == nil, live != .listening else { return }
             if clip {
-                link.send("start")   // the recording begins when the clip confirms, in clipSaid
+                // Nothing is shown as recording until the clip confirms, in clipSaid. If it never does, say so.
+                guard link.send("start") else {
+                    problem = "The clip is not connected, so the recording did not start."
+                    return
+                }
+                let asked = Date()
+                startAsked = asked
+                try? await Task.sleep(for: .seconds(3))
+                if startAsked == asked && live != .listening {
+                    startAsked = nil
+                    problem = "The clip did not start recording. Check that it is on and close by, then try again."
+                }
             } else {
                 begin(from: .mic)
             }
@@ -144,7 +163,9 @@ struct Call: Identifiable, Codable {
             self.source = source
             call.recordings.append(Recording())
             live = .listening
+            startAsked = nil
             UIApplication.shared.isIdleTimerDisabled = true   // a locked screen would end the recording
+            if source == .clip { watchForSilence() }
         } catch {
             problem = error.localizedDescription
             if source == .clip { link.send("stop") }
@@ -162,8 +183,22 @@ struct Call: Identifiable, Codable {
         transcriber.stop()
         call.recordings[call.recordings.count - 1].end = Date()
         live = next
+        silenceTimer?.invalidate()
+        clipSilent = false
         UIApplication.shared.isIdleTimerDisabled = false
         save()
+    }
+
+    /// While recording from the clip, checks that audio keeps arriving. A link can stay up with nothing coming through it.
+    private func watchForSilence() {
+        lastClipAudio = Date()
+        clipSilent = false
+        silenceTimer?.invalidate()
+        silenceTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let silent = Date().timeIntervalSince(self.lastClipAudio) > 2.5
+            if silent != self.clipSilent { self.clipSilent = silent }
+        }
     }
 
     func mark() {
@@ -187,6 +222,7 @@ struct Call: Identifiable, Codable {
         switch clipState {
         case .ready: "Connected"
         case .connecting: "Connecting"
+        case .trouble: "Clip not working"
         case .searching: "Searching"
         case .idle: "Not connected"
         case .off: "Bluetooth unavailable"
@@ -238,6 +274,9 @@ struct Call: Identifiable, Codable {
             clipStarted()   // said after every connect: the clip was already listening, so pick it up
         case ("consent", "stopped"):
             if source == .clip { finish(as: .between) }
+        case ("state", _) where event.listening == false:
+            // The clip says it is not capturing, so the app must not go on showing a recording.
+            if live == .listening && source == .clip { finish(as: .between) }
         case ("marker", _) where event.source == "button":
             if live == .listening && source == .clip { addMark() }
         default:
@@ -481,6 +520,8 @@ struct Header: View {
     @ViewBuilder private var status: some View {
         if model.tab != .live || model.live == .none {
             Color.clear.frame(height: 1)
+        } else if model.live == .listening && model.clipSilent {
+            Text("No audio from the clip").font(geist(15, 600)).foregroundStyle(Color.yellow)
         } else if model.live == .listening {
             HStack(spacing: 10) {
                 BlinkDot(size: 10)
@@ -749,10 +790,21 @@ struct ClipScreen: View {
         .panel()
     }
 
+    /// The headline while no clip is usable. It names the real state, never a hoped-for one.
+    private var heading: String {
+        switch model.clipState {
+        case .searching: "Looking for clips"
+        case .connecting: "Connecting"
+        case .trouble: "Clip not working"
+        case .off: "Bluetooth unavailable"
+        case .idle, .ready: "No clip connected"
+        }
+    }
+
     /// What to tell the medic while no clip is connected.
     private var waiting: String {
         switch model.clipState {
-        case .off(let why): why
+        case .off(let why), .trouble(let why): why
         case .searching: "Power the clip on and keep it close. Until it connects, calls record on the \(deviceName) mic."
         case .connecting: "Waiting for \(model.clipTitle) to answer. It reconnects by itself when it is on and in range."
         case .idle, .ready: "Calls record on the \(deviceName) mic until a clip connects."
@@ -793,7 +845,7 @@ struct ClipScreen: View {
 
     private var nearby: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("No clip connected").font(doto(fit(46, 34)))
+            Text(heading).font(doto(fit(46, 34)))
             Text(waiting)
                 .font(geist(19)).lineSpacing(5).foregroundStyle(Color.dim).padding(.top, 10).padding(.bottom, 22)
             if model.clipState == .searching {
@@ -821,7 +873,7 @@ struct ClipScreen: View {
             switch model.clipState {
             case .idle: Button("Find my clip") { model.connect() }.buttonStyle(Pill(grow: true))
             case .searching: Button("Stop looking") { model.disconnect() }.buttonStyle(Pill(fill: nil, grow: true))
-            case .connecting: Button("Forget this clip") { model.disconnect() }.buttonStyle(Pill(fill: nil, grow: true))
+            case .connecting, .trouble: Button("Forget this clip") { model.disconnect() }.buttonStyle(Pill(fill: nil, grow: true))
             case .ready, .off: EmptyView()
             }
         }
