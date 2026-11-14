@@ -59,13 +59,13 @@ struct ClipStats {
   uint32_t frames_dropped;   // captured while the link was down (or failed to encode); not stored
   uint32_t audio_bytes_sent; // encoded audio bytes sent, excluding the 8-byte frame header
   uint32_t markers;
-  uint32_t toggles;          // double clicks passed to the tablet to decide on
-  uint32_t ends;             // holds reported to the tablet as "end the call"
+  uint32_t toggles;          // double clicks passed to the tablet: toggle the recording
+  uint32_t call_toggles;     // holds passed to the tablet: toggle the call
   uint32_t finds;            // times the tablet asked the clip to make itself findable
   uint32_t captures;         // times capture was started
   ClipStats()
       : frames_captured(0), frames_sent(0), frames_dropped(0), audio_bytes_sent(0), markers(0),
-        toggles(0), ends(0), finds(0), captures(0) {}
+        toggles(0), call_toggles(0), finds(0), captures(0) {}
 };
 
 class ClipApp {

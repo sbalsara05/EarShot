@@ -8,15 +8,15 @@
 //               blue blink while it waits for one.
 // Listening:    mic on, audio streams to the tablet, ring red.
 //
-// The tablet owns the recording. A double click on the clip's button does not change the
-// state here: the clip sends the tablet a "toggle" message and the tablet answers with
-// "start" or "stop" (see protocol.h). The medic asks the patient for consent out loud, as they
+// The tablet owns the recording and the call. A double click on the clip's button does not
+// change the state here: the clip sends the tablet a "toggle" message for the recording and
+// the tablet answers with "start" or "stop" (see protocol.h). The medic asks the patient for consent out loud, as they
 // already do; starting is the confirmation that consent was given, and it is logged as a
 // consent event before the microphone turns on.
 // A single click while Listening drops a timestamp marker (a "mark"). A single click never
 // starts or stops anything, so a bumped button cannot begin or cut a capture.
-// A hold ends the call: while Listening it stops the capture at once, tablet or no tablet,
-// and in either state the clip then sends the tablet an "end" message.
+// A hold toggles the call: while Listening it stops the capture at once, tablet or no tablet,
+// and in either state the clip then sends the tablet a "toggle" message for the call.
 // The tablet can also ask the clip to make itself findable ("find"): it blinks and beeps for
 // a few seconds in either state, without changing state.
 // A standalone clip (no tablet at all, as on the Wokwi website) toggles on a double click by

@@ -13,8 +13,8 @@ physical button and light.
 
 ## What the clip does
 
-Double click to pause or resume the recording (the tablet decides which), single click to drop
-a mark, hold to end the call.
+Single click to drop a mark, double click to toggle the recording (pause or resume), hold to
+toggle the call (end it, or open a new one). The tablet decides what each toggle means.
 
 | Ring | State | What is happening |
 |---|---|---|
@@ -35,14 +35,14 @@ range, battery dead) is a loss: flashing red.
 
 | Gesture | When | Effect |
 |---|---|---|
-| Double click | Any time a tablet is connected | Pause or resume. The clip sends the tablet a `toggle` message, the same one every time. The tablet decides: it answers `stop` to pause the recording in progress, or `start` to begin the next one |
-| Single click | Listening | A mark: a timestamp marker sent to the tablet, stamped with the moment of the click |
-| Hold 1.5 s | Any time | End the call. If the clip is listening the microphone goes off at once, tablet or no tablet. Then the clip sends the tablet an `end` message so it can close the call |
+| Single click | Listening | A mark: a timestamp marker sent to the tablet as JSON, stamped with the moment of the click |
+| Double click | Any time a tablet is connected | Toggle the recording. The clip sends `{"type":"toggle","target":"recording",...}`, the same every time. The tablet decides: it answers `stop` to pause the recording in progress, or `start` to begin the next one |
+| Hold 1.5 s | Any time | Toggle the call. If the clip is listening the microphone goes off at once, tablet or no tablet. Then the clip sends `{"type":"toggle","target":"call",...}`, the same every time. The tablet decides: end the open call, generate its reports and save it, or open a new call if none is open |
 
 The tablet owns the recording and the call. The clip never starts a recording by itself: a
-double click only asks, and the microphone turns on when the tablet answers `start`. `toggle`
-and `end` are only sent while a tablet is connected and are never stored, so a double click or
-a hold made out of range has no effect later (a hold still turns the microphone off).
+double click only asks, and the microphone turns on when the tablet answers `start`. Toggles
+are only sent while a tablet is connected and are never stored, so a double click or a hold
+made out of range has no effect later (a hold still turns the microphone off).
 
 The medic asks the patient for consent out loud, as they already do. Starting is the medic's
 confirmation that the patient agreed: the clip logs it as a consent event and only then starts
@@ -109,7 +109,8 @@ Wi-Fi.
 | `src/build_config.h` | Picks pins, microphone and link for each build |
 | `include/config.example.h` | Link choice, Wi-Fi details, pins |
 | `BLUETOOTH.md` | App-side guide to the Bluetooth link |
-| `tools/ble_receiver.py` | Mac stand-in for the app: connects over Bluetooth, saves and transcribes the audio |
+| `tools/ble_receiver.py` | Mac stand-in for the app: connects over Bluetooth, saves and transcribes the audio. With `--app` it answers double clicks, shows marks, and on a hold ends the open call and saves it to `build/calls/`, or opens a new one |
+| `APP_AGENT_PROMPT.md` | Hand-off prompt for the app development agent: what to do on a double click, a single click and a hold |
 | `tools/flash_feather.sh` | Builds and flashes the Feather |
 | `tools/make_voice_clip.py`, `tools/check_voice_clip.py` | Build the voice recording; check it transcribes correctly end to end |
 | `host_tests/` | Unit tests for the core, run on the laptop |
@@ -141,7 +142,7 @@ make run
 ```
 
 `make run` serves the UI at http://localhost:8765. The left panel is the clip: double-click
-to pause or resume, click for a mark, hold to end the call (the space bar works too). The mock tablet
+to pause or resume the recording, click for a mark, hold to toggle the call (the space bar works too). The mock tablet
 answers a double click the way the app should: `stop` if a recording is running, `start` if not. The right panel is
 the mock tablet and shows exactly what arrived, including an "audio without consent" counter
 that must stay at 0, how many times consent was logged, and the data rate against the 8,000
@@ -247,7 +248,7 @@ and the onboard NeoPixel is the light. No `config.h` is needed for Bluetooth.
 5. Or use the BOOT button: double click sends `toggle` (something must answer `start` for the
    clip to begin: the iPad app, `tools/ble_receiver.py --app`, or a `{"cmd":"start"}` written
    from nRF Connect or LightBlue), single click while it is red drops a mark, and a 1.5 s hold
-   turns the microphone off and sends `end`.
+   turns the microphone off and sends the call toggle.
 
 The status line every 5 seconds shows the slowest Opus encode so far, which must stay under
 20 ms. The first run measured 16.5 ms at worst: it kept up with nothing dropped, but with

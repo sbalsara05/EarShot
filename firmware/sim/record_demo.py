@@ -154,7 +154,7 @@ async def scenario(cdp, rec):
     await double_click(cdp, btn)
     await asyncio.sleep(3.5)
 
-    rec.say("Hold 1.5 s: ends the call. The microphone goes off at once and the tablet is told.")
+    rec.say("Hold 1.5 s: toggles the call. The microphone goes off at once; the tablet ends the call and writes it up.")
     await cdp.press(btn, 1.8)
     await asyncio.sleep(3.0)
 

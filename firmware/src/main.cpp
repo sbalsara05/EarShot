@@ -377,10 +377,10 @@ void loop() {
              WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "down",
              g_app->linkOpen() ? "open" : "closed");
 #endif
-    Serial.printf("[clip] state=%s %s captured=%lu sent=%lu dropped=%lu markers=%lu toggles=%lu ends=%lu finds=%lu captures=%lu\n",
+    Serial.printf("[clip] state=%s %s captured=%lu sent=%lu dropped=%lu markers=%lu rec_toggles=%lu call_toggles=%lu finds=%lu captures=%lu\n",
                   earshot::stateName(g_app->state()), link, (unsigned long)s.frames_captured,
                   (unsigned long)s.frames_sent, (unsigned long)s.frames_dropped,
-                  (unsigned long)s.markers, (unsigned long)s.toggles, (unsigned long)s.ends, (unsigned long)s.finds,
+                  (unsigned long)s.markers, (unsigned long)s.toggles, (unsigned long)s.call_toggles, (unsigned long)s.finds,
                   (unsigned long)s.captures);
 #if AUDIO_OPUS_KBPS > 0
     // Each frame is 20 ms long, so encoding one must take well under 20 ms to keep up.

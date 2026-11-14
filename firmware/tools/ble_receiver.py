@@ -11,9 +11,10 @@ reconnects by itself when the clip goes away and comes back, so it doubles as a 
                    the clip's button)
     --seconds N    stop the capture and quit after N seconds of audio
     --find         ask the clip to blink and beep ("Find clip"), wait for it to finish, and quit
-    --app          stand in for the app's button handling: answer each double click ("toggle")
-                   with start, or stop if a recording is running; print each mark and each
-                   hold ("end the call")
+    --app          stand in for the app's button handling: answer each double click (toggle
+                   the recording) with start, or stop if one is running; print each mark; and
+                   on a hold (toggle the call) end the open call and save it to its own files
+                   in build/calls/, or open a new call if none is open
     --wav FILE     where to save the decoded audio (default: build/ble_received.wav)
     --transcribe   transcribe the saved audio with Whisper at the end
 
@@ -61,6 +62,11 @@ class Receiver:
         self.hello = asyncio.Event()
         self.window_frames = self.window_bytes = 0
         self.answer = None  # set by --app: called with "start" or "stop" to answer a toggle
+        # --app: the call in progress, from its first recording to the hold that ends it
+        self.call_open = False
+        self.call_recordings = 0
+        self.call_marks = []
+        self.calls_saved = 0
 
     # ---- events channel
     def on_event(self, _sender, data: bytearray):
@@ -81,16 +87,28 @@ class Receiver:
             self.hello.set()
         elif ev.get("type") == "consent" and ev.get("event") == "granted":
             self.next_seq = 0  # the frame counter restarts with every capture
+            self.call_recordings += 1
         elif ev.get("type") == "state":
             self.listening = bool(ev.get("listening"))
+        elif ev.get("type") == "toggle" and ev.get("target") == "call":
+            # A hold: toggle the call. End the one that is open, or open a new one.
+            if not self.answer:
+                print(f"{stamp()}  CALL TOGGLE: the medic held the button (run with --app to act on it)")
+            elif self.call_open:
+                self.save_call()
+            else:
+                self.call_open = True
+                print(f"{stamp()}  NEW CALL opened: double-click the clip to start recording")
         elif ev.get("type") == "toggle" and self.answer:
-            # The clip only reports the double click. Decide as the app would.
+            # A double click: toggle the recording. Decide as the app would.
+            self.call_open = True  # a recording with no call open starts a new call
             self.answer("stop" if self.listening else "start")
-        elif ev.get("type") == "end":
-            print(f"{stamp()}  END CALL: the medic held the button; the app would close the call here")
         elif ev.get("type") == "marker":
             print(f"{stamp()}  MARK {ev.get('id')} at audio packet {ev.get('audio_seq')} "
                   f"({ev.get('audio_seq', 0) * 0.02:.1f} s into the recording)")
+            self.call_marks.append({"recording": self.call_recordings,
+                                    "seconds_into_recording": round(ev.get("audio_seq", 0) * 0.02, 2),
+                                    "source": ev.get("source")})
 
     # ---- audio channel
     def on_audio(self, _sender, data: bytearray):
@@ -114,6 +132,28 @@ class Receiver:
                         self.pcm += r.to_ndarray().tobytes()
             except Exception as e:  # one bad packet should not end the run
                 print(f"{stamp()}  could not decode frame {seq}: {e}")
+
+    def save_call(self):
+        """--app: the hold that ends a call. Save it to its own files, then start afresh, so the
+        next double click begins a new call."""
+        self.call_open = False
+        if not self.call_recordings:
+            print(f"{stamp()}  END CALL: the call had no recordings, nothing to save")
+            return
+        self.calls_saved += 1
+        name = time.strftime("call-%Y%m%d-%H%M%S")
+        folder = ROOT / "build" / "calls"
+        self.save(folder / f"{name}.wav")
+        summary = {"ended": time.strftime("%Y-%m-%d %H:%M:%S"), "recordings": self.call_recordings,
+                   "audio_seconds": round(len(self.pcm) / 2 / RATE, 1), "marks": self.call_marks}
+        (folder / f"{name}.json").write_text(json.dumps(summary, indent=2) + "\n")
+        print(f"{stamp()}  END CALL: saved {folder / name}.wav and .json "
+              f"({summary['recordings']} recording(s), {summary['audio_seconds']} s, {len(self.call_marks)} mark(s))")
+        print(f"{stamp()}  (the app would also generate the reports here)")
+        print(f"{stamp()}  ready for a new call: hold again to open one, or double-click to start recording")
+        self.pcm = bytearray()
+        self.call_recordings = 0
+        self.call_marks = []
 
     def save(self, path: pathlib.Path):
         path.parent.mkdir(parents=True, exist_ok=True)
