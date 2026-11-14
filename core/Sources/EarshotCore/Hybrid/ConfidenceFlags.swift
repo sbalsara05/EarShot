@@ -1,9 +1,10 @@
 import Foundation
 
-/// Marks a drug, dose or vital sign "please confirm" when Whisper was unsure of the words it came
-/// from. Whisper gives each token a probability; a value whose words include a token below
-/// `minConfidence` is flagged (flags "confirm" and "low_confidence"). Nothing is changed or
-/// removed: the value stays as heard, the medic checks it.
+/// Marks a drug, dose or vital sign "please confirm" when Whisper was unsure of the value itself.
+/// Whisper gives each token a probability. Only the tokens that carry the value count: the digits
+/// of a number, the letters of a drug name or unit. Label words ("heart rate", "gave") do not:
+/// Whisper is often unsure of those while the number is clear, and flagging them only adds noise
+/// (19 of 19 flags were on correct values when labels counted). Nothing is changed or removed.
 public enum ConfidenceFlags {
     public static let checkedFields: Set<String> = Set(CrossCheck.vitalKeys + ["drug", "dose", "unit"])
 
@@ -14,8 +15,11 @@ public enum ConfidenceFlags {
             var f = f0
             var low: [String] = []
             for (key, r) in f.receipts where checkedFields.contains(key) {
-                guard let range = r.rawRange, range.count == 2,
-                      let p = lowest(conf, wt, from: range[0], to: range[1]), p < minConfidence else { continue }
+                guard let range = r.rawRange, range.count == 2 else { continue }
+                let numeric = key != "drug" && key != "unit"
+                let valueText = numeric ? (f.fields[key] ?? "") : (r.quote)
+                guard let p = lowest(conf, wt, text: seg.rawText, from: range[0], to: range[1], numeric: numeric, value: valueText),
+                      p < minConfidence else { continue }
                 low.append(key)
             }
             guard !low.isEmpty else { return f }
@@ -25,12 +29,23 @@ public enum ConfidenceFlags {
         }
     }
 
-    /// Lowest token probability over the characters [a, b) of the raw text. The token that starts
-    /// at or before `a` covers the first word, so it is included.
-    static func lowest(_ conf: [Double], _ wt: [[Int64]], from a: Int, to b: Int) -> Double? {
-        var idx: [Int] = []
-        if let first = wt.lastIndex(where: { $0[0] <= Int64(a) }) { idx.append(first) }
-        for (i, w) in wt.enumerated() where w[0] > Int64(a) && w[0] < Int64(b) { idx.append(i) }
-        return idx.map { conf[$0] }.min()
+    /// Lowest probability among the tokens inside [a, b) of the raw text that carry the value:
+    /// tokens with a digit for numbers; for a drug or unit, tokens whose letters are part of the
+    /// value's words (so "gave" and "of" in the receipt are ignored). Nil when none qualify.
+    static func lowest(_ conf: [Double], _ wt: [[Int64]], text: String, from a: Int, to b: Int, numeric: Bool, value: String) -> Double? {
+        let chars = Array(text)
+        let words = Set(value.lowercased().split { !$0.isLetter }.map(String.init).filter { $0.count >= 3 })
+        var ps: [Double] = []
+        for i in wt.indices {
+            let s = Int(wt[i][0]), e = i + 1 < wt.count ? Int(wt[i + 1][0]) : chars.count
+            // token overlaps the receipt
+            guard e > a, s < b, s >= 0, s < chars.count else { continue }
+            let tok = String(chars[s..<min(max(s, e), chars.count)]).lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            let letters = tok.filter(\.isLetter)
+            let carries = numeric ? tok.contains(where: \.isNumber)
+                                  : (!letters.isEmpty && words.contains { $0.contains(letters) || letters.contains($0) })
+            if carries { ps.append(conf[i]) }
+        }
+        return ps.min()
     }
 }

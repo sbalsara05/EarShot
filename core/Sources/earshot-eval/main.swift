@@ -45,7 +45,7 @@ OPTIONS
   --no-bias               turn off biasing Whisper toward drug names
   --bias-first <x>        logit bonus for the first token of a drug name (default 0.5)
   --bias-next <x>         logit bonus for continuing a drug name (default 2.0)
-  --min-conf <p>          flag drugs/doses/vitals whose words fall below this token probability (default 0.5; 0 = off)
+  --min-conf <p>          flag drugs/doses/vitals whose words fall below this token probability (default 0.3; 0 = off)
   --pii-scrub             replace names/DOB/addresses/phones in quotes and fields with tokens (off by default)
 """
 

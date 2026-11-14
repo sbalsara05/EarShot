@@ -65,6 +65,18 @@ final class BiasAndConfidenceTests: XCTestCase {
         XCTAssertFalse(f.first { $0.type == .medication }?.flags.contains("low_confidence") ?? true)
     }
 
+    /// From the 10 dB test run: Whisper unsure of "heart" (0.325) but sure of "96" (0.987).
+    func testUnsureLabelWordDoesNotFlagAClearNumber() {
+        let raw = RawSegment(id: "s1", startMs: 0, endMs: 2000, text: "heart rate 96, west 18",
+                             wordTimes: [[0, 0], [6, 300], [11, 600], [13, 800], [15, 1000], [20, 1300]],
+                             wordConf: [0.325, 0.979, 0.987, 0.934, 0.052, 0.683])
+        let c = Cleanup(dict: TestEnv.dict).clean(raw).0
+        let f = ConfidenceFlags.apply(RulesExtractor(dict: TestEnv.dict).extract(c), seg: c, minConfidence: 0.5)
+        let v = f.first { $0.fields["heart_rate"] != nil }
+        XCTAssertEqual(v?.fields["heart_rate"], "96")
+        XCTAssertFalse(v?.flags.contains("low_confidence") ?? true)
+    }
+
     func testNoConfidenceDataOrOffChangesNothing() {
         let c = seg(conf: 0.31)
         let f = RulesExtractor(dict: TestEnv.dict).extract(c)

@@ -120,7 +120,7 @@ public struct PipelineConfig: Codable, Sendable {
         public var biasFirst: Double = 0.5
         public var biasNext: Double = 2.0
         /// A drug, dose or vital whose words include a token below this probability is "please confirm". 0 = off.
-        public var minWordConfidence: Double = 0.5
+        public var minWordConfidence: Double = 0.3
         public init() {}
         enum CodingKeys: String, CodingKey { case engine, model, name, threads, useInitialPrompt = "use_initial_prompt", prompt, beamSize = "beam_size", temperatureFallback = "temperature_fallback"
             case bias, biasFirst = "bias_first", biasNext = "bias_next", minWordConfidence = "min_word_confidence" }
@@ -137,7 +137,7 @@ public struct PipelineConfig: Codable, Sendable {
             bias = try c.decodeIfPresent(Bool.self, forKey: .bias) ?? true
             biasFirst = try c.decodeIfPresent(Double.self, forKey: .biasFirst) ?? 0.5
             biasNext = try c.decodeIfPresent(Double.self, forKey: .biasNext) ?? 2.0
-            minWordConfidence = try c.decodeIfPresent(Double.self, forKey: .minWordConfidence) ?? 0.5
+            minWordConfidence = try c.decodeIfPresent(Double.self, forKey: .minWordConfidence) ?? 0.3
         }
     }
     public var callId: String = "c1"
