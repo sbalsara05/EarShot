@@ -176,9 +176,25 @@ final class Transcriber {
 
 // MARK: Transcript to paperwork
 
-/// What the on-device model fills in. Anything it leaves empty shows in the app as "not heard".
-@Generable
+/// The paperwork for one call. Anything left empty shows in the app as "not heard".
 struct Draft: Codable {
+    var patient: String
+    var latestVitals: String
+    var given: String
+    var allergies: String
+    var dispatchAndScene: String
+    var vitalsByTime: [String]
+    var narrative: String
+    var treatmentByTime: [String]
+
+    static let blank = Draft(patient: "", latestVitals: "", given: "", allergies: "", dispatchAndScene: "", vitalsByTime: [], narrative: "", treatmentByTime: [])
+}
+
+/// What the on-device model is asked to fill in: the same fields as `Draft`, each with its instruction.
+/// Kept apart from `Draft` because the model only exists from iOS 26, and calls must still load on older systems.
+@available(iOS 26.0, *)
+@Generable
+struct ModelDraft {
     @Guide(description: "Patient age, sex and main complaint in one short line. Empty if not said.")
     var patient: String
     @Guide(description: "The most recent vital signs said aloud, like 'BP 142/88, HR 98'. Empty if none were said.")
@@ -196,7 +212,10 @@ struct Draft: Codable {
     @Guide(description: "One entry per treatment, each starting with its clock time, like '14:08 Aspirin 324 mg, chewed'.")
     var treatmentByTime: [String]
 
-    static let blank = Draft(patient: "", latestVitals: "", given: "", allergies: "", dispatchAndScene: "", vitalsByTime: [], narrative: "", treatmentByTime: [])
+    var draft: Draft {
+        Draft(patient: patient, latestVitals: latestVitals, given: given, allergies: allergies, dispatchAndScene: dispatchAndScene,
+              vitalsByTime: vitalsByTime, narrative: narrative, treatmentByTime: treatmentByTime)
+    }
 }
 
 /// Drafts the nurse handoff and PCR on the iPad itself, so the transcript never leaves the device.
@@ -204,6 +223,7 @@ struct Draft: Codable {
 /// rather than being cut silently. Summarise in chunks, or move to a server model, when calls outgrow it.
 func writeDraft(from transcript: String) async throws -> Draft {
     guard !transcript.isEmpty else { throw Problem("Nothing was heard on this call.") }
+    guard #available(iOS 26.0, *) else { throw Problem("AI drafts need iOS 26 or later. Update this \(deviceName) to get them.") }
     switch SystemLanguageModel.default.availability {
     case .available: break
     case .unavailable(.appleIntelligenceNotEnabled): throw Problem("Apple Intelligence is turned off. Turn it on in Settings to get drafts.")
@@ -217,5 +237,5 @@ func writeDraft(from transcript: String) async throws -> Draft {
         Leave a field empty when the transcript does not contain it. \
         Write spoken numbers as digits: "one forty-two over eighty-eight" becomes 142/88. Keep every field short.
         """)
-    return try await session.respond(to: transcript, generating: Draft.self).content
+    return try await session.respond(to: transcript, generating: ModelDraft.self).content.draft
 }
