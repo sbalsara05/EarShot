@@ -40,7 +40,8 @@ public struct SeqUnwrapper {
 }
 
 /// Reorders audio frames by sequence number, drops duplicates (resends after
-/// a link drop), decodes ADPCM and emits contiguous 16 kHz PCM. Missing frames
+/// a link drop) and emits contiguous 16 kHz PCM (ADPCM is decoded here; clip-protocol
+/// frames arrive decoded through `pushFrame`). Missing frames
 /// become silence plus an `AudioGap`. Audio is only ever held in memory.
 public final class AudioAssembler {
     public private(set) var gaps: [AudioGap] = []
@@ -53,7 +54,7 @@ public final class AudioAssembler {
 
     private var unwrapAudio = SeqUnwrapper()
     private var unwrapTap = SeqUnwrapper()
-    private var pending: [Int64: (clipMs: Int64, block: [UInt8])] = [:]
+    private var pending: [Int64: (clipMs: Int64, pcm: [Int16])] = [:]
     private var nextSeq: Int64?
     private var seenTaps = Set<Int64>()
     private let reorderDepth: Int
@@ -67,14 +68,8 @@ public final class AudioAssembler {
     public func push(_ p: Packet) -> [Int16] {
         switch p {
         case .audio(let h, let a):
-            let s = unwrapAudio.unwrap(h.seq)
-            if let n = nextSeq, s < n { duplicates += 1; return [] }
-            if pending[s] != nil { duplicates += 1; return [] }
-            if firstClipMs == nil { firstClipMs = Int64(h.clipMs) }
-            if nextSeq == nil { nextSeq = s }
-            pending[s] = (Int64(h.clipMs), a)
-            framesReceived += 1
-            return drain(force: false)
+            // ADPCM blocks decode on their own (each carries its predictor), so decode on arrival.
+            return pushFrame(seq: unwrapAudio.unwrap(h.seq), clipMs: Int64(h.clipMs), pcm: IMAADPCM.decodeBlock(a))
         case .tap(let h, let t):
             let s = unwrapTap.unwrap(h.seq)
             if seenTaps.contains(s) { return [] } // resend until ack: dedupe
@@ -92,6 +87,19 @@ public final class AudioAssembler {
         }
     }
 
+    /// Push one already-decoded frame (the clip protocol: Opus or pcm, decoded by the caller).
+    /// `seq` must be monotonic within a capture. Returns PCM that became contiguous.
+    @discardableResult
+    public func pushFrame(seq s: Int64, clipMs: Int64, pcm: [Int16]) -> [Int16] {
+        if let n = nextSeq, s < n { duplicates += 1; return [] }
+        if pending[s] != nil { duplicates += 1; return [] }
+        if firstClipMs == nil { firstClipMs = clipMs }
+        if nextSeq == nil { nextSeq = s }
+        pending[s] = (clipMs, pcm)
+        framesReceived += 1
+        return drain(force: false)
+    }
+
     /// Flush everything still pending (end of stream).
     public func finish() -> [Int16] { drain(force: true) }
 
@@ -100,7 +108,7 @@ public final class AudioAssembler {
         guard var n = nextSeq else { return out }
         while !pending.isEmpty {
             if let f = pending.removeValue(forKey: n) {
-                out.append(contentsOf: IMAADPCM.decodeBlock(f.block))
+                out.append(contentsOf: f.pcm)
                 n += 1
                 continue
             }

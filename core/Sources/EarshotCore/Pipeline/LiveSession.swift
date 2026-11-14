@@ -178,6 +178,93 @@ public final class LiveSession {
         }
     }
 
+    // MARK: clip protocol input (the clip firmware: firmware/BLUETOOTH.md)
+
+    /// One capture: from consent granted to stopped. Clip times map to call time through the
+    /// wall clock at the moment consent arrived, so captures, reconnects and clip reboots all land
+    /// on one call timeline (the clip has no real-time clock).
+    private struct Capture {
+        var assembler = AudioAssembler(reorderDepth: 10)
+        var anchorClipMs: Int64
+        var anchorTMs: Int64
+        var startSample: Int64
+        var sampleOffsetMs: Int64?       // call ms minus pipeline sample ms, fixed at the first frame
+        func tMs(_ clipMs: Int64) -> Int64 { anchorTMs + (clipMs - anchorClipMs) }
+    }
+    private var capture: Capture?
+    private var closedGaps: [(Int64, Int64, Int)] = []
+    public private(set) var clipHello: ClipHello?
+    public private(set) var framesUndecodable = 0
+    /// True while the clip is capturing (between consent granted and stopped).
+    public var capturing: Bool { work.sync { capture != nil } }
+
+    /// Feed one message from the clip. `decoder` turns audio payloads into PCM (Opus in the app,
+    /// pcm in tests). `receivedAt` is when the message arrived; it pins clip time to the call clock.
+    public func handle(_ m: ClipMessage, decoder: ClipFrameDecoder, receivedAt: Date = Date()) {
+        work.async { self._handle(m, decoder: decoder, receivedAt: receivedAt) }
+    }
+
+    private func callMs(_ d: Date) -> Int64 { Int64((d.timeIntervalSince1970 * 1000).rounded()) - clock.startEpochMs }
+
+    private func _handle(_ m: ClipMessage, decoder: ClipFrameDecoder, receivedAt: Date) {
+        switch m {
+        case .hello(let h):
+            clipHello = h
+        case .consent(let granted, let source, let clipMs):
+            if granted {
+                closeCapture()
+                decoder.reset()
+                openCapture(clipMs: clipMs, at: receivedAt)
+                taps.append(PlacedTap(tMs: capture!.tMs(clipMs), source: source, gesture: "yes", clipMs: clipMs))
+                remerge()
+            } else {
+                closeCapture()
+            }
+        case .state(let listening, let clipMs):
+            // The app connected (or reconnected) in the middle of a capture: pick it up without a
+            // consent event (consent was given on the clip before we were listening).
+            if listening && capture == nil { decoder.reset(); openCapture(clipMs: clipMs, at: receivedAt) }
+            if !listening && capture != nil { closeCapture() }
+        case .marker(_, let source, let clipMs, _):
+            let t = capture?.tMs(clipMs) ?? callMs(receivedAt)
+            taps.append(PlacedTap(tMs: t, source: source, gesture: "mark", clipMs: clipMs))
+            remerge()
+        case .audio(let f):
+            guard var cap = capture else { return }          // audio outside a capture is never kept
+            guard let pcm = try? decoder.decode(f.payload), !pcm.isEmpty else {
+                framesUndecodable += 1                        // becomes a gap when later frames arrive
+                return
+            }
+            let out = cap.assembler.pushFrame(seq: Int64(f.seq), clipMs: Int64(f.clipMs), pcm: pcm)
+            if cap.sampleOffsetMs == nil, let first = cap.assembler.firstClipMs {
+                cap.sampleOffsetMs = cap.tMs(first) - sampleCursor * 1000 / Int64(Wire.sampleRate)
+            }
+            capture = cap
+            ingest(out, offsetMs: cap.sampleOffsetMs ?? 0, floorSample: cap.startSample)
+            syncGaps()
+        }
+    }
+
+    private func openCapture(clipMs: Int64, at d: Date) {
+        capture = Capture(anchorClipMs: clipMs, anchorTMs: callMs(d), startSample: sampleCursor)
+        state = .listening
+        callbackQueue.async { self.onState?(.listening) }
+    }
+
+    private func closeCapture() {
+        guard let cap = capture else { return }
+        let off = cap.sampleOffsetMs ?? 0
+        ingest(cap.assembler.finish(), offsetMs: off, floorSample: cap.startSample)
+        for chunk in vad.finish() { transcribe(chunk, offsetMs: off, floorSample: cap.startSample) }
+        closedGaps += cap.assembler.gaps.map { (cap.tMs($0.startClipMs), cap.tMs($0.endClipMs), $0.missingFrames) }
+        capture = nil
+        gapList = closedGaps
+        state = .off
+        callbackQueue.async { self.onState?(.off) }
+        asrQueue.async { self.work.async { self.flushClean(force: true) } }
+        remerge()
+    }
+
     /// Tap made on the tablet (arrival button, nurse accept, manual mark).
     public func tabletTap(gesture: String, at date: Date = Date()) {
         work.async {
@@ -207,11 +294,11 @@ public final class LiveSession {
         remerge()
     }
 
-    private func ingest(_ pcm: [Int16]) {
+    private func ingest(_ pcm: [Int16], offsetMs: Int64 = 0, floorSample: Int64 = 0) {
         guard !pcm.isEmpty else { return }
         ring.append(pcm)
         sampleCursor += Int64(pcm.count)
-        for chunk in vad.push(pcm) { transcribe(chunk) }
+        for chunk in vad.push(pcm) { transcribe(chunk, offsetMs: offsetMs, floorSample: floorSample) }
         audioSecondsHeld = Double(ring.endSample - ring.baseSample) / 16000
     }
 
@@ -222,12 +309,23 @@ public final class LiveSession {
     }
 
     private func syncGaps() {
+        if let cap = capture {
+            let g = closedGaps + cap.assembler.gaps.map { (cap.tMs($0.startClipMs), cap.tMs($0.endClipMs), $0.missingFrames) }
+            if g.count != gapList.count { gapList = g; remerge() }
+            return
+        }
         guard let base = firstClip else { return }
         let g = assembler.gaps.map { ($0.startClipMs - base, $0.endClipMs - base, $0.missingFrames) }
         if g.count != gapList.count { gapList = g; remerge() }
     }
 
-    private func transcribe(_ c: SpeechChunk) {
+    /// - offsetMs: added to the chunk's sample-clock times to get call time (clip captures; 0 for replay).
+    /// - floorSample: the chunk never starts before this sample (the VAD pre-roll must not reach into
+    ///   the previous capture, whose audio is already freed).
+    private func transcribe(_ c0: SpeechChunk, offsetMs: Int64 = 0, floorSample: Int64 = 0) {
+        let c = SpeechChunk(startSample: max(c0.startSample, floorSample), endSample: c0.endSample)
+        guard c.endSample > c.startSample else { return }
+        let startMs = c.startMs + offsetMs, endMs = c.endMs + offsetMs
         let audio = ring.read(from: c.startSample, to: c.endSample).map { Float($0) / 32768 }
         ring.discard(before: c.endSample)            // free audio as soon as it is handed to ASR
         guard let tr = transcriber else { return }
@@ -237,7 +335,7 @@ public final class LiveSession {
             self.work.async {
                 for p in pieces {
                     if ASRFilter.isHallucination(p.text) { continue }
-                    guard let seg = p.rawSegment(id: "s\(self.segCounter + 1)", chunkStartMs: c.startMs, chunkEndMs: c.endMs) else { continue }
+                    guard let seg = p.rawSegment(id: "s\(self.segCounter + 1)", chunkStartMs: startMs, chunkEndMs: endMs) else { continue }
                     self.segCounter += 1
                     self.rawSegments.append(seg)
                     self.pendingClean.append(seg)
@@ -306,6 +404,7 @@ public final class LiveSession {
         work.sync {
             ring.wipe(); rawSegments.removeAll(); clean.removeAll(); findings.removeAll(); events.removeAll()
             taps.removeAll(); tablet.removeAll(); pendingClean.removeAll()
+            capture = nil; closedGaps.removeAll(); gapList.removeAll()
         }
     }
 
