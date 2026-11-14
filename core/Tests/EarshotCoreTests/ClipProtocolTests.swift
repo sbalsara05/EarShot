@@ -134,3 +134,22 @@ final class ClipProtocolTests: XCTestCase {
         s.handle(.consent(granted: false, source: "button", clipMs: Int64(clipStart) + Int64(n * 20)), decoder: dec)
     }
 }
+
+extension ClipProtocolTests {
+    func testDecodedAudioPathAndSegmentCallback() {
+        let s = LiveSession(dict: TestEnv.dict, config: PipelineConfig(), callId: "c1", startEpochMs: 0, tzOffsetSeconds: 0,
+                            transcriber: ScriptedTranscriber(["pulse 88"]))
+        let cb = DispatchQueue(label: "cb")
+        s.callbackQueue = cb
+        var seen: [RawSegment] = []
+        s.onSegments = { seen = $0 }
+        s.handle(.consent(granted: true, source: "tablet", clipMs: 0), decoder: PCMFrameDecoder(), receivedAt: Date(timeIntervalSince1970: 0))
+        let pcm = burstPCM(seconds: 3, bursts: [(0.5, 2)])
+        for i in 0..<(pcm.count / 320) { s.handleDecodedAudio(seq: UInt32(i), clipMs: UInt32(i * 20), pcm: Array(pcm[(i * 320)..<((i + 1) * 320)])) }
+        s.endCapture()
+        s.drain(); cb.sync {}
+        XCTAssertEqual(seen.map(\.text), ["pulse 88"])
+        XCTAssertFalse(TestEnv.dict.liveVocabulary().isEmpty)
+        XCTAssertLessThanOrEqual(TestEnv.dict.liveVocabulary().count, 100)
+    }
+}

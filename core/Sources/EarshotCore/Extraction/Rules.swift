@@ -60,7 +60,7 @@ public final class RulesExtractor {
         var p: [String: (String, String)] = [:]
         var s: [String: (String, String)] = [:]
         for t in dict.terms.terms {
-            let k = Text.normalizePhrase(t.term)
+            let k = EMSText.normalizePhrase(t.term)
             switch t.category {
             case "procedure" where !RulesExtractor.ambiguousProcedures.contains(k): p[k] = (RulesExtractor.procName[t.expansion] ?? t.expansion, t.term)
             case "status" where !["priority one", "priority 1", "code", "postictal", "seizing", "unresponsive", "combative"].contains(k): s[k] = (t.term, "condition")   // keep the medic's own word, never a definition
@@ -89,7 +89,7 @@ public final class RulesExtractor {
                        ("start compressions", "chest compressions"), ("12 lead", "12-lead ECG"), ("pads on", "defibrillation pads applied"),
                        ("on the monitor", "cardiac monitoring"), ("tube is in", "endotracheal intubation"), ("igel", "i-gel supraglottic airway"),
                        ("c collar", "cervical collar"), ("on cpap", "continuous positive airway pressure")] {
-            p[Text.normalizePhrase(k)] = (RulesExtractor.procName[v] ?? v, k)
+            p[EMSText.normalizePhrase(k)] = (RulesExtractor.procName[v] ?? v, k)
         }
         procLex = p; statusLex = s
         maxProcTokens = (p.keys.map { $0.split(separator: " ").count } + [1]).max()!
@@ -273,7 +273,7 @@ public final class RulesExtractor {
                     let d = dict.drug(ds[0])
                     let w = toks[i].text
                     let close = ([d.generic] + d.slang + d.brands + d.aliases).contains { a in
-                        let al = a.lowercased(); return al.first == w.first && Text.similarity(w, al) >= 0.6
+                        let al = a.lowercased(); return al.first == w.first && EMSText.similarity(w, al) >= 0.6
                     }
                     if close { found = DrugHit(drug: ds[0], range: i...i, conf: 0.55, how: "phonetic") }
                 }
@@ -356,7 +356,7 @@ public final class RulesExtractor {
             var span = h.range
             if h.how != "alias" { flags.append("confirm") }   // sound-alike / misspelling / fuzzy: always confirm
             if h.conf < 0.7 { flags.append("confirm") }
-            if Text.normalizePhrase(d.generic) != toks[a0].text || h.range.count > 1 || h.how != "alias" {
+            if EMSText.normalizePhrase(d.generic) != toks[a0].text || h.range.count > 1 || h.how != "alias" {
                 fields["drug_as_heard"] = tt.seg.quote(a0, b0)
             }
             // cues before the drug, inside its own clause only

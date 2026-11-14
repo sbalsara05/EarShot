@@ -44,7 +44,7 @@ public final class Cleanup {
     static let orientTimes: Set<String> = ["times", "x", "by", "×"]
 
     public func clean(_ seg: RawSegment) -> (CleanSegment, [Correction]) {
-        let toks = Text.tokenize(seg.text)
+        let toks = EMSText.tokenize(seg.text)
         var out: [CleanToken] = []
         var corr: [Correction] = []
         var i = 0
@@ -176,7 +176,7 @@ public final class Cleanup {
     }
 
     /// If tokens starting at i form a bracketed tag ([...] or (...)), return the index after it.
-    static func nonSpeechSpan(_ t: [Text.Token], _ i: Int) -> Int? {
+    static func nonSpeechSpan(_ t: [EMSText.Token], _ i: Int) -> Int? {
         if !t[i].raw.contains(where: { $0.isLetter || $0.isNumber }) { return i + 1 }   // "♪♪♪", "🎵"
         guard let open = t[i].raw.first, open == "[" || open == "(" else { return nil }
         let close: Character = open == "[" ? "]" : ")"
@@ -192,7 +192,7 @@ public final class Cleanup {
     func fuzzyDrug(_ t: String) -> String? {
         var best: (Double, String, String)? = nil
         for (alias, di) in dict.aliasIndex where !alias.contains(" ") && alias.count >= 5 && abs(alias.count - t.count) <= 2 {
-            let s = Text.similarity(t, alias)
+            let s = EMSText.similarity(t, alias)
             guard s >= 0.84 else { continue }
             if best == nil || s > best!.0 || (s == best!.0 && alias < best!.2) { best = (s, dict.drug(di).generic, alias) }
         }
@@ -202,7 +202,7 @@ public final class Cleanup {
     /// Parses spoken numbers: "one twenty" (120), "three twenty four" (324),
     /// "one hundred and five", "ninety eight", "zero point four", "point
     /// five", "two and a half". Returns (digits, tokensConsumed).
-    func parseNumber(_ t: [Text.Token], _ i: Int) -> (String, Int)? {
+    func parseNumber(_ t: [EMSText.Token], _ i: Int) -> (String, Int)? {
         func w(_ k: Int) -> String? { k < t.count ? t[k].norm : nil }
         func small(_ k: Int) -> (Int, Int)? { // 0-99 from words at k
             guard let a = w(k) else { return nil }

@@ -67,12 +67,12 @@ public final class EMSDictionary: @unchecked Sendable {
         self.version = "formulary-\(formulary.version)+terms-\(terms.version)"
         for (i, d) in formulary.drugs.enumerated() {
             for a in d.aliases + [d.generic] + d.slang {
-                let k = Text.normalizePhrase(a)
+                let k = EMSText.normalizePhrase(a)
                 if aliasIndex[k] == nil { aliasIndex[k] = i }
                 maxAliasTokens = max(maxAliasTokens, k.split(separator: " ").count)
             }
             for v in d.asr_variants {
-                let k = Text.normalizePhrase(v)
+                let k = EMSText.normalizePhrase(v)
                 if aliasIndex[k] == nil && variantIndex[k] == nil { variantIndex[k] = i }
                 maxAliasTokens = max(maxAliasTokens, k.split(separator: " ").count)
             }
@@ -82,11 +82,11 @@ public final class EMSDictionary: @unchecked Sendable {
             }
         }
         for k in phoneticIndex.keys { phoneticIndex[k] = Array(Set(phoneticIndex[k]!)).sorted() }
-        homeMeds = Set((formulary.home_meds ?? []).map(Text.normalizePhrase))
-        contextRequired = Set((formulary.context_required_aliases ?? []).map(Text.normalizePhrase))
-        for (u, e) in formulary.units.sorted(by: { $0.key < $1.key }) { for s in e.spoken where unitIndex[Text.normalizePhrase(s)] == nil { unitIndex[Text.normalizePhrase(s)] = u } }
-        for (r, e) in formulary.routes.sorted(by: { $0.key < $1.key }) { for s in e.spoken where routeIndex[Text.normalizePhrase(s)] == nil { routeIndex[Text.normalizePhrase(s)] = r } }
-        for t in terms.terms { termIndex[Text.normalizePhrase(t.term)] = t }
+        homeMeds = Set((formulary.home_meds ?? []).map(EMSText.normalizePhrase))
+        contextRequired = Set((formulary.context_required_aliases ?? []).map(EMSText.normalizePhrase))
+        for (u, e) in formulary.units.sorted(by: { $0.key < $1.key }) { for s in e.spoken where unitIndex[EMSText.normalizePhrase(s)] == nil { unitIndex[EMSText.normalizePhrase(s)] = u } }
+        for (r, e) in formulary.routes.sorted(by: { $0.key < $1.key }) { for s in e.spoken where routeIndex[EMSText.normalizePhrase(s)] == nil { routeIndex[EMSText.normalizePhrase(s)] = r } }
+        for t in terms.terms { termIndex[EMSText.normalizePhrase(t.term)] = t }
     }
 
     public convenience init(directory: URL) throws {
@@ -109,6 +109,21 @@ public final class EMSDictionary: @unchecked Sendable {
     public func drug(_ i: Int) -> Drug { formulary.drugs[i] }
     public func drug(named generic: String) -> Drug? { formulary.drugs.first { $0.generic == generic } }
 
+    /// Words to bias the live recogniser toward (Apple's contextualStrings, at most 100):
+    /// drug generics and brands first, then the core EMS terms.
+    public func liveVocabulary(limit: Int = 100) -> [String] {
+        var out: [String] = []
+        var seen = Set<String>()
+        func add(_ w: String) {
+            let k = w.lowercased()
+            guard out.count < limit, w.count > 2, !seen.contains(k) else { return }
+            seen.insert(k); out.append(w)
+        }
+        for d in formulary.drugs { add(d.generic); d.brands.prefix(1).forEach(add) }
+        terms.initial_prompt_core.forEach(add)
+        return out
+    }
+
     /// whisper.cpp initial prompt: the core list plus the most-spoken drug
     /// names. Kept under ~200 tokens (whisper uses at most n_text_ctx/2).
     public func initialPrompt(maxChars: Int = 600) -> String {
@@ -128,7 +143,7 @@ public final class EMSDictionary: @unchecked Sendable {
 
 // MARK: - Text helpers
 
-public enum Text {
+public enum EMSText {
     /// Lowercase, strip punctuation except / . % & - inside tokens, collapse spaces.
     public static func normalizePhrase(_ s: String) -> String {
         tokenize(s).map(\.norm).joined(separator: " ")
@@ -162,7 +177,7 @@ public enum Text {
                 while let l = norm.last, edge.contains(l) { norm.removeLast() }
                 norm = norm.replacingOccurrences(of: "’", with: "'")
                 // possessive 's is dropped ("zofran's"), contractions are kept ("she's on", "it's actually")
-                if norm.hasSuffix("'s") && norm.count > 3 && !Text.contractions.contains(norm) { norm.removeLast(2) }
+                if norm.hasSuffix("'s") && norm.count > 3 && !EMSText.contractions.contains(norm) { norm.removeLast(2) }
                 if !norm.isEmpty { out.append(Token(raw: raw, norm: norm, range: start..<i)) }
             }
         }

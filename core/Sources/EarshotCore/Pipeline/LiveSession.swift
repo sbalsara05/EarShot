@@ -106,6 +106,8 @@ public final class LiveSession {
     /// Called on `callbackQueue` whenever events change.
     public var onEvents: (([EarshotEvent]) -> Void)?
     public var onState: ((ClipState) -> Void)?
+    /// Called on `callbackQueue` with all raw (Whisper) segments whenever new ones arrive.
+    public var onSegments: (([RawSegment]) -> Void)?
     public var callbackQueue = DispatchQueue.main
 
     public private(set) var state: ClipState = .off
@@ -235,19 +237,33 @@ public final class LiveSession {
             taps.append(PlacedTap(tMs: t, source: source, gesture: "mark", clipMs: clipMs))
             remerge()
         case .audio(let f):
-            guard var cap = capture else { return }          // audio outside a capture is never kept
+            guard capture != nil else { return }              // audio outside a capture is never kept
             guard let pcm = try? decoder.decode(f.payload), !pcm.isEmpty else {
                 framesUndecodable += 1                        // becomes a gap when later frames arrive
                 return
             }
-            let out = cap.assembler.pushFrame(seq: Int64(f.seq), clipMs: Int64(f.clipMs), pcm: pcm)
-            if cap.sampleOffsetMs == nil, let first = cap.assembler.firstClipMs {
-                cap.sampleOffsetMs = cap.tMs(first) - sampleCursor * 1000 / Int64(Wire.sampleRate)
-            }
-            capture = cap
-            ingest(out, offsetMs: cap.sampleOffsetMs ?? 0, floorSample: cap.startSample)
-            syncGaps()
+            _audio(f, pcm)
         }
+    }
+
+    /// An audio frame the caller already decoded (the app decodes Opus once and feeds the same
+    /// samples to the live recogniser and here). Same rules as `handle(.audio)`.
+    public func handleDecodedAudio(seq: UInt32, clipMs: UInt32, pcm: [Int16]) {
+        work.async {
+            guard self.capture != nil, !pcm.isEmpty else { return }
+            self._audio(ClipAudioFrame(seq: seq, clipMs: clipMs, payload: []), pcm)
+        }
+    }
+
+    private func _audio(_ f: ClipAudioFrame, _ pcm: [Int16]) {
+        guard var cap = capture else { return }
+        let out = cap.assembler.pushFrame(seq: Int64(f.seq), clipMs: Int64(f.clipMs), pcm: pcm)
+        if cap.sampleOffsetMs == nil, let first = cap.assembler.firstClipMs {
+            cap.sampleOffsetMs = cap.tMs(first) - sampleCursor * 1000 / Int64(Wire.sampleRate)
+        }
+        capture = cap
+        ingest(out, offsetMs: cap.sampleOffsetMs ?? 0, floorSample: cap.startSample)
+        syncGaps()
     }
 
     /// The clip went away, or the call is ending: close any open capture as if it had stopped,
@@ -400,6 +416,10 @@ public final class LiveSession {
                     self.segCounter += 1
                     self.rawSegments.append(seg)
                     self.pendingClean.append(seg)
+                }
+                if !pieces.isEmpty, let cb = self.onSegments {
+                    let all = self.rawSegments
+                    self.callbackQueue.async { cb(all) }
                 }
                 self.flushClean(force: false)
             }
