@@ -4,8 +4,9 @@
 //        ▲                      │
 //        └────────hold──────────┘
 //
-// NotListening: mic off, ring dark. Nothing is captured.
-// Listening:    mic on, audio streams to the tablet, ring green.
+// NotListening: mic off, nothing is captured. Ring green when a tablet is connected, a slow
+//               blue blink while it waits for one.
+// Listening:    mic on, audio streams to the tablet, ring red.
 //
 // The medic asks the patient for consent out loud, as they already do. Pressing the button is
 // the medic's confirmation that consent was given: the press is logged as a consent event and

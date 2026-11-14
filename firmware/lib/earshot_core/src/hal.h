@@ -5,7 +5,7 @@
 
 namespace earshot {
 
-enum class LedColor : uint8_t { Off, Green, White };
+enum class LedColor : uint8_t { Off, Green, White, Blue, Red };
 
 class Hal {
  public:

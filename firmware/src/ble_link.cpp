@@ -22,6 +22,7 @@ BleLink::BleLink()
       conn_handle_(0),
       interval_units_(0),
       session_(0),
+      lost_(false),
       open_(false),
       seen_session_(0),
       payload_(0),
@@ -64,6 +65,7 @@ bool BleLink::begin(const char* name) {
 // ---------------------------------------------------------------- Bluetooth task callbacks
 
 void BleLink::onConnect(NimBLEServer* server, NimBLEConnInfo& info) {
+  lost_ = false;
   conn_handle_ = info.getConnHandle();
   interval_units_ = info.getConnInterval();
   events_subscribed_ = false;
@@ -76,12 +78,18 @@ void BleLink::onConnect(NimBLEServer* server, NimBLEConnInfo& info) {
 }
 
 void BleLink::onDisconnect(NimBLEServer*, NimBLEConnInfo&, int reason) {
+  // Why the connection ended. "Remote user terminated" is the tablet hanging up on purpose
+  // (the app's Disconnect button, the app closing, Bluetooth switched off). Anything else,
+  // most often a timeout, means the tablet simply stopped answering: out of range or dead.
+  bool deliberate = reason == (BLE_HS_ERR_HCI_BASE + BLE_ERR_REM_USER_CONN_TERM);
+  lost_ = !deliberate;
   connected_ = false;
   events_subscribed_ = false;
   audio_subscribed_ = false;
   ++session_;
   NimBLEDevice::startAdvertising();  // be findable again straight away
-  Serial.printf("[clip] bluetooth: disconnected (reason 0x%x), advertising again\n", reason);
+  Serial.printf("[clip] bluetooth: %s (reason 0x%x), advertising again\n",
+                deliberate ? "the tablet disconnected" : "connection lost", reason);
 }
 
 void BleLink::onConnParamsUpdate(NimBLEConnInfo& info) { interval_units_ = info.getConnInterval(); }
