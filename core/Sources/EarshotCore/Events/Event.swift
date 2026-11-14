@@ -47,19 +47,22 @@ public struct EarshotEvent: Codable, Equatable, Sendable {
     public var tapSource: String?       // button | tablet
     public var tapClipMs: Int64?
     public var enteredBy: String?       // "medic" / "nurse" when typed on the tablet
+    /// Second-recogniser check (hybrid mode). Nil when no live transcript was available.
+    public var crossCheck: CrossCheckNote?
 
     public init(id: String, callId: String, time: String, tMs: Int64, type: EventType, fields: [String: String],
                 source: EventSource, quote: String?, rawSpan: String?, confidence: Double, models: ModelInfo,
                 receipts: [String: FieldReceipt]? = nil, flags: [String]? = nil, tapSource: String? = nil,
-                tapClipMs: Int64? = nil, enteredBy: String? = nil) {
+                tapClipMs: Int64? = nil, enteredBy: String? = nil, crossCheck: CrossCheckNote? = nil) {
         self.id = id; self.callId = callId; self.time = time; self.tMs = tMs; self.type = type; self.fields = fields
         self.source = source; self.quote = quote; self.rawSpan = rawSpan; self.confidence = confidence; self.models = models
         self.receipts = receipts; self.flags = flags; self.tapSource = tapSource; self.tapClipMs = tapClipMs; self.enteredBy = enteredBy
+        self.crossCheck = crossCheck
     }
 
     enum CodingKeys: String, CodingKey {
         case id, callId = "call_id", time, tMs = "t_ms", type, fields, source, quote, rawSpan = "raw_span", confidence, models
-        case receipts, flags, tapSource = "tap_source", tapClipMs = "tap_clip_ms", enteredBy = "entered_by"
+        case receipts, flags, tapSource = "tap_source", tapClipMs = "tap_clip_ms", enteredBy = "entered_by", crossCheck = "cross_check"
     }
 
     public var needsConfirm: Bool { flags?.contains("confirm") ?? false }

@@ -120,6 +120,10 @@ public final class LiveSession {
     private let vad: EnergyVAD
     private let cleaner: Cleanup
     private let rules: RulesExtractor
+    private let crossCheck: CrossCheck
+    private let grounding: Grounding
+    private var liveLines: [String: LiveLine] = [:]
+    private var aiEvents: [EarshotEvent] = []
     private var clean: [String: CleanSegment] = [:]
     private var findings: [String: [Finding]] = [:]
     private var pendingClean: [RawSegment] = []
@@ -139,6 +143,7 @@ public final class LiveSession {
         self.clock = CallClock(startEpochMs: startEpochMs, tzOffsetSeconds: tzOffsetSeconds)
         self.transcriber = transcriber; self.tagger = tagger
         vad = EnergyVAD(config.vad); cleaner = Cleanup(dict: dict); rules = RulesExtractor(dict: dict)
+        crossCheck = CrossCheck(dict: dict); grounding = Grounding(dict: dict)
     }
 
     // MARK: input
@@ -265,6 +270,58 @@ public final class LiveSession {
         remerge()
     }
 
+    // MARK: hybrid: live recogniser and language model (docs/HYBRID.md)
+
+    /// A line from the live recogniser (Apple's on-device speech). Shown to the medic as they talk,
+    /// never part of the record; used only to cross-check Whisper on drugs, doses and vitals.
+    /// Call again with the same id as the line firms up.
+    public func liveLine(id: String, text: String, start: Date, end: Date) {
+        work.async {
+            let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if t.isEmpty { self.liveLines.removeValue(forKey: id) } else {
+                self.liveLines[id] = LiveLine(id: id, startMs: self.callMs(start), endMs: max(self.callMs(start), self.callMs(end)), text: t)
+            }
+            self.remerge()
+        }
+    }
+
+    /// Fields the language model thinks the rules missed. Each must quote the transcript; those
+    /// that pass `Grounding` join the record as "please confirm". Returns one result per suggestion.
+    public func addSuggestions(_ list: [AISuggestion]) -> [GroundingResult] {
+        work.sync {
+            var results: [GroundingResult] = []
+            for s in list {
+                var r = grounding.check(s, transcript: rawSegments, events: events + aiEvents)
+                if r.accepted, let segId = r.segmentId, let seg = rawSegments.first(where: { $0.id == segId }) {
+                    let isAllergy = s.field == "allergy"
+                    let value = s.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let e = EarshotEvent(id: "a\(aiEvents.count + 1)", callId: callId, time: clock.iso(seg.startMs), tMs: seg.startMs,
+                                         type: isAllergy ? .status : .vitals,
+                                         fields: isAllergy ? ["kind": "allergy", "allergy": value] : [s.field: value],
+                                         source: .heard, quote: s.quote, rawSpan: segId, confidence: 0.5,
+                                         models: ModelInfo(asr: transcriber?.modelName ?? "none", extract: "on-device LM, grounded"),
+                                         receipts: [s.field: FieldReceipt(rawSpan: segId, quote: s.quote)],
+                                         flags: ["confirm", "ai_suggested"])
+                    if aiEvents.contains(where: { $0.fields == e.fields }) { r = GroundingResult(accepted: false, reason: "already suggested", segmentId: segId) }
+                    else { aiEvents.append(e) }
+                }
+                results.append(r)
+            }
+            remerge()
+            return results
+        }
+    }
+
+    /// Keeps the narrative sentences whose numbers and drugs are all in the record.
+    public func checkNarrative(_ text: String) -> (kept: String, dropped: [String]) {
+        work.sync { grounding.checkNarrative(text, events: events, clock: clock) }
+    }
+
+    /// The raw transcript (Whisper), for the language model to read.
+    public var transcriptText: String {
+        work.sync { rawSegments.map { "[\(clock.clock($0.startMs))] \($0.text)" }.joined(separator: "\n") }
+    }
+
     /// Tap made on the tablet (arrival button, nurse accept, manual mark).
     public func tabletTap(gesture: String, at date: Date = Date()) {
         work.async {
@@ -379,6 +436,8 @@ public final class LiveSession {
                 var e = m; e.fields.removeValue(forKey: "labels_tap"); ev.append(e)
             }
         }
+        ev += aiEvents
+        if !liveLines.isEmpty { ev = crossCheck.apply(ev, live: Array(liveLines.values)) }
         ev.sort { ($0.tMs, $0.id) < ($1.tMs, $1.id) }
         for k in ev.indices where ev[k].source == .tablet && ev[k].enteredBy != nil { ev[k].id = "m\(k + 1)" }
         events = ev
@@ -404,7 +463,7 @@ public final class LiveSession {
         work.sync {
             ring.wipe(); rawSegments.removeAll(); clean.removeAll(); findings.removeAll(); events.removeAll()
             taps.removeAll(); tablet.removeAll(); pendingClean.removeAll()
-            capture = nil; closedGaps.removeAll(); gapList.removeAll()
+            capture = nil; closedGaps.removeAll(); gapList.removeAll(); liveLines.removeAll(); aiEvents.removeAll()
         }
     }
 
