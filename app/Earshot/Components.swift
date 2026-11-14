@@ -96,6 +96,26 @@ let clipArt = [
     "w...wmmmw...w", "w....www....w", "w...........w", "w.....g.....w", "w...........w", ".w.........w.", "..wwwwwwwww..",
 ]
 
+// MARK: Motion
+
+/// Animates changes to `value` the same way everywhere: a short smooth ease, and none at all when the medic has
+/// turned on Reduce Motion, so things then just change.
+private struct Smooth<V: Equatable>: ViewModifier {
+    var value: V
+    var seconds: Double
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content.animation(reduceMotion ? nil : .smooth(duration: seconds), value: value)
+    }
+}
+
+extension View {
+    func smooth<V: Equatable>(_ value: V, _ seconds: Double = 0.3) -> some View { modifier(Smooth(value: value, seconds: seconds)) }
+
+    /// How a whole screen arrives and leaves when the tab or the call's state changes: a fade with a small drift.
+    func screenTransition() -> some View { transition(.opacity.combined(with: .offset(y: 10))) }
+}
+
 // MARK: Small pieces
 
 /// A row that slides left to show a red Delete, like a list row does. For rows in a scrolling column, which has no
@@ -296,6 +316,7 @@ struct ClipKey: View {
                 }
             }
         }
+        .smooth(live, 0.2)   // the dimmed presses fade as the call changes state
         .foregroundStyle(Color.ink)
     }
 
