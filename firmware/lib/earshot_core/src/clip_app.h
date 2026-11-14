@@ -59,11 +59,13 @@ struct ClipStats {
   uint32_t frames_dropped;   // captured while the link was down (or failed to encode); not stored
   uint32_t audio_bytes_sent; // encoded audio bytes sent, excluding the 8-byte frame header
   uint32_t markers;
+  uint32_t toggles;          // double clicks passed to the tablet to decide on
+  uint32_t ends;             // holds reported to the tablet as "end the call"
   uint32_t finds;            // times the tablet asked the clip to make itself findable
   uint32_t captures;         // times capture was started
   ClipStats()
       : frames_captured(0), frames_sent(0), frames_dropped(0), audio_bytes_sent(0), markers(0),
-        finds(0), captures(0) {}
+        toggles(0), ends(0), finds(0), captures(0) {}
 };
 
 class ClipApp {
@@ -80,6 +82,9 @@ class ClipApp {
   // For platforms that sample the button on their own fast timer (so a tap is never missed
   // while the main loop is busy with the network). Call from the same thread as tick().
   void onButtonEvent(ButtonEvent event);
+  // The same, with the clip time at which the gesture began (Button::gestureStartMs()), so a
+  // mark is stamped with the moment of the click rather than when the click was recognised.
+  void onButtonEvent(ButtonEvent event, uint32_t began_ms);
 
   ClipState state() const { return state_; }
   const ClipStats& stats() const { return stats_; }
@@ -91,7 +96,7 @@ class ClipApp {
   ClipApp& operator=(const ClipApp&);
 
   void init();
-  void apply(Input input, const char* source);
+  void apply(Input input, const char* source, uint32_t began_ms);
   void emit(const std::string& json);
   void flushPending();
   void serviceLink(uint32_t now);

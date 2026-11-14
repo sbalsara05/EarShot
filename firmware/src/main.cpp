@@ -249,11 +249,19 @@ class Esp32Hal : public earshot::Hal {
 
 static QueueHandle_t g_button_events;
 
+struct ButtonMsg {
+  earshot::ButtonEvent event;
+  uint32_t began_ms;  // when the button first went down for this gesture
+};
+
 static void buttonTask(void*) {
   earshot::Button detector;
   for (;;) {
     earshot::ButtonEvent e = detector.update(digitalRead(BUTTON_PIN) == LOW, millis());
-    if (e != earshot::ButtonEvent::None) xQueueSend(g_button_events, &e, 0);
+    if (e != earshot::ButtonEvent::None) {
+      ButtonMsg m = {e, detector.gestureStartMs()};
+      xQueueSend(g_button_events, &m, 0);
+    }
     vTaskDelay(pdMS_TO_TICKS(5));
   }
 }
@@ -299,7 +307,7 @@ void setup() {
   Serial.println("[clip] microphone: none in Wokwi; using a 440 Hz tone instead");
 #endif
 
-  g_button_events = xQueueCreate(8, sizeof(earshot::ButtonEvent));
+  g_button_events = xQueueCreate(8, sizeof(ButtonMsg));
   xTaskCreate(buttonTask, "button", 3072, nullptr, 5, nullptr);
 
   earshot::ClipConfig app_cfg;
@@ -346,8 +354,8 @@ void setup() {
 }
 
 void loop() {
-  earshot::ButtonEvent e;
-  while (xQueueReceive(g_button_events, &e, 0) == pdTRUE) g_app->onButtonEvent(e);
+  ButtonMsg m;
+  while (xQueueReceive(g_button_events, &m, 0) == pdTRUE) g_app->onButtonEvent(m.event, m.began_ms);
 
   g_app->tick();
 
@@ -369,10 +377,11 @@ void loop() {
              WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "down",
              g_app->linkOpen() ? "open" : "closed");
 #endif
-    Serial.printf("[clip] state=%s %s captured=%lu sent=%lu dropped=%lu markers=%lu finds=%lu captures=%lu\n",
+    Serial.printf("[clip] state=%s %s captured=%lu sent=%lu dropped=%lu markers=%lu toggles=%lu ends=%lu finds=%lu captures=%lu\n",
                   earshot::stateName(g_app->state()), link, (unsigned long)s.frames_captured,
                   (unsigned long)s.frames_sent, (unsigned long)s.frames_dropped,
-                  (unsigned long)s.markers, (unsigned long)s.finds, (unsigned long)s.captures);
+                  (unsigned long)s.markers, (unsigned long)s.toggles, (unsigned long)s.ends, (unsigned long)s.finds,
+                  (unsigned long)s.captures);
 #if AUDIO_OPUS_KBPS > 0
     // Each frame is 20 ms long, so encoding one must take well under 20 ms to keep up.
     if (g_opus && s.frames_captured > 0)
