@@ -12,11 +12,13 @@ struct Item: Identifiable, Codable {
     var mark: Int? = nil   // set on a mark row, which has no text
 }
 
+/// One stretch of a call's audio as text. Pausing and resuming carries on in the same recording.
 struct Recording: Codable {
     var start = Date()
-    var end: Date? = nil
+    var end: Date? = nil            // set while paused or finished, nil while audio is being taken
     var items: [Item] = []
-    var seconds: Int { Int((end ?? Date()).timeIntervalSince(start)) }
+    var paused: TimeInterval? = nil   // time spent paused so far, left out of the length
+    var seconds: Int { Int((end ?? Date()).timeIntervalSince(start) - (paused ?? 0)) }
     var marks: Int { items.filter { $0.mark != nil }.count }
 }
 
@@ -169,7 +171,8 @@ struct Call: Identifiable, Codable {
         }
     }
 
-    /// Ends the recording if one is running, otherwise begins one. With no call open it does nothing.
+    /// Pause and play: pauses the recording if it is running, otherwise carries it on (or begins it).
+    /// With no call open it does nothing.
     func toggleRecording() {
         switch live {
         case .listening: stop()
@@ -190,7 +193,13 @@ struct Call: Identifiable, Codable {
             try transcriber.start(from: source)
             self.source = source
             self.viaClip = viaClip
-            call.recordings.append(Recording())
+            if let last = call.recordings.indices.last, let pausedAt = call.recordings[last].end {
+                // Play after pause: carry on in the same recording, so the call reads as one transcript.
+                call.recordings[last].paused = (call.recordings[last].paused ?? 0) + Date().timeIntervalSince(pausedAt)
+                call.recordings[last].end = nil
+            } else {
+                call.recordings.append(Recording())
+            }
             live = .listening
             startAsked = nil
             UIApplication.shared.isIdleTimerDisabled = true   // a locked screen would end the recording
@@ -606,7 +615,7 @@ struct Header: View {
                 Text(model.audioLabel)   // which microphone this recording is using
             }
         } else {
-            Text("Call started \(clock(model.call.start)), \(model.audioLabel)")
+            Text(model.live == .between ? "Paused, \(model.audioLabel)" : "Call started \(clock(model.call.start)), \(model.audioLabel)")
         }
     }
 }

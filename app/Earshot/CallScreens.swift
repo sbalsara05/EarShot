@@ -88,7 +88,7 @@ struct LiveScreen: View {
 
     private var ready: some View {
         column {
-            counter("Recording \(number + 1)", "00:00", valueColor: .mid)
+            counter("Recording", "00:00", valueColor: .mid)
         } middle: {
             Dots.meter(cols: 30, rows: 6, lit: .ink) { _ in 0 }
         } bottom: {
@@ -101,17 +101,20 @@ struct LiveScreen: View {
 
     private var listening: some View {
         column {
-            counter("Recording \(number)", stopwatch(current.seconds))
+            counter("Recording", stopwatch(current.seconds))
         } middle: {
             meter(lit: .ink)
         } bottom: {
             HStack(spacing: 20) {
                 Button { model.stop() } label: {
-                    RoundedRectangle(cornerRadius: 7).fill(Color.bg).frame(width: 30, height: 30)
-                        .frame(width: 96, height: 96).background(Color.red, in: Circle())
+                    // Two bars: this pauses. The same recording carries on when it is resumed.
+                    HStack(spacing: 9) {
+                        ForEach(0..<2, id: \.self) { _ in RoundedRectangle(cornerRadius: 3).fill(Color.bg).frame(width: 10, height: 30) }
+                    }
+                    .frame(width: 96, height: 96).background(Color.red, in: Circle())
                 }
                 .buttonStyle(Press())
-                .accessibilityLabel("Stop recording")
+                .accessibilityLabel("Pause recording")
                 Button { model.mark() } label: {
                     Flag(color: .bg, size: 22)
                     Text("Mark")
@@ -123,12 +126,12 @@ struct LiveScreen: View {
 
     private var between: some View {
         column {
-            counter("\(plural(number, "recording")) so far", span(model.call.recordings.reduce(0) { $0 + $1.seconds }))
+            counter("Paused at", stopwatch(model.call.recordings.reduce(0) { $0 + $1.seconds }), valueColor: .mid)
         } middle: {
             meter(lit: .mid)
         } bottom: {
             HStack(spacing: 20) {
-                recordButton("Record again")
+                recordButton("Resume recording")
                 Button("Analyze") { model.analyze() }.buttonStyle(Pill(height: 96, size: 26, grow: true))
             }
         }
@@ -136,7 +139,7 @@ struct LiveScreen: View {
 
     private var cutShort: some View {
         column {
-            counter("Recording \(number) stopped at", stopwatch(current.seconds), labelColor: .red, valueColor: .mid)
+            counter("Recording stopped at", stopwatch(current.seconds), labelColor: .red, valueColor: .mid)
         } middle: {
             if !phone { ClipModel(ghost: true, scale: 0.55).frame(width: 145, height: 185) }
         } bottom: {
@@ -173,7 +176,7 @@ struct LiveScreen: View {
                 }
                 if let problem = model.problem { alert("Problem", problem) }
                 if model.live == .cutShort {
-                    alert("Clip disconnected at \(clock(current.end ?? Date()))", "Recording \(number) is saved up to that point, with its marks.")
+                    alert("Clip disconnected at \(clock(current.end ?? Date()))", "The recording is saved up to that point, with its marks.")
                 }
             }
         }
