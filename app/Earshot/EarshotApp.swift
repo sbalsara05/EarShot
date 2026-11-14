@@ -130,6 +130,7 @@ struct Call: Identifiable, Codable {
 
     @ObservationIgnored private let engine = CallEngine()
     @ObservationIgnored private var retired = Set<UUID>()             // live lines already replaced by the record
+    @ObservationIgnored private var liveEnds: [UUID: Date] = [:]      // when each live line last changed, so the record replaces it only once it is past that
     @ObservationIgnored private let link = ClipLink()
     @ObservationIgnored private var source = CallEngine.Source.mic   // where the current recording's audio comes from
     @ObservationIgnored private var viaClip = false                   // the current recording runs on the clip too, so stop and marks go to it
@@ -171,6 +172,7 @@ struct Call: Identifiable, Codable {
 
     private func heard(_ id: UUID, _ text: String) {
         guard !retired.contains(id) else { return }
+        liveEnds[id] = Date()
         if id == engine.segment { liveLine = id }
         for r in call.recordings.indices {
             if let i = call.recordings[r].items.firstIndex(where: { $0.id == id }) {
@@ -185,9 +187,9 @@ struct Call: Identifiable, Codable {
     /// live words they cover. Marks stay where they are.
     private func recorded(_ id: Call.ID, _ lines: [RecordLine]) {
         if call.id == id {
-            Self.place(lines, in: &call, retiring: &retired)
+            Self.place(lines, in: &call, retiring: &retired, speaking: live == .listening ? engine.segment : nil, ends: liveEnds)
         } else if let i = review.firstIndex(where: { $0.id == id }) {
-            Self.place(lines, in: &review[i], retiring: &retired)
+            Self.place(lines, in: &review[i], retiring: &retired, speaking: nil, ends: liveEnds)
         } else {
             return
         }
@@ -195,21 +197,41 @@ struct Call: Identifiable, Codable {
         save()
     }
 
-    private static func place(_ lines: [RecordLine], in call: inout Call, retiring retired: inout Set<UUID>) {
-        guard let lastEnd = lines.last?.end else { return }
+    /// How long after words are spoken the live recogniser shows them. A live line's last update is
+    /// that much later than its audio, so the record is allowed that much less to have covered it.
+    static let liveLag: TimeInterval = 1.5
+
+    /// Puts the record's lines into the call and takes out the live words they replace.
+    ///
+    /// A live line goes only once the record has reached the end of it: the line being spoken stays,
+    /// and so does one that ran on past where the record has got to, so words are never taken off
+    /// the screen before the record has them. `ends` is when each live line last changed; a line
+    /// with no entry (read back from disk) ended when it began.
+    static func place(_ lines: [RecordLine], in call: inout Call, retiring retired: inout Set<UUID>,
+                      speaking: UUID?, ends: [UUID: Date]) {
+        guard let covered = lines.map(\.end).max(), !call.recordings.isEmpty else { return }
+        // Each line belongs to one recording: the last one that had begun by the time the line ended.
+        func owner(_ line: RecordLine) -> Int { call.recordings.lastIndex { $0.start <= line.end } ?? 0 }
         for r in call.recordings.indices {
-            let rec = call.recordings[r]
-            let mine = lines.filter { $0.end >= rec.start && $0.start <= (rec.end ?? .distantFuture) }
-            guard !mine.isEmpty else { continue }
-            var items = rec.items.filter { item in
+            let mine = lines.filter { owner($0) == r }
+            var items = call.recordings[r].items.filter { item in
                 if item.mark != nil { return true }
                 if item.record == true { return false }               // rebuilt below
-                if item.time < lastEnd { retired.insert(item.id); return false }
-                return true                                           // still ahead of Whisper
+                if item.id == speaking { return true }                // still being spoken
+                if (ends[item.id] ?? item.time) <= covered.addingTimeInterval(liveLag) { retired.insert(item.id); return false }
+                return true                                           // the record has not reached the end of it
             }
             items += mine.map { Item(time: $0.start, text: $0.text, record: true) }
             call.recordings[r].items = items.sorted { $0.time < $1.time }
         }
+    }
+
+    /// The call is drafted, so the record is complete: live words it never took up are dropped, and
+    /// the transcript is the record alone. If nothing was written to the record (no recogniser could
+    /// run), the live words are all there is, and they stay.
+    static func settle(_ call: inout Call) {
+        guard call.recordings.contains(where: { $0.items.contains { $0.record == true } }) else { return }
+        for r in call.recordings.indices { call.recordings[r].items.removeAll { $0.mark == nil && $0.record != true } }
     }
 
     // MARK: The call
@@ -504,6 +526,7 @@ struct Call: Identifiable, Codable {
         Task { @MainActor in
             let out = await engine.finish(id)   // waits for Whisper to finish the call, then drafts from the record
             guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // signed or removed meanwhile
+            Self.settle(&review[i])   // Whisper has finished: the transcript is now the record
             review[i].draft = out.draft
             review[i].docs = out.docs
             review[i].reviewNotes = out.notes
@@ -688,6 +711,23 @@ struct Call: Identifiable, Codable {
         }
         let heard = [0, 0.0005, 0.002, 0.01, 0.03, 0.1, 0.4].map { Audio.level(tone($0)) }
         assert(heard[2] == 0 && heard[3] >= 3 && heard[5] == 6 && heard == heard.sorted(), "the level meter is off: \(heard)")
+        // The record replaces live words only once it has reached the end of them.
+        let t0 = Date(timeIntervalSince1970: 1000)
+        let spoken = Item(time: t0.addingTimeInterval(1), text: "covered"), running = Item(time: t0.addingTimeInterval(4), text: "runs on"),
+            now = Item(time: t0.addingTimeInterval(5), text: "speaking"), flag = Item(time: t0.addingTimeInterval(2), mark: 1)
+        var talk = Call()
+        talk.recordings = [Recording(start: t0, items: [spoken, flag, running, now])]
+        var gone = Set<UUID>()
+        let line = RecordLine(start: t0, end: t0.addingTimeInterval(6), text: "the record")
+        place([line], in: &talk, retiring: &gone, speaking: now.id,
+              ends: [spoken.id: t0.addingTimeInterval(5), running.id: t0.addingTimeInterval(20), now.id: t0.addingTimeInterval(5.5)])
+        assert(talk.recordings[0].items.map(\.text) == ["the record", "", "runs on", "speaking"] && gone == [spoken.id], "live words were replaced too early: \(talk.recordings[0].items.map(\.text))")
+        place([line, RecordLine(start: t0.addingTimeInterval(6), end: t0.addingTimeInterval(21), text: "more")], in: &talk, retiring: &gone, speaking: nil,
+              ends: [running.id: t0.addingTimeInterval(20), now.id: t0.addingTimeInterval(5.5)])
+        assert(talk.recordings[0].items.map(\.text) == ["the record", "", "more"], "the record did not replace the live words it covers")
+        talk.recordings[0].items.append(Item(time: t0.addingTimeInterval(30), text: "never recorded"))
+        settle(&talk)
+        assert(talk.recordings[0].items.map(\.text) == ["the record", "", "more"] && talk.markCount == 1)
         // A mark dropped by accident can be deleted: the ones after it move up, and their notes with them.
         var marked = Call()
         marked.recordings = [Recording(items: [Item(mark: 1), Item(text: "x"), Item(mark: 2)]), Recording(items: [Item(mark: 3)])]
