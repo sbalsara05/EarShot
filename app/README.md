@@ -70,6 +70,17 @@ To keep your team and bundle identifier between regenerations, set `DEVELOPMENT_
 A call that is not signed stays open, even if the app is closed. To throw one away, use
 **Discard call** on Home. Past calls open with a tap and delete with a swipe.
 
+## More than one call
+
+Completing a call does not have to wait for its paperwork. The call moves to the AI Drafts tab, under
+**Needs sign-off**, and its reports are drafted there while a new call can start straight away. The
+AI Drafts tab shows how many calls are waiting. Open one to correct its lines and sign it; it then
+moves to **Signed**. Home lists the three most recent signed calls.
+
+From the clip: a double click pauses and resumes the recording, and a click and hold completes the
+open call, or, with no call open, starts one and begins recording. The exact messages for those two
+gestures are not settled with the firmware yet; the app reads them in `ClipIntent` in `ClipLink.swift`.
+
 ## Messages you may see
 
 | Message | What it means |

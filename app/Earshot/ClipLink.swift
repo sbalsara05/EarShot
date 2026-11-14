@@ -22,7 +22,8 @@ enum ClipIntent: Equatable {
     case stopped                 // the clip ended the capture
     case listening(Bool)         // the clip's own account of whether it is capturing, said after every connect
     case mark                    // the medic marked this moment on the clip
-    case toggleRecording         // one press on the clip: end the recording if one is running, otherwise begin one
+    case toggleRecording         // double click on the clip: pause the recording if it is running, otherwise carry it on
+    case toggleCall              // click and hold on the clip: complete the open call, or with none open begin one and record
 
     init?(_ event: ClipEvent) {
         switch (event.type, event.event) {
@@ -31,9 +32,14 @@ enum ClipIntent: Equatable {
         case ("consent", "stopped"): self = .stopped
         case ("state", _): self = .listening(event.listening == true)
         case ("marker", _) where event.source == "button": self = .mark   // one the app asked for is already in the transcript
-        // STUB: the firmware's payload for this is not settled. Until it is, {"type":"toggle"} stands in for it.
-        case ("toggle", _): self = .toggleRecording
-        default: return nil
+        default:
+            // STUB: the exact payloads for the two toggles are not settled with the firmware. Until they are, the
+            // event's name is taken from "type", and a hyphen or an underscore in it is read the same way.
+            switch event.type.replacingOccurrences(of: "_", with: "-") {
+            case "toggle-rec", "toggle": self = .toggleRecording
+            case "toggle-call": self = .toggleCall
+            default: return nil
+            }
         }
     }
 }

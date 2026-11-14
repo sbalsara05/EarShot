@@ -1,8 +1,7 @@
 import SwiftUI
 
 enum Tab: String, CaseIterable { case home = "Home", live = "Live Call", drafts = "AI Drafts", clip = "Clip" }
-enum Live { case none, ready, listening, between, cutShort, done }   // done: completed, so no more can be recorded on this call
-enum Drafts { case none, analyzing, ready, signed }
+enum Live { case none, ready, listening, between, cutShort }
 
 /// One row of the transcript: something said, or a mark the medic dropped.
 struct Item: Identifiable, Codable {
@@ -80,9 +79,9 @@ struct Call: Identifiable, Codable {
     var clipReconnecting = false           // the link dropped mid-recording; the recording is held open while the clip comes back
     var clipSilent = false                 // recording from the clip, but no audio has arrived for a few seconds
     var live = Live.none
-    var drafts = Drafts.none
 
     var call = Call()                              // the call being worked on
+    var review: [Call] = []                        // completed calls waiting for sign-off, newest first; their reports are drafted or being drafted
     var past: [Call] = []                          // signed calls, newest first
     var liveLine: UUID?                            // the line still being spoken
     var levels = [Int](repeating: 0, count: 30)    // recent loudness, oldest first
@@ -143,7 +142,6 @@ struct Call: Identifiable, Codable {
         call = Call()
         problem = nil
         live = .ready
-        drafts = .none
         tab = .live
         save()
     }
@@ -177,7 +175,7 @@ struct Call: Identifiable, Codable {
         switch live {
         case .listening: stop()
         case .ready, .between, .cutShort: record()
-        case .none, .done: break
+        case .none: break
         }
     }
 
@@ -188,7 +186,7 @@ struct Call: Identifiable, Codable {
     var audioLabel: String { (live == .listening ? source : audioSource) == .clip ? "Clip audio" : "\(deviceName) mic" }
 
     private func begin(from source: Transcriber.Source, viaClip: Bool) {
-        guard live != .listening, live != .none, live != .done else { return }
+        guard live != .listening, live != .none else { return }
         do {
             try transcriber.start(from: source)
             self.source = source
@@ -335,7 +333,12 @@ struct Call: Identifiable, Codable {
     }
 
     private func clipSaid(_ event: ClipEvent) {
-        guard let intent = ClipIntent(event) else { return }
+        guard let intent = ClipIntent(event) else {
+            #if DEBUG
+            print("clip link: no action for a \"\(event.type)\" event")
+            #endif
+            return
+        }
         switch intent {
         case .hello(let codec):
             if let codec, codec != "opus" { problem = "This clip sends \(codec) audio, which Earshot cannot read yet." }
@@ -361,13 +364,15 @@ struct Call: Identifiable, Codable {
             if live == .listening { addMark() }
         case .toggleRecording:
             toggleRecording()
+        case .toggleCall:
+            toggleCall()
         }
     }
 
     /// The clip began capturing, from its button or because the app asked.
     private func clipStarted() {
         guard live != .listening else { return }
-        guard live != .none, live != .done else {
+        guard live != .none else {
             link.send("stop")   // no call is open to record on, so nothing is recorded and the clip's light goes dark again
             return
         }
@@ -380,83 +385,99 @@ struct Call: Identifiable, Codable {
 
     // MARK: The paperwork
 
-    /// Completes the call: the recording is closed for good and the nurse handoff and PCR are drafted from it.
-    func analyze() {
+    /// The clip's click and hold. With a call open it completes it. With none open it begins one and starts recording.
+    func toggleCall() {
+        if live == .none {
+            newCall()
+            record()
+        } else {
+            complete(show: false)   // the medic's hands are on the patient, so the screen stays where it is
+        }
+    }
+
+    /// Completes the open call: its recording is closed for good and it joins the calls waiting for sign-off, where
+    /// its nurse handoff and PCR are drafted. The Live Call tab is free for a new call straight away.
+    func complete(show: Bool = true) {
         stop()
-        if live != .none { live = .done }
-        drafts = .analyzing
-        tab = .drafts
-        call.draftNote = nil
-        call.markNotes = [:]
-        let said = call.recordings.flatMap(\.items).contains { $0.mark == nil && !$0.text.isEmpty }
-        let transcript = said ? call.transcript : ""
+        guard live != .none else { return }
+        guard !call.recordings.isEmpty else {   // nothing was recorded, so there is nothing to report on
+            discard()
+            return
+        }
+        var done = call
+        done.draft = .blank
+        done.draftNote = nil
+        done.markNotes = [:]
+        done.drafted = false
+        review.insert(done, at: 0)
+        call = Call()
+        live = .none
+        problem = nil   // any recording trouble belonged to the call that just ended
+        if show { tab = .drafts }
+        save()
+        draft(done.id)
+    }
+
+    /// Writes the reports for a call waiting for sign-off. Until it finishes, the call shows as "Writing reports".
+    private func draft(_ id: Call.ID) {
+        guard let waiting = review.first(where: { $0.id == id }) else { return }
+        let said = waiting.recordings.flatMap(\.items).contains { $0.mark == nil && !$0.text.isEmpty }
+        let transcript = said ? waiting.transcript : ""
         Task { @MainActor in
+            var written = Draft.blank, note: String?
             do {
-                call.draft = try await writeDraft(from: transcript)
+                written = try await writeDraft(from: transcript)
             } catch {
-                call.draft = .blank
-                call.draftNote = "Nothing was drafted. \(error.localizedDescription) Fill in the lines yourself."
+                note = "Nothing was drafted. \(error.localizedDescription) Fill in the lines yourself."
             }
-            guard drafts == .analyzing else { return }
-            call.drafted = true
-            drafts = .ready
+            guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // signed or removed meanwhile
+            review[i].draft = written
+            review[i].draftNote = note
+            review[i].drafted = true
             save()
         }
     }
 
-    /// Signing off ends the call: it moves to the past calls and a new one can start.
-    func signOff(_ signature: Signature) {
-        call.signature = signature
-        call.signedAt = Date()
-        past.insert(call, at: 0)
-        problem = nil   // any recording trouble belonged to the call that just ended
-        live = .none
-        drafts = .signed
+    /// Signing off moves a call from the ones waiting to the signed ones.
+    func signOff(_ id: Call.ID, _ signature: Signature) {
+        guard let i = review.firstIndex(where: { $0.id == id }) else { return }
+        var signed = review.remove(at: i)
+        signed.signature = signature
+        signed.signedAt = Date()
+        past.insert(signed, at: 0)
         save()
     }
 
-    /// Edit, after signing: the call comes back out of the past calls until it is signed again.
-    func reopen() {
-        past.removeAll { $0.id == call.id }
-        call.signedAt = nil
-        call.signature = nil   // an edited call has to be signed again
-        live = call.recordings.isEmpty ? .ready : .done   // the reports can be edited again; the recording stays closed
-        drafts = .ready
+    /// Edit, after signing: the call goes back to waiting until it is signed again.
+    func reopen(_ id: Call.ID) {
+        guard let i = past.firstIndex(where: { $0.id == id }) else { return }
+        var edited = past.remove(at: i)
+        edited.signedAt = nil
+        edited.signature = nil   // an edited call has to be signed again
+        review.insert(edited, at: 0)
         save()
     }
 
-    /// Throws away a call that has not been signed, with its recordings and drafts.
+    /// Throws away the call being recorded, with its recording.
     func discard() {
         stop()
         call = Call()
         problem = nil
         live = .none
-        drafts = .none
         save()
     }
 
-    func closeCall() {
-        call = Call()
-        live = .none
-        drafts = .none
-        tab = .home
-    }
-
     func delete(at offsets: IndexSet) {
-        let showing = offsets.contains { past[$0].id == call.id }
         past.remove(atOffsets: offsets)
-        if showing && drafts == .signed {   // the deleted call was still open on the drafts tab
-            call = Call()
-            drafts = .none
-        }
         save()
     }
 
     // MARK: On disk
 
     private struct Saved: Codable {
-        var open: Call?     // a call that is not signed yet
+        var open: Call?       // the call being recorded
         var past: [Call]
+        var review: [Call]?   // completed, not signed. Optional so files written before it existed still load
     }
 
     private static let file = URL.applicationSupportDirectory.appending(path: "calls.json")
@@ -464,11 +485,10 @@ struct Call: Identifiable, Codable {
     /// Writes the open call and the past calls. Called whenever either changes, and when the app leaves the screen.
     /// ponytail: one file rewritten whole. Move to a file per call, or SwiftData, when the history grows past a few hundred calls.
     func save() {
-        let unsigned = live != .none || drafts == .ready || drafts == .analyzing
         do {
             try FileManager.default.createDirectory(at: Self.file.deletingLastPathComponent(), withIntermediateDirectories: true)
             // Calls hold patient information: encrypted while the device is locked, and kept out of iCloud backups.
-            try JSONEncoder().encode(Saved(open: unsigned ? call : nil, past: past)).write(to: Self.file, options: [.atomic, .completeFileProtection])
+            try JSONEncoder().encode(Saved(open: live != .none ? call : nil, past: past, review: review)).write(to: Self.file, options: [.atomic, .completeFileProtection])
             var file = Self.file, values = URLResourceValues()
             values.isExcludedFromBackup = true
             try file.setResourceValues(values)
@@ -482,14 +502,21 @@ struct Call: Identifiable, Codable {
         do {
             let saved = try JSONDecoder().decode(Saved.self, from: data)
             past = saved.past
-            guard var open = saved.open else { return }
-            // A recording that was still running when the app closed ends at its last line.
-            for i in open.recordings.indices where open.recordings[i].end == nil {
-                open.recordings[i].end = open.recordings[i].items.last?.time ?? open.recordings[i].start
+            review = saved.review ?? []
+            if var open = saved.open {
+                // A recording that was still running when the app closed ends at its last line.
+                for i in open.recordings.indices where open.recordings[i].end == nil {
+                    open.recordings[i].end = open.recordings[i].items.last?.time ?? open.recordings[i].start
+                }
+                if open.drafted {
+                    review.insert(open, at: 0)   // saved by an older build, which kept a completed call open until it was signed
+                } else {
+                    call = open
+                    live = open.recordings.isEmpty ? .ready : .between
+                }
             }
-            call = open
-            live = open.recordings.isEmpty ? .ready : open.drafted ? .done : .between
-            drafts = open.drafted ? .ready : .none
+            // Drafting that was cut off when the app closed is started again.
+            for waiting in review where !waiting.drafted { draft(waiting.id) }
         } catch {
             // Never overwrite a file that could not be read: set it aside so its calls can be recovered.
             let aside = Self.file.deletingLastPathComponent().appending(path: "calls-unreadable-\(Int(Date().timeIntervalSince1970)).json")
@@ -522,7 +549,9 @@ struct Call: Identifiable, Codable {
         assert(marker?.type == "marker" && marker?.source == "button")
         assert(hello.flatMap(ClipIntent.init) == .hello(codec: "opus") && marker.flatMap(ClipIntent.init) == .mark)
         let toggle = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"toggle"}"#.utf8))
-        assert(toggle.flatMap(ClipIntent.init) == .toggleRecording)   // the stub payload; change both together
+        assert(toggle.flatMap(ClipIntent.init) == .toggleRecording)   // the stub payloads; change them together with ClipIntent
+        let named = { (type: String) in (try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"\#(type)"}"#.utf8))).flatMap(ClipIntent.init) }
+        assert(named("toggle-rec") == .toggleRecording && named("toggle_call") == .toggleCall && named("something-else") == nil)
         assert(ClipLink.frameNumber(of: Data([0x47, 0x01, 0, 0, 9, 9, 9, 9])) == 327)   // 0x0147, least significant byte first
     }
     #endif
@@ -617,7 +646,7 @@ struct Header: View {
                 Text(model.audioLabel)   // which microphone this recording is using
             }
         } else {
-            Text(model.live == .done ? "Recording complete" : model.live == .between ? "Paused, \(model.audioLabel)" : "Call started \(clock(model.call.start)), \(model.audioLabel)")
+            Text(model.live == .between ? "Paused, \(model.audioLabel)" : "Call started \(clock(model.call.start)), \(model.audioLabel)")
         }
     }
 }
@@ -634,6 +663,12 @@ struct Tabs: View {
                     HStack(spacing: fit(8, 6)) {
                         if tab == .clip { clipDot(selected: on) }
                         Text(tab.rawValue).lineLimit(1)
+                        if tab == .drafts && !model.review.isEmpty {
+                            // How many completed calls still need a person to check and sign them.
+                            Text("\(model.review.count)").font(geist(13, 700)).foregroundStyle(Color.bg)
+                                .frame(minWidth: 20, minHeight: 20).background(Color.yellow, in: Capsule())
+                                .accessibilityLabel("\(model.review.count) waiting for sign-off")
+                        }
                     }
                     .font(geist(15, 600))
                     .foregroundStyle(on ? Color.bg : .dim)
@@ -691,7 +726,10 @@ struct HomeScreen: View {
                     Text(model.call.recordings.isEmpty ? "No recordings yet" : "\(plural(model.call.recordings.count, "recording")), \(plural(model.call.markCount, "mark"))").font(geist(22)).foregroundStyle(Color.dim)
                     let actions = phone ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 16))
                     actions {
-                        Button(model.live == .listening ? "Live call →" : model.live == .done ? "Open reports" : "Resume call") { model.tab = model.live == .done ? .drafts : .live }.buttonStyle(Pill(height: fit(76, 68), size: 22, minWidth: fit(260, nil), grow: phone))
+                        Button(model.live == .listening ? "Live call →" : "Resume call") {
+                            model.tab = .live
+                            if model.live != .listening { model.record() }   // resuming means recording again, not only showing the call
+                        }.buttonStyle(Pill(height: fit(76, 68), size: 22, minWidth: fit(260, nil), grow: phone))
                         Button("Discard call") { discarding = true }.buttonStyle(Pill(fill: nil, height: fit(76, 56), size: fit(22, 17), grow: phone))
                             .confirmationDialog("Discard this call?", isPresented: $discarding, titleVisibility: .visible) {
                                 Button("Discard call", role: .destructive) { model.discard() }
