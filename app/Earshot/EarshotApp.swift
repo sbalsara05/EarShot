@@ -19,6 +19,9 @@ struct Item: Identifiable, Codable {
     /// true: a line of the record (Whisper). nil: live words, shown while the medic talks and
     /// replaced by the record once Whisper catches up.
     var record: Bool? = nil
+    /// true: live words the record went past without writing anything for that stretch. They stay
+    /// in the transcript, marked, and are not in the report.
+    var unrecorded: Bool? = nil
 }
 
 /// One stretch of a call's audio as text. Pausing and resuming carries on in the same recording.
@@ -219,9 +222,11 @@ struct Call: Identifiable, Codable {
 
     /// Puts the record's lines into the call and takes out the live words they replace.
     ///
-    /// A live line goes only once the record has reached the end of it: the line being spoken stays,
-    /// and so does one that ran on past where the record has got to, so words are never taken off
-    /// the screen before the record has them. `ends` is when each live line last changed; a line
+    /// A live line is looked at only once the record has reached the end of it: the line being spoken
+    /// stays, and so does one that ran on past where the record has got to. Then, if the record wrote
+    /// something for that stretch of time, the live line is replaced by it. If the record wrote nothing
+    /// there (the recogniser did not hear it as speech), the live line stays and is marked `unrecorded`,
+    /// so words that were heard never just disappear. `ends` is when each live line last changed; a line
     /// with no entry (read back from disk) ended when it began.
     static func place(_ lines: [RecordLine], in call: inout Call, retiring retired: inout Set<UUID>,
                       speaking: UUID?, ends: [UUID: Date]) {
@@ -230,24 +235,40 @@ struct Call: Identifiable, Codable {
         func owner(_ line: RecordLine) -> Int { call.recordings.lastIndex { $0.start <= line.end } ?? 0 }
         for r in call.recordings.indices {
             let mine = lines.filter { owner($0) == r }
-            var items = call.recordings[r].items.filter { item in
-                if item.mark != nil || item.place != nil { return true }
-                if item.record == true { return false }               // rebuilt below
-                if item.id == speaking { return true }                // still being spoken
-                if (ends[item.id] ?? item.time) <= covered.addingTimeInterval(liveLag) { retired.insert(item.id); return false }
-                return true                                           // the record has not reached the end of it
+            var items: [Item] = []
+            for var item in call.recordings[r].items {
+                if item.mark != nil || item.place != nil { items.append(item); continue }
+                if item.record == true { continue }                                   // rebuilt below
+                let end = ends[item.id] ?? item.time
+                if item.id == speaking || end > covered.addingTimeInterval(liveLag) { items.append(item); continue }   // not reached yet
+                // Live words show up to `liveLag` after their audio, so the audio began that much before `item.time`.
+                if lines.contains(where: { $0.start <= end && $0.end >= item.time.addingTimeInterval(-liveLag) }) {
+                    retired.insert(item.id)                                          // the record has this stretch
+                } else {
+                    item.unrecorded = true
+                    items.append(item)
+                }
             }
             items += mine.map { Item(time: $0.start, text: $0.text, record: true) }
             call.recordings[r].items = items.sorted { $0.time < $1.time }
         }
     }
 
-    /// The call is drafted, so the record is complete: live words it never took up are dropped, and
-    /// the transcript is the record alone. If nothing was written to the record (no recogniser could
-    /// run), the live words are all there is, and they stay.
-    static func settle(_ call: inout Call) {
-        guard call.recordings.contains(where: { $0.items.contains { $0.record == true } }) else { return }
-        for r in call.recordings.indices { call.recordings[r].items.removeAll { $0.mark == nil && $0.place == nil && $0.record != true } }
+    /// The call is drafted, so the record is complete: any live words still not in it are marked
+    /// `unrecorded`. Returns how many lines that is. If nothing at all was written to the record (no
+    /// recogniser could run), the live words are all there is and are left as they are.
+    @discardableResult static func settle(_ call: inout Call) -> Int {
+        guard call.recordings.contains(where: { $0.items.contains { $0.record == true } }) else { return 0 }
+        var count = 0
+        for r in call.recordings.indices {
+            for i in call.recordings[r].items.indices {
+                let item = call.recordings[r].items[i]
+                guard item.mark == nil, item.place == nil, item.record != true, !item.text.isEmpty else { continue }
+                call.recordings[r].items[i].unrecorded = true
+                count += 1
+            }
+        }
+        return count
     }
 
     // MARK: The call
@@ -557,11 +578,15 @@ struct Call: Identifiable, Codable {
         Task { @MainActor in
             let out = await engine.finish(id)   // waits for Whisper to finish the call, then drafts from the record
             guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // signed or removed meanwhile
-            Self.settle(&review[i])   // Whisper has finished: the transcript is now the record
+            var notes = out.notes
+            let missed = Self.settle(&review[i])   // the record is complete: what it never took up is marked
+            if missed > 0 {
+                notes.append("\(plural(missed, "line")) heard live \(missed == 1 ? "is" : "are") not in the record, so not in the report. \(missed == 1 ? "It is" : "They are") marked in the transcript.")
+            }
             review[i].draft = out.draft
             review[i].docs = out.docs
-            review[i].reviewNotes = out.notes
-            review[i].draftNote = out.notes.isEmpty ? nil : out.notes.joined(separator: " ")
+            review[i].reviewNotes = notes
+            review[i].draftNote = notes.isEmpty ? nil : notes.joined(separator: " ")
             // The record's narrative is the plain one. Another format is written only when the medic picks it.
             review[i].format = .plain
             review[i].narratives = out.draft.narrative.isEmpty ? [:] : [NarrativeFormat.plain.rawValue: out.draft.narrative]
@@ -742,7 +767,8 @@ struct Call: Identifiable, Codable {
         }
         let heard = [0, 0.0005, 0.002, 0.01, 0.03, 0.1, 0.4].map { Audio.level(tone($0)) }
         assert(heard[2] == 0 && heard[3] >= 3 && heard[5] == 6 && heard == heard.sorted(), "the level meter is off: \(heard)")
-        // The record replaces live words only once it has reached the end of them.
+        // The record replaces live words only once it has reached the end of them, and only where it wrote
+        // something for that stretch. Live words it went past with nothing written stay, marked.
         let t0 = Date(timeIntervalSince1970: 1000)
         let spoken = Item(time: t0.addingTimeInterval(1), text: "covered"), running = Item(time: t0.addingTimeInterval(4), text: "runs on"),
             now = Item(time: t0.addingTimeInterval(5), text: "speaking"), flag = Item(time: t0.addingTimeInterval(2), mark: 1)
@@ -753,12 +779,17 @@ struct Call: Identifiable, Codable {
         place([line], in: &talk, retiring: &gone, speaking: now.id,
               ends: [spoken.id: t0.addingTimeInterval(5), running.id: t0.addingTimeInterval(20), now.id: t0.addingTimeInterval(5.5)])
         assert(talk.recordings[0].items.map(\.text) == ["the record", "", "runs on", "speaking"] && gone == [spoken.id], "live words were replaced too early: \(talk.recordings[0].items.map(\.text))")
-        place([line, RecordLine(start: t0.addingTimeInterval(6), end: t0.addingTimeInterval(21), text: "more")], in: &talk, retiring: &gone, speaking: nil,
-              ends: [running.id: t0.addingTimeInterval(20), now.id: t0.addingTimeInterval(5.5)])
-        assert(talk.recordings[0].items.map(\.text) == ["the record", "", "more"], "the record did not replace the live words it covers")
-        talk.recordings[0].items.append(Item(time: t0.addingTimeInterval(30), text: "never recorded"))
-        settle(&talk)
-        assert(talk.recordings[0].items.map(\.text) == ["the record", "", "more"] && talk.markCount == 1)
+        // Whisper heard nothing between 21 and 40 seconds, then wrote a line: the live words from that gap stay.
+        let quiet = Item(time: t0.addingTimeInterval(28), text: "missed by the record")
+        talk.recordings[0].items.append(quiet)
+        let later = [line, RecordLine(start: t0.addingTimeInterval(6), end: t0.addingTimeInterval(21), text: "more"),
+                     RecordLine(start: t0.addingTimeInterval(40), end: t0.addingTimeInterval(45), text: "after the gap")]
+        place(later, in: &talk, retiring: &gone, speaking: nil,
+              ends: [running.id: t0.addingTimeInterval(20), now.id: t0.addingTimeInterval(5.5), quiet.id: t0.addingTimeInterval(31)])
+        assert(talk.recordings[0].items.map(\.text) == ["the record", "", "more", "missed by the record", "after the gap"], "\(talk.recordings[0].items.map(\.text))")
+        assert(talk.recordings[0].items.filter { $0.unrecorded == true }.map(\.text) == ["missed by the record"] && !gone.contains(quiet.id))
+        talk.recordings[0].items.append(Item(time: t0.addingTimeInterval(60), text: "after the record ended"))
+        assert(settle(&talk) == 2 && talk.recordings[0].items.count == 6 && talk.markCount == 1, "drafting must keep live words and mark them")
         // A mark dropped by accident can be deleted: the ones after it move up, and their notes with them.
         var marked = Call()
         marked.recordings = [Recording(items: [Item(mark: 1), Item(text: "x"), Item(mark: 2)]), Recording(items: [Item(mark: 3)])]
