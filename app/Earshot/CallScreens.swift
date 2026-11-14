@@ -11,13 +11,17 @@ struct LiveScreen: View {
     private var current: Recording { model.call.recordings.last ?? Recording() }
 
     var body: some View {
-        switch model.live {
-        case .none: idle
-        case .ready: ready
-        case .listening: Ticker(fps: 4) { _ in listening }   // redraws the clock
-        case .between: between
-        case .cutShort: cutShort
+        // Each state fades in over the last, so starting, pausing and ending a call do not jump.
+        Group {
+            switch model.live {
+            case .none: idle.transition(.opacity)
+            case .ready: ready.transition(.opacity)
+            case .listening: Ticker(fps: 4) { _ in listening }.transition(.opacity)   // redraws the clock
+            case .between: between.transition(.opacity)
+            case .cutShort: cutShort.transition(.opacity)
+            }
         }
+        .smooth(model.live, 0.25)
     }
 
     /// iPad: headline, meter and controls in a left column, transcript on the right.
@@ -182,7 +186,7 @@ struct LiveScreen: View {
             if current.items.isEmpty {
                 empty("What is said will appear here as you record.")
             } else {
-                feed { TranscriptRows(recording: current, liveLine: model.liveLine) }
+                feed { TranscriptRows(recording: current, liveLine: model.liveLine) }.smooth(current.items.count)
             }
         case .between, .cutShort:
             feed {
@@ -339,6 +343,7 @@ struct ReviewSheet: View {
     @Environment(Model.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var signing = false
+    @Namespace private var pick
 
     var body: some View {
         @Bindable var model = model
@@ -384,6 +389,7 @@ struct ReviewSheet: View {
                                 TranscriptRows(recording: recording, color: .ink) { model.deleteMark($0, in: call.id) }
                             }
                         }
+                        .smooth(call.markCount)
                     }
                 }
                 .scrollIndicators(.hidden)
@@ -437,7 +443,7 @@ struct ReviewSheet: View {
                             .padding(.horizontal, fit(24, 6))
                             .frame(maxWidth: phone ? .infinity : nil)
                             .frame(height: 44)
-                            .background(on ? Color.ink : .clear, in: Capsule())
+                            .background { if on { Capsule().fill(Color.ink).matchedGeometryEffect(id: "format", in: pick) } }   // slides to the new format
                             .contentShape(Capsule())
                     }
                     .accessibilityLabel("\(format.name) narrative: \(format.detail)")
@@ -448,6 +454,7 @@ struct ReviewSheet: View {
             .padding(4)
             .background(Color.panel, in: Capsule())
             .overlay(Capsule().strokeBorder(Color.line))
+            .smooth(shown, 0.28)
             .disabled(busy != nil)
             Text(busy.map { "Writing the narrative as \($0.name) on this \(deviceName). The rest of the report is unchanged." } ?? trouble ?? shown.detail)
                 .font(geist(15, 500)).foregroundStyle(busy == nil && trouble == nil ? Color.dim : .yellow)
@@ -486,6 +493,7 @@ struct TranscriptRows: View {
 
     var body: some View {
         ForEach(recording.items) { item in
+            Group {
             if let mark = item.mark {
                 let row = HStack(spacing: fit(16, 10)) {
                     stamp(item.time)
@@ -508,6 +516,9 @@ struct TranscriptRows: View {
             } else if !item.text.isEmpty {
                 said(item.time, Text(item.text).foregroundColor(color))
             }
+            }
+            // A new line or mark rises into place; a deleted mark slides away and fades.
+            .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 14)), removal: .opacity.combined(with: .offset(x: -24))))
         }
     }
 
@@ -560,9 +571,10 @@ struct PCRView: View {
             if part.body.isEmpty {
                 Text("Not heard").font(geist(fit(22, 19))).foregroundStyle(Color.yellow)
             } else {
-                timed(part.body).font(geist(fit(22, 19))).lineSpacing(9)
+                timed(part.body).font(geist(fit(22, 19))).lineSpacing(9).contentTransition(.opacity)
             }
         }
+        .smooth(part.body)   // a narrative rewritten in another format crossfades
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 

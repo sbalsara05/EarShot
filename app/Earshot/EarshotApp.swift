@@ -679,12 +679,13 @@ struct EarshotApp: App {
                 Header()
                 Group {
                     switch model.tab {
-                    case .home: HomeScreen()
-                    case .live: LiveScreen()
-                    case .drafts: DraftsScreen()
-                    case .clip: ClipScreen()
+                    case .home: HomeScreen().screenTransition()
+                    case .live: LiveScreen().screenTransition()
+                    case .drafts: DraftsScreen().screenTransition()
+                    case .clip: ClipScreen().screenTransition()
                     }
                 }
+                .smooth(model.tab)
                 .padding(.top, 8).padding(.horizontal, fit(32, 20)).padding(.bottom, fit(32, 12))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if phone { Tabs().padding(.horizontal, 20).padding(.bottom, 4) }
@@ -756,6 +757,7 @@ struct Header: View {
 /// The four tabs. In the header on iPad, along the bottom on iPhone.
 struct Tabs: View {
     @Environment(Model.self) private var model
+    @Namespace private var pill
 
     var body: some View {
         HStack(spacing: 4) {
@@ -777,13 +779,14 @@ struct Tabs: View {
                     .padding(.horizontal, fit(22, 6))
                     .frame(maxWidth: phone ? .infinity : nil)
                     .frame(height: 44)
-                    .background(on ? Color.ink : .clear, in: Capsule())
+                    .background { if on { Capsule().fill(Color.ink).matchedGeometryEffect(id: "tab", in: pill) } }   // slides to the new tab
                     .contentShape(Capsule())
                 }
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
         .buttonStyle(.plain)
+        .smooth(model.tab, 0.28)
         .padding(4)
         .background(Color.panel, in: Capsule())
         .overlay(Capsule().strokeBorder(Color.line))
