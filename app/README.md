@@ -62,7 +62,8 @@ To keep your team and bundle identifier between regenerations, set `DEVELOPMENT_
 
 1. **New call**, then **Start recording**. Speak; each pause starts a new line with its clock time.
 2. **Mark** drops a numbered mark at that moment. The red button stops the recording.
-3. Record again for another segment, or tap **Analyze** to draft the handoff and PCR.
+3. The red button pauses; **Resume recording** carries on in the same recording. Tap **Complete**, and
+   confirm, to close the recording for good and draft the handoff and PCR.
 4. Fix any line. Yellow lines are ones the AI did not hear.
 5. **Sign off** by drawing a signature or typing your name. The call moves to Past calls on Home.
 
@@ -74,7 +75,7 @@ A call that is not signed stays open, even if the app is closed. To throw one aw
 | Message | What it means |
 |---|---|
 | "This iPhone cannot transcribe English on the device yet" | The device has no on-device speech model, so the app will not record. It never sends call audio to a server |
-| "Nothing was drafted. Apple Intelligence is turned off" | Turn Apple Intelligence on in Settings, then Analyze again |
+| "Nothing was drafted. Apple Intelligence is turned off" | Turn Apple Intelligence on in Settings. A completed call is not drafted again, so fill its lines in by hand |
 | "The on-device model is still downloading" | Apple Intelligence was just turned on. Wait a few minutes |
 | "Transcription stopped" | The recogniser failed. In the simulator this is expected |
 

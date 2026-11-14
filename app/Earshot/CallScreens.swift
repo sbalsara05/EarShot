@@ -5,6 +5,8 @@ import SwiftUI
 struct LiveScreen: View {
     @Environment(Model.self) private var model
 
+    @State private var completing = false
+
     private var number: Int { model.call.recordings.count }
     private var current: Recording { model.call.recordings.last ?? Recording() }
 
@@ -15,6 +17,7 @@ struct LiveScreen: View {
         case .listening: Ticker(fps: 4) { _ in listening }   // redraws the clock
         case .between: between
         case .cutShort: cutShort
+        case .done: done
         }
     }
 
@@ -132,8 +135,25 @@ struct LiveScreen: View {
         } bottom: {
             HStack(spacing: 20) {
                 recordButton("Resume recording")
-                Button("Analyze") { model.analyze() }.buttonStyle(Pill(height: 96, size: 26, grow: true))
+                Button("Complete") { completing = true }.buttonStyle(Pill(height: 96, size: 26, grow: true))
+                    .confirmationDialog("Complete this call?", isPresented: $completing, titleVisibility: .visible) {
+                        Button("Complete and write reports", role: .destructive) { model.analyze() }
+                        Button("Keep recording", role: .cancel) {}
+                    } message: {
+                        Text("This cannot be undone. The recording ends for good and the nurse handoff and PCR are written from it. You can still edit the reports before signing.")
+                    }
             }
+        }
+    }
+
+    /// The call was completed: its recording is closed, and the reports are on the AI Drafts tab.
+    private var done: some View {
+        column {
+            counter("Recording complete", stopwatch(model.call.recordings.reduce(0) { $0 + $1.seconds }), valueColor: .mid)
+        } middle: {
+            meter(lit: .mid)
+        } bottom: {
+            Button("Open reports") { model.tab = .drafts }.buttonStyle(Pill(height: 96, size: 26, grow: true))
         }
     }
 
@@ -168,7 +188,7 @@ struct LiveScreen: View {
             } else {
                 feed { TranscriptRows(recording: current, liveLine: model.liveLine) }
             }
-        case .between, .cutShort:
+        case .between, .cutShort, .done:
             feed {
                 ForEach(Array(model.call.recordings.enumerated()), id: \.offset) { n, recording in
                     RecordingHeading(number: n + 1, recording: recording)
@@ -221,6 +241,7 @@ struct DraftsScreen: View {
     @State private var copied = false
     @State private var settled = false
     @State private var signing = false
+    @State private var opened: Call?   // the past call being read
 
     var body: some View {
         switch model.drafts {
@@ -230,18 +251,27 @@ struct DraftsScreen: View {
         }
     }
 
+    /// No call's reports are open, so this is where the full history of signed calls lives.
     private var none: some View {
         Split {
             VStack(alignment: .leading, spacing: 28) {
-                Text("No drafts yet").font(doto(fit(112, 60)))
-                Text("Record a call, then tap Analyze.").font(geist(22)).foregroundStyle(Color.dim)
+                Text(model.past.isEmpty ? "No drafts yet" : "Call history").font(doto(fit(112, 60)))
+                Text(model.past.isEmpty ? "Record a call, then tap Complete." : "\(plural(model.past.count, "signed call")). Tap one to read its reports.")
+                    .font(geist(22)).foregroundStyle(Color.dim)
             }
             .padding(.leading, fit(24, 4))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            Dots(pageArt, pitch: 16, r: 5.76, palette: ["b": .outline, ".": .off])
-                .side().frame(maxHeight: phone ? 280 : .infinity).panel()
-                .accessibilityHidden(true)
+            if model.past.isEmpty {
+                Dots(pageArt, pitch: 16, r: 5.76, palette: ["b": .outline, ".": .off])
+                    .side().frame(maxHeight: phone ? 280 : .infinity).panel()
+                    .accessibilityHidden(true)
+            } else {
+                PastCalls(opened: $opened)
+                    .padding(.horizontal, fit(32, 20)).padding(.vertical, fit(20, 12))
+                    .side().frame(minHeight: phone ? 320 : nil, maxHeight: phone ? nil : .infinity).panel()
+            }
         }
+        .sheet(item: $opened) { PastCallView(call: $0).presentationSizing(.page).presentationDragIndicator(.visible) }
     }
 
     private var analyzing: some View {

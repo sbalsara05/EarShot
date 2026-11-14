@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum Tab: String, CaseIterable { case home = "Home", live = "Live Call", drafts = "AI Drafts", clip = "Clip" }
-enum Live { case none, ready, listening, between, cutShort }
+enum Live { case none, ready, listening, between, cutShort, done }   // done: completed, so no more can be recorded on this call
 enum Drafts { case none, analyzing, ready, signed }
 
 /// One row of the transcript: something said, or a mark the medic dropped.
@@ -28,7 +28,7 @@ struct Call: Identifiable, Codable {
     var start = Date()
     var recordings: [Recording] = []
     var draft = Draft.blank
-    var drafted = false               // Analyze has run, so the paperwork exists
+    var drafted = false               // the call was completed, so the paperwork exists
     var draftNote: String?            // why nothing was drafted, when that happens
     var markNotes: [Int: String] = [:]
     var signedAt: Date?
@@ -177,7 +177,7 @@ struct Call: Identifiable, Codable {
         switch live {
         case .listening: stop()
         case .ready, .between, .cutShort: record()
-        case .none: break
+        case .none, .done: break
         }
     }
 
@@ -188,7 +188,7 @@ struct Call: Identifiable, Codable {
     var audioLabel: String { (live == .listening ? source : audioSource) == .clip ? "Clip audio" : "\(deviceName) mic" }
 
     private func begin(from source: Transcriber.Source, viaClip: Bool) {
-        guard live != .listening, live != .none else { return }
+        guard live != .listening, live != .none, live != .done else { return }
         do {
             try transcriber.start(from: source)
             self.source = source
@@ -367,8 +367,8 @@ struct Call: Identifiable, Codable {
     /// The clip began capturing, from its button or because the app asked.
     private func clipStarted() {
         guard live != .listening else { return }
-        guard live != .none else {
-            link.send("stop")   // no call is open, so nothing is recorded and the clip's light goes dark again
+        guard live != .none, live != .done else {
+            link.send("stop")   // no call is open to record on, so nothing is recorded and the clip's light goes dark again
             return
         }
         Task { @MainActor in
@@ -380,8 +380,10 @@ struct Call: Identifiable, Codable {
 
     // MARK: The paperwork
 
+    /// Completes the call: the recording is closed for good and the nurse handoff and PCR are drafted from it.
     func analyze() {
         stop()
+        if live != .none { live = .done }
         drafts = .analyzing
         tab = .drafts
         call.draftNote = nil
@@ -418,7 +420,7 @@ struct Call: Identifiable, Codable {
         past.removeAll { $0.id == call.id }
         call.signedAt = nil
         call.signature = nil   // an edited call has to be signed again
-        live = call.recordings.isEmpty ? .ready : .between
+        live = call.recordings.isEmpty ? .ready : .done   // the reports can be edited again; the recording stays closed
         drafts = .ready
         save()
     }
@@ -486,7 +488,7 @@ struct Call: Identifiable, Codable {
                 open.recordings[i].end = open.recordings[i].items.last?.time ?? open.recordings[i].start
             }
             call = open
-            live = open.recordings.isEmpty ? .ready : .between
+            live = open.recordings.isEmpty ? .ready : open.drafted ? .done : .between
             drafts = open.drafted ? .ready : .none
         } catch {
             // Never overwrite a file that could not be read: set it aside so its calls can be recovered.
@@ -615,7 +617,7 @@ struct Header: View {
                 Text(model.audioLabel)   // which microphone this recording is using
             }
         } else {
-            Text(model.live == .between ? "Paused, \(model.audioLabel)" : "Call started \(clock(model.call.start)), \(model.audioLabel)")
+            Text(model.live == .done ? "Recording complete" : model.live == .between ? "Paused, \(model.audioLabel)" : "Call started \(clock(model.call.start)), \(model.audioLabel)")
         }
     }
 }
@@ -689,7 +691,7 @@ struct HomeScreen: View {
                     Text(model.call.recordings.isEmpty ? "No recordings yet" : "\(plural(model.call.recordings.count, "recording")), \(plural(model.call.markCount, "mark"))").font(geist(22)).foregroundStyle(Color.dim)
                     let actions = phone ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 16))
                     actions {
-                        Button(model.live == .listening ? "Live call →" : "Resume call") { model.tab = .live }.buttonStyle(Pill(height: fit(76, 68), size: 22, minWidth: fit(260, nil), grow: phone))
+                        Button(model.live == .listening ? "Live call →" : model.live == .done ? "Open reports" : "Resume call") { model.tab = model.live == .done ? .drafts : .live }.buttonStyle(Pill(height: fit(76, 68), size: 22, minWidth: fit(260, nil), grow: phone))
                         Button("Discard call") { discarding = true }.buttonStyle(Pill(fill: nil, height: fit(76, 56), size: fit(22, 17), grow: phone))
                             .confirmationDialog("Discard this call?", isPresented: $discarding, titleVisibility: .visible) {
                                 Button("Discard call", role: .destructive) { model.discard() }
@@ -751,38 +753,57 @@ extension HomeScreen {
     /// The big word shrinks on iPhone once there are past calls to make room for.
     var headline: CGFloat { fit(176, model.past.isEmpty ? 104 : 72) }
 
-    /// Signed calls, newest first. Tap a row to read it, swipe it left to delete it.
+    /// The three most recent signed calls. The full history is on the AI Drafts tab.
     var pastCalls: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Past calls").font(geist(15, 600)).foregroundStyle(Color.dim)
-            List {
-                ForEach(model.past) { call in
-                    Button { opened = call } label: {
-                      HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(call.draft.patient.isEmpty ? "Patient not recorded" : call.draft.patient)
-                                .font(geist(19, 500)).foregroundStyle(Color.ink).lineLimit(1)
-                            Text("\(day(call.start)), \(plural(call.recordings.count, "recording")), \(span(call.seconds))")
-                                .font(geist(15)).foregroundStyle(Color.dim).lineLimit(1)
-                        }
-                        Spacer()
-                        Text("Signed \(clock(call.signedAt ?? call.start))").font(geist(15, 500).monospacedDigit()).foregroundStyle(Color.green)
-                      }
-                      .padding(.vertical, 12)
-                      .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-                    .listRowSeparatorTint(Color.line)
-                    .accessibilityElement(children: .combine)
+            HStack {
+                Text("Past calls").font(geist(15, 600)).foregroundStyle(Color.dim)
+                Spacer()
+                if model.past.count > 3 {
+                    Button("All \(model.past.count) calls") { model.tab = .drafts }
+                        .font(geist(15, 600)).foregroundStyle(Color.ink).buttonStyle(.plain).frame(minHeight: 44)
                 }
-                .onDelete { model.delete(at: $0) }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .scrollIndicators(.hidden)
+            PastCalls(limit: 3, opened: $opened)
         }
+    }
+}
+
+/// Signed calls, newest first. Tap a row to read it, swipe it left to delete it.
+struct PastCalls: View {
+    @Environment(Model.self) private var model
+    var limit: Int? = nil        // show only this many, from the newest
+    @Binding var opened: Call?   // the call being read, shown by the screen that owns this list
+
+    var body: some View {
+        List {
+            // The shown calls are the first rows of `model.past`, so a swiped row's position is its position there too.
+            ForEach(Array(model.past.prefix(limit ?? model.past.count))) { call in
+                Button { opened = call } label: {
+                  HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(call.draft.patient.isEmpty ? "Patient not recorded" : call.draft.patient)
+                            .font(geist(19, 500)).foregroundStyle(Color.ink).lineLimit(1)
+                        Text("\(day(call.start)), \(span(call.seconds))")
+                            .font(geist(15)).foregroundStyle(Color.dim).lineLimit(1)
+                    }
+                    Spacer()
+                    Text("Signed \(clock(call.signedAt ?? call.start))").font(geist(15, 500).monospacedDigit()).foregroundStyle(Color.green)
+                  }
+                  .padding(.vertical, 12)
+                  .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparatorTint(Color.line)
+                .accessibilityElement(children: .combine)
+            }
+            .onDelete { model.delete(at: $0) }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .scrollIndicators(.hidden)
     }
 }
 
