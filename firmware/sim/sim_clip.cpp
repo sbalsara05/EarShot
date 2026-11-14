@@ -2,7 +2,8 @@
 //
 //   button  <- lines on stdin:  down | up | short | long | double | quit
 //   LED     -> JSON lines on stdout: {"sim":"led","color":"amber"}
-//   mic     <- a generated tone, a 16 kHz mono 16-bit WAV file (--wav), or live audio fed on
+//   mic     <- a generated tone, a 16 kHz mono 16-bit WAV file (--wav), the voice recording
+//              built into the firmware (--voice), or live audio fed on
 //              stdin ("mic ext", then "a <base64 pcm>" lines; "mic tone" switches back).
 //              The browser UI uses this to make the laptop microphone the clip's microphone.
 //   network -> a real TCP socket to the mock tablet (default 127.0.0.1:8765)
@@ -29,6 +30,8 @@
 #include <vector>
 
 #include "clip_app.h"
+#include "voice_clip.h"
+#include "voice_clip_data.h"
 #include "opus_audio_encoder.h"
 
 using namespace earshot;
@@ -108,7 +111,15 @@ class SimHal : public Hal {
  public:
   SimHal()
       : t0_(monoMs()), button_(false), quit_(false), mic_on_(false), next_frame_(0),
-        phase_(0), freq_(440.0), wav_pos_(0), ext_mic_(false), ext_primed_(false) {}
+        phase_(0), freq_(440.0), wav_pos_(0), voice_(false), ext_mic_(false), ext_primed_(false) {}
+
+  // The recording the Feather build plays in place of a microphone, decoded by the same code.
+  void loadVoiceClip() {
+    VoiceClip clip(kVoiceClipAdpcm, kVoiceClipBytes);
+    wav_.resize(clip.totalSamples());
+    clip.read(wav_.data(), wav_.size());
+    voice_ = true;
+  }
 
   bool loadWav(const char* path) {
     FILE* f = fopen(path, "rb");
@@ -124,7 +135,9 @@ class SimHal : public Hal {
   }
   void setTone(double hz) { freq_ = hz; }
   bool quitRequested() const { return quit_; }
-  const char* micSource() const { return ext_mic_ ? "ext" : wav_.empty() ? "tone" : "wav"; }
+  const char* micSource() const {
+    return ext_mic_ ? "ext" : wav_.empty() ? "tone" : voice_ ? "voice" : "wav";
+  }
 
   // ---- Hal
   uint32_t millis() override { return (uint32_t)(monoMs() - t0_); }
@@ -142,6 +155,7 @@ class SimHal : public Hal {
     next_frame_ = monoMs() + kFrameMs;
     ext_.clear();  // a microphone cannot hear the past: drop anything from before it was on
     ext_primed_ = false;
+    if (voice_) wav_pos_ = 0;  // like the device: every capture hears the recording from the top
     return true;
   }
   void micStop() override { mic_on_ = false; }
@@ -269,6 +283,7 @@ class SimHal : public Hal {
   double freq_;
   std::vector<int16_t> wav_;
   size_t wav_pos_;
+  bool voice_;
   bool ext_mic_;
   bool ext_primed_;
   std::deque<int16_t> ext_;
@@ -293,11 +308,13 @@ int main(int argc, char** argv) {
       if (!hal.loadWav(v)) { fprintf(stderr, "cannot read WAV %s\n", v); return 2; }
       ++i;
     }
+    else if (a == "--voice") { hal.loadVoiceClip(); }
     else if (a == "--pcm") { opus_kbps = 0; }
     else if (a == "--opus" && v) { opus_kbps = atoi(v); ++i; }
     else {
       fprintf(stderr,
-              "usage: sim_clip [--host H] [--port P] [--tone HZ | --wav FILE] [--opus KBPS | --pcm]\n"
+              "usage: sim_clip [--host H] [--port P] [--tone HZ | --wav FILE | --voice] [--opus KBPS | --pcm]\n"
+              "  --voice plays the recording built into the firmware in place of a microphone\n"
               "  audio is sent as Opus at 32 kbit/s unless --opus or --pcm says otherwise\n"
               "stdin commands: down, up, short, long, double, quit\n");
       return 2;

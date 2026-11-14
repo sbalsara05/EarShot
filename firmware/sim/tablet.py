@@ -474,6 +474,8 @@ async def main():
     ap.add_argument("--no-sim", action="store_true", help="do not start the simulated clip")
     ap.add_argument("--sim-bin", default=str(DEFAULT_SIM_BIN))
     ap.add_argument("--wav", help="16 kHz mono 16-bit WAV for the simulated mic (default: a tone)")
+    ap.add_argument("--voice", action="store_true",
+                    help="simulated mic plays the voice recording built into the firmware")
     ap.add_argument("--save-wav", action="store_true",
                     help="write received audio to sim/out/ (test tool only; the product never does this)")
     ap.add_argument("--event-log", metavar="FILE",
@@ -485,7 +487,7 @@ async def main():
         sim_bin = pathlib.Path(args.sim_bin)
         if not sim_bin.exists():
             sys.exit(f"{sim_bin} not found. Run `make sim` first (or pass --no-sim).")
-    sim_args = ["--wav", args.wav] if args.wav else []
+    sim_args = ["--wav", args.wav] if args.wav else ["--voice"] if args.voice else []
 
     tablet = MockTablet("0.0.0.0" if args.lan else "127.0.0.1", args.port, sim_bin, sim_args,
                         save_wav=args.save_wav, event_log=args.event_log)

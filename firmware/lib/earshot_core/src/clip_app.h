@@ -9,32 +9,15 @@
 #include "audio_encoder.h"
 #include "button.h"
 #include "clip_fsm.h"
+#include "hal.h"
+#include "link.h"
 #include "protocol.h"
-#include "ws_client.h"
+#include "ws_link.h"
 
 namespace earshot {
 
-enum class LedColor : uint8_t { Off, Green, White };
-
-// Hardware abstraction. One implementation for the ESP32, one for the laptop simulator.
-class Hal {
- public:
-  virtual ~Hal() {}
-  virtual uint32_t millis() = 0;
-  virtual void sleepMs(uint32_t ms) = 0;
-  virtual bool buttonPressed() = 0;
-  virtual void setLed(LedColor color) = 0;
-  virtual bool micStart() = 0;
-  virtual void micStop() = 0;
-  // Fills `out` with exactly `samples` samples and returns `samples`, or returns 0 if a full
-  // frame is not ready. May block for up to one frame (20 ms); that paces the main loop.
-  virtual size_t micRead(int16_t* out, size_t samples) = 0;
-  virtual bool networkUp() = 0;
-  virtual void log(const char* message) = 0;
-};
-
 struct ClipConfig {
-  const char* gateway_host;
+  const char* gateway_host;     // gateway_* and the two timeouts apply to the Wi-Fi link only
   uint16_t gateway_port;
   const char* gateway_path;
   const char* device_id;
@@ -72,7 +55,11 @@ struct ClipStats {
 
 class ClipApp {
  public:
+  // Wi-Fi: the clip opens a WebSocket to the tablet gateway named in `config`.
   ClipApp(Hal& hal, Transport& transport, const ClipConfig& config, uint32_t random_seed);
+  // Any other link (Bluetooth): the caller owns it and it must outlive the app.
+  ClipApp(Hal& hal, Link& link, const ClipConfig& config);
+  ~ClipApp();
 
   void begin();
   void tick();  // call in a tight loop
@@ -83,11 +70,16 @@ class ClipApp {
 
   ClipState state() const { return state_; }
   const ClipStats& stats() const { return stats_; }
-  bool linkOpen() const { return announced_ && ws_.isOpen(); }
+  bool linkOpen() const { return announced_ && link_->isOpen(); }
 
  private:
+  ClipApp(const ClipApp&);             // not copyable
+  ClipApp& operator=(const ClipApp&);
+
+  void init();
   void apply(Input input, const char* source);
   void emit(const std::string& json);
+  void flushPending();
   void serviceLink(uint32_t now);
   void announce(uint32_t now);
   void serviceAudio(uint32_t now);
@@ -95,14 +87,13 @@ class ClipApp {
 
   Hal& hal_;
   ClipConfig cfg_;
-  WsClient ws_;
+  WsLink* own_link_;  // the built-in Wi-Fi link, when constructed with a Transport
+  Link* link_;
   Button button_;
   ClipState state_;
   ClipStats stats_;
 
   bool announced_;        // hello sent on the current connection
-  bool tried_connect_;
-  uint32_t last_attempt_;
   std::deque<std::string> pending_;  // events (never audio) waiting for the link
 
   PcmEncoder pcm_;
