@@ -25,7 +25,7 @@
     },
     "id" : "e2",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "We got called for a fall,",
@@ -53,7 +53,7 @@
     },
     "id" : "e3",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "turned out to be chest pain.",
@@ -82,7 +82,7 @@
     },
     "id" : "e4",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "chest pain.",
@@ -112,7 +112,7 @@
     },
     "id" : "e5",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "sixty seven year old female,",
@@ -150,7 +150,7 @@
     },
     "id" : "e6",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "about seventy kilos.",
@@ -179,7 +179,7 @@
     },
     "id" : "e7",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "chest pressure",
@@ -208,7 +208,7 @@
     },
     "id" : "e8",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "radiating",
@@ -237,7 +237,7 @@
     },
     "id" : "e9",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "History of hypertension and diabetes.",
@@ -269,7 +269,7 @@
     ],
     "id" : "e10",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "Allergic to penicillin.",
@@ -298,7 +298,7 @@
     },
     "id" : "e11",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "metoprolol.",
@@ -331,7 +331,7 @@
     },
     "id" : "e12",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "B P one fifty eight over ninety two, heart rate one ten, sats ninety four percent on room air, resps twenty two.",
@@ -404,7 +404,7 @@
     },
     "id" : "e13",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "Three twenty four of aspirin, chewed.",
@@ -450,7 +450,7 @@
     },
     "id" : "e14",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "Twelve lead",
@@ -478,7 +478,7 @@
     },
     "id" : "e15",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "STEMI alert.",
@@ -509,7 +509,7 @@
     },
     "id" : "e16",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "Eighteen gauge in the left A C.",
@@ -560,7 +560,7 @@
     },
     "id" : "e17",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "Nitro point four sublingual.",
@@ -627,7 +627,7 @@
     },
     "id" : "e19",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "Pain is a six out of ten",
@@ -656,7 +656,7 @@
     },
     "id" : "e20",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "compensating.",
@@ -688,7 +688,7 @@
     },
     "id" : "e21",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "B P one thirty eight over eighty four, pulse ninety six, sats ninety seven on two liters.",
@@ -753,7 +753,7 @@
     },
     "id" : "e22",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "Four milligrams of Zofran I V",
@@ -808,7 +808,7 @@
     },
     "id" : "e23",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "nausea.",
@@ -837,7 +837,7 @@
     },
     "id" : "e24",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "Transporting",
@@ -867,7 +867,7 @@
     },
     "id" : "e25",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "Transporting to Mass General, lights and sirens, E T A twelve minutes.",
@@ -916,7 +916,7 @@
     ],
     "id" : "e26",
     "models" : {
-      "asr" : "whisper-small.en-ems-ft-q5_0",
+      "asr" : "whisper-small.en-ems-ft-f16",
       "extract" : "rules-v1"
     },
     "quote" : "we're at the E D.",

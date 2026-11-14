@@ -10,7 +10,7 @@ EMS edge scribe (working name). A clip on the medic records the call; the iPad w
 | `shared/` | The EMS dictionary and formulary the pipeline reads |
 | `eval/` | Scoring the pipeline on the data team's test calls (see `eval/README.md`) |
 | `docs/` | `HYBRID.md` (how the recognisers fit together), `BIASING.md` (biasing: results, research, plan), `pipeline/` (design notes from earshot-data) |
-| `models/` | The fine-tuned Whisper model (`ggml-ems-small.en-ft-q5_0.bin`, in git via LFS); other model files are not in git |
+| `models/` | The fine-tuned Whisper model (`ggml-ems-small.en-ft-f16.bin`, in git via LFS); other model files are not in git |
 
 ## Set up on a Mac (Apple silicon)
 

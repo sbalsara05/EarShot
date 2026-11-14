@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Downloads the fine-tuned EMS Whisper model (whisper.cpp ggml, q5_0) into models/ and checks its sha256.
+# Downloads the fine-tuned EMS Whisper model (whisper.cpp ggml, f16 / unquantized) into models/ and checks its sha256.
 # The Hugging Face repo is private: export HF_TOKEN first. The token is only sent in the request header.
 #   HF_TOKEN=... core/scripts/fetch_model.sh
 # Exits non-zero if HF_TOKEN is missing, the download fails, or the checksum does not match.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-FILE=ggml-ems-small.en-ft-q5_0.bin
+FILE=ggml-ems-small.en-ft-f16.bin
 URL=https://huggingface.co/shouryadav/whisper-ems-small.en-ft-fmt/resolve/main/$FILE
-SHA256=b1c1a267796a30d46d63eefa58b880c8451a9ed98031b255333521379506b0a5
+SHA256=e9a2eb3d92c8cb0141232b9b9c05ac982c3634ad54a4adbe1ca0d40bac87fc97
 DEST=models/$FILE
 
 sha() { shasum -a 256 "$1" | cut -d' ' -f1; }

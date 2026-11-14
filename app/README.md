@@ -72,7 +72,7 @@ iPad; the simulator has none.
 app/scripts/fetch_deps.sh
 ```
 
-This builds whisper.cpp for iOS, makes sure `models/ggml-ems-small.en-ft-q5_0.bin` is the real file
+This builds whisper.cpp for iOS, makes sure `models/ggml-ems-small.en-ft-f16.bin` is the real file
 (`git lfs pull`, else `core/scripts/fetch_model.sh` with `HF_TOKEN`), and regenerates
 `Earshot.xcodeproj` from `project.yml` (the pipeline package and new files are only in the project
 after this step). The model is bundled into the app at build time, and a build step checks its

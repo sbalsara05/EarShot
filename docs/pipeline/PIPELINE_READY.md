@@ -6,7 +6,7 @@ Repo/branch: `shourya0523/earshot-data` @ `overnight`. Status: **stock pipeline 
 
 ```bash
 core/scripts/setup_linux.sh          # Swift 6.2.1, whisper.cpp (pkg-config "whisper")
-HF_TOKEN=... core/scripts/fetch_model.sh   # models/ggml-ems-small.en-ft-q5_0.bin, sha256-checked (also in git via LFS)
+HF_TOKEN=... core/scripts/fetch_model.sh   # models/ggml-ems-small.en-ft-f16.bin, sha256-checked (also in git via LFS)
 cd core && swift build -c release    # binary: core/.build/release/earshot-eval
 ```
 - whisper.cpp installed elsewhere: `export PKG_CONFIG_PATH=<prefix>/lib/pkgconfig LD_LIBRARY_PATH=<prefix>/lib`.
@@ -27,7 +27,7 @@ $B check-stream capture.replay                                 # clip capture vs
 $B fake-clip --port 7070 --wav call.wav --taps taps.json       # reference clip over TCP (Wi-Fi framing) for app/bring-up tests
 ```
 Demo: `$B run mocks/demo_call/transcript.truth.json --taps mocks/demo_call/taps.json --start 2026-11-15T14:00:00-05:00 --out out/demo`.
-Demo replay (contract-conformant stream; arrival/handoff are tablet taps): `$B run mocks/demo_call/demo_call.replay --taps mocks/demo_call/tablet_taps.json --start 2026-11-15T14:00:00-05:00 --asr-model models/ggml-ems-small.en-ft-q5_0.bin`.
+Demo replay (contract-conformant stream; arrival/handoff are tablet taps): `$B run mocks/demo_call/demo_call.replay --taps mocks/demo_call/tablet_taps.json --start 2026-11-15T14:00:00-05:00 --asr-model models/ggml-ems-small.en-ft-f16.bin`.
 
 ## Inputs
 | Input | Format |
@@ -57,7 +57,7 @@ Types: vitals, medication, procedure, status, dispatch, transport, tap, consent,
 - Dispatch: `fields.dispatch_reason`, `fields.found`, `fields.chief_complaint` (not `text`).
 Vitals field names: `bp_systolic bp_diastolic bp_method heart_rate resp_rate spo2 etco2 glucose gcs temp pain mental_status pupils o2_on` (`mental_status` = "A&O×4"; rhythm names are not extracted: they are interpretations, and "afib" is a diagnosis trap). Medication: routes include device routes for oxygen (`NRB`, `NC`, `BVM`, `CPAP`, `BLOWBY`). `drug`(generic) `dose unit route drug_as_heard unit_suggested` — `unit` only when spoken; `unit_suggested` is the protocol unit when unspoken (not a heard value, don't score it as one).
 
-**ASR model and prompt.** Default model: Whisper small.en fine-tuned on EMS speech, whisper.cpp q5_0 (`models/ggml-ems-small.en-ft-q5_0.bin`); `models.asr` = `whisper-small.en-ems-ft-q5_0` (`whisper-small.en` for stock in eval). The app bundles only the fine-tuned model, with no stock fallback, and never downloads one. **Whisper runs with no initial prompt** (see `docs/pipeline/PROMPT_PRIMING.md`, decision 27): the `Transcriber` protocol has no prompt parameter, and `NoPromptDecoderTests` checks the decoder settings. `core/tools/prompt_copy_check.py` stays as a guard and should report 0.
+**ASR model and prompt.** Default model: Whisper small.en fine-tuned on EMS speech, whisper.cpp f16, unquantized (`models/ggml-ems-small.en-ft-f16.bin`); `models.asr` = `whisper-small.en-ems-ft-f16` (`whisper-small.en` for stock in eval). The app bundles only the fine-tuned model, with no stock fallback, and never downloads one. **Whisper runs with no initial prompt** (see `docs/pipeline/PROMPT_PRIMING.md`, decision 27): the `Transcriber` protocol has no prompt parameter, and `NoPromptDecoderTests` checks the decoder settings. `core/tools/prompt_copy_check.py` stays as a guard and should report 0.
 
 Determinism: same input + config + threads ⇒ same files, except `timing.json`.
 

@@ -9,11 +9,11 @@ import Foundation
 
 /// The Whisper model files Earshot knows, and the name each records in `models.asr`.
 public enum ASRModel {
-    /// Whisper small.en fine-tuned on EMS speech, whisper.cpp ggml q5_0 (core/scripts/fetch_model.sh).
+    /// Whisper small.en fine-tuned on EMS speech, whisper.cpp ggml f16, unquantized (core/scripts/fetch_model.sh).
     /// The only Whisper model the app ships.
-    public static let fineTunedFile = "ggml-ems-small.en-ft-q5_0"
-    public static let fineTunedName = "whisper-small.en-ems-ft-q5_0"
-    public static let fineTunedSHA256 = "b1c1a267796a30d46d63eefa58b880c8451a9ed98031b255333521379506b0a5"
+    public static let fineTunedFile = "ggml-ems-small.en-ft-f16"
+    public static let fineTunedName = "whisper-small.en-ems-ft-f16"
+    public static let fineTunedSHA256 = "e9a2eb3d92c8cb0141232b9b9c05ac982c3634ad54a4adbe1ca0d40bac87fc97"
     /// Stock small.en, for eval comparisons only (--asr-model models/ggml-small.en.bin).
     public static let stockFile = "ggml-small.en"
     public static let stockName = "whisper-small.en"
@@ -34,7 +34,7 @@ public enum RecognizerKind: String, Sendable, CaseIterable {
     /// Apple's on-device recogniser (Speech framework, `EarshotAppleSpeech`). No model file to ship;
     /// Apple's model, which changes with iOS updates.
     case appleOnDevice = "apple-on-device"
-    /// Whisper fine-tuned on EMS speech (ggml-ems-small.en-ft-q5_0.bin). The app's only Whisper.
+    /// Whisper fine-tuned on EMS speech (ggml-ems-small.en-ft-f16.bin). The app's only Whisper.
     case whisperFineTuned = "whisper-fine-tuned"
     /// Stock Whisper (ggml-small.en). Not offered by the app; kept for eval comparisons.
     case whisperStock = "whisper-stock"
@@ -45,7 +45,7 @@ public enum RecognizerKind: String, Sendable, CaseIterable {
 
 public struct RecognizerOption {
     public let kind: RecognizerKind
-    /// For logs and the "models" field of the outputs, e.g. "whisper-small.en-ems-ft-q5_0" or "apple-speech".
+    /// For logs and the "models" field of the outputs, e.g. "whisper-small.en-ems-ft-f16" or "apple-speech".
     public let name: String
     /// Nil when it can run on this device; otherwise why not (no model file, not authorised, ...).
     public let unavailableReason: () -> String?

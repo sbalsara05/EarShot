@@ -10,7 +10,7 @@ if [ ! -d Frameworks/whisper.xcframework ]; then
 fi
 # The fine-tuned EMS model (models/, in git via LFS) is bundled by project.yml. Make sure it is the real
 # file, not an LFS pointer; fetch it from Hugging Face if LFS is not available (needs HF_TOKEN).
-(cd .. && { git lfs pull --include models/ggml-ems-small.en-ft-q5_0.bin 2>/dev/null || true; })
+(cd .. && { git lfs pull --include models/ggml-ems-small.en-ft-f16.bin 2>/dev/null || true; })
 ../core/scripts/fetch_model.sh --verify 2>/dev/null || ../core/scripts/fetch_model.sh
 command -v xcodegen >/dev/null || brew install xcodegen
 xcodegen generate

@@ -322,7 +322,7 @@ final class NoInitialPromptTests: XCTestCase {
     }
 
     func testModelNames() {
-        XCTAssertEqual(ASRModel.name(forModelFile: "models/ggml-ems-small.en-ft-q5_0.bin"), "whisper-small.en-ems-ft-q5_0")
+        XCTAssertEqual(ASRModel.name(forModelFile: "models/ggml-ems-small.en-ft-f16.bin"), "whisper-small.en-ems-ft-f16")
         XCTAssertEqual(ASRModel.name(forModelFile: "/x/ggml-small.en.bin"), "whisper-small.en")
         XCTAssertEqual(ASRModel.name(forModelFile: "ggml-base.en.bin"), "whisper.cpp base.en")
     }

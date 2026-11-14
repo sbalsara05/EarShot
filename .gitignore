@@ -28,7 +28,7 @@ DerivedData/
 *.wav
 models/*.bin
 # the fine-tuned EMS Whisper model is committed through Git LFS (.gitattributes)
-!models/ggml-ems-small.en-ft-q5_0.bin
+!models/ggml-ems-small.en-ft-f16.bin
 app/Frameworks/
 app/Models/*
 

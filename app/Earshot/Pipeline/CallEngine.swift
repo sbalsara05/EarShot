@@ -64,7 +64,7 @@ final class CallEngine {
     private(set) var recordProblem: String?
     /// Which recogniser writes the record, once chosen (see RecognizerSelector).
     private(set) var recordKind: RecognizerKind?
-    /// Its name, for the Clip tab: "whisper-small.en-ems-ft-q5_0", "apple-speech". Nil until a call has begun.
+    /// Its name, for the Clip tab: "whisper-small.en-ems-ft-f16", "apple-speech". Nil until a call has begun.
     private(set) var recordName: String?
     /// Whether Whisper may write the record. Off, the iPad's own recogniser does, so the two can be
     /// compared on the same build. Takes effect on the next call; a call in progress keeps its recogniser.

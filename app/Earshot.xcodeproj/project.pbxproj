@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		12BED601B5A2FBAA83CEE7C9 /* ClipLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1C4DF6D9C6C2838DCE2131 /* ClipLink.swift */; };
-		15602396A89FC1B3BEF828C1 /* ggml-ems-small.en-ft-q5_0.bin in Resources */ = {isa = PBXBuildFile; fileRef = 599CFEE9FB190A8AD1714373 /* ggml-ems-small.en-ft-q5_0.bin */; };
 		2B776581A3212DEB28068FB6 /* Signature.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18D9A4B70409523880ADDFC /* Signature.swift */; };
 		2E556F79F578B919FF9E53D5 /* Geist.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7A685C4A23F84CC7A60156D5 /* Geist.ttf */; };
 		30CEFA5FD86855E6A4D334D0 /* EarshotCore in Frameworks */ = {isa = PBXBuildFile; productRef = 27F5E23D81A2B043B6809958 /* EarshotCore */; };
@@ -26,6 +25,7 @@
 		9313EBB3EFB368A23C5432F2 /* WhisperTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4458FABC4535762089E889 /* WhisperTranscriber.swift */; };
 		98D9917AA5FEBB8DCBF2E47D /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6044FC5A766E4F76FE91669 /* Settings.swift */; };
 		A2633585A6B0408C6CA39B89 /* whisper.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 8828B7871645A563BC6F5AC5 /* whisper.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		D1A49EBB8BEA53358B3ECB1F /* ggml-ems-small.en-ft-f16.bin in Resources */ = {isa = PBXBuildFile; fileRef = EC46D5A9E3984B2C59EF4169 /* ggml-ems-small.en-ft-f16.bin */; };
 		D4CAEFADF2070B5754D7B127 /* Location.swift in Sources */ = {isa = PBXBuildFile; fileRef = F949E326EC948B2E81BC2143 /* Location.swift */; };
 		E9F0CF810639F26A3F9BC761 /* AppleTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = B58D12CE5B2253A74D49BE37 /* AppleTranscriber.swift */; };
 		F615DF88B63F82C95098F8CE /* whisper.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8828B7871645A563BC6F5AC5 /* whisper.xcframework */; };
@@ -53,7 +53,6 @@
 		2CDF5E2D65D68EE31D1F4D88 /* core */ = {isa = PBXFileReference; lastKnownFileType = folder; name = core; path = ../core; sourceTree = SOURCE_ROOT; };
 		3B54A6FD7A9CDD5B33581F98 /* Doto.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Doto.ttf; sourceTree = "<group>"; };
 		49877C5566DBC8D8D8440C52 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		599CFEE9FB190A8AD1714373 /* ggml-ems-small.en-ft-q5_0.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-ems-small.en-ft-q5_0.bin"; sourceTree = "<group>"; };
 		65190926CE10F1D5F4E2A146 /* EarshotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarshotApp.swift; sourceTree = "<group>"; };
 		7A685C4A23F84CC7A60156D5 /* Geist.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Geist.ttf; sourceTree = "<group>"; };
 		8828B7871645A563BC6F5AC5 /* whisper.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = whisper.xcframework; path = Frameworks/whisper.xcframework; sourceTree = "<group>"; };
@@ -66,6 +65,7 @@
 		D417CBEB2EF403CE505CD8E9 /* Earshot.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Earshot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D6044FC5A766E4F76FE91669 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
 		DF4458FABC4535762089E889 /* WhisperTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WhisperTranscriber.swift; path = ../../../core/Sources/EarshotWhisper/WhisperTranscriber.swift; sourceTree = "<group>"; };
+		EC46D5A9E3984B2C59EF4169 /* ggml-ems-small.en-ft-f16.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-ems-small.en-ft-f16.bin"; sourceTree = "<group>"; };
 		EEAF53ABFAEC8D34367ACFED /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		F06F5CBCC5993083EA36925D /* CallScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallScreens.swift; sourceTree = "<group>"; };
 		F91721CBC7A0DAE06DFAD8A1 /* AppleNoteWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleNoteWriter.swift; sourceTree = "<group>"; };
@@ -128,7 +128,7 @@
 		4CF59C0D6638F72160B9CE4D /* models */ = {
 			isa = PBXGroup;
 			children = (
-				599CFEE9FB190A8AD1714373 /* ggml-ems-small.en-ft-q5_0.bin */,
+				EC46D5A9E3984B2C59EF4169 /* ggml-ems-small.en-ft-f16.bin */,
 			);
 			name = models;
 			path = ../models;
@@ -254,7 +254,7 @@
 				2E556F79F578B919FF9E53D5 /* Geist.ttf in Resources */,
 				436DE914EAF343ECD605901E /* ems_terms.json in Resources */,
 				4BF908B7ADF35B8139D9CD0D /* formulary.json in Resources */,
-				15602396A89FC1B3BEF828C1 /* ggml-ems-small.en-ft-q5_0.bin in Resources */,
+				D1A49EBB8BEA53358B3ECB1F /* ggml-ems-small.en-ft-f16.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -271,7 +271,7 @@
 			);
 			inputPaths = (
 				"$(SRCROOT)/../core/scripts/fetch_model.sh",
-				"$(SRCROOT)/../models/ggml-ems-small.en-ft-q5_0.bin",
+				"$(SRCROOT)/../models/ggml-ems-small.en-ft-f16.bin",
 			);
 			name = "Verify Whisper model";
 			outputFileListPaths = (
@@ -280,7 +280,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"$SRCROOT/../core/scripts/fetch_model.sh\" --verify \"$SRCROOT/../models/ggml-ems-small.en-ft-q5_0.bin\"";
+			shellScript = "\"$SRCROOT/../core/scripts/fetch_model.sh\" --verify \"$SRCROOT/../models/ggml-ems-small.en-ft-f16.bin\"";
 		};
 /* End PBXShellScriptBuildPhase section */
 

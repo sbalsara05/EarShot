@@ -33,7 +33,7 @@ OPTIONS
                           "gesture": "mark"|"yes"|"no"|"arrival"|"handoff"}]  (gesture optional, default mark)
                           clip_ms = ms from audio start (wav/json) or clip-boot ms (replay)
   --config <file.json>    pipeline config (see docs/PIPELINE_READY.md)
-  --asr-model <path>      whisper.cpp ggml model (default: models/ggml-ems-small.en-ft-q5_0.bin, the fine-tuned EMS model;
+  --asr-model <path>      whisper.cpp ggml model (default: models/ggml-ems-small.en-ft-f16.bin, the fine-tuned EMS model;
                           core/scripts/fetch_model.sh). Whisper always runs with no initial prompt.
   --tagger <path|none>    EMSTagger.mlpackage (Core ML; macOS/iOS only) or none (default)
   --dict <dir>            folder with formulary.json + ems_terms.json (default: find ../shared)
