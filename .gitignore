@@ -18,6 +18,8 @@ firmware/codec_test/results/samples/
 
 # pipeline (core/) and app build outputs
 .build/
+# Saxon + SchXslt for the NEMSIS Schematron check (core/scripts/nemsis_schematron.py fetches them)
+core/.tools/
 /core/out/
 /out/
 *.xcuserstate
@@ -30,3 +32,11 @@ app/Models/*
 
 # eval outputs
 eval/runs/
+
+# Phi-3.5-mini GGUF models (core/scripts/fetch_phi.sh) and the macOS llama.pc (core/scripts/setup_macos.sh)
+models/*.gguf
+models/*.part
+core/.pkgconfig/
+
+# Saxon + SchXslt for the NEMSIS Schematron check (core/scripts/nemsis_schematron.py fetches them)
+core/.tools/

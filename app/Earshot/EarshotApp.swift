@@ -77,6 +77,12 @@ struct Call: Identifiable, Codable {
     var micStandIn = UserDefaults.standard.object(forKey: "micStandIn") as? Bool ?? true {
         didSet { UserDefaults.standard.set(micStandIn, forKey: "micStandIn") }
     }
+    /// Whether Whisper writes the record. Off, this device's own recogniser does, so a call can be
+    /// tried with and without Whisper. Takes effect on the next call (core: RecognizerPolicy).
+    var whisperEnabled = UserDefaults.standard.object(forKey: "whisperEnabled") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(whisperEnabled, forKey: "whisperEnabled"); engine.whisperEnabled = whisperEnabled }
+    }
+    var recordedBy: String?                // the recogniser that wrote the latest call's record, like "ggml-small.en"
     var clipName: String?                  // the last clip that said hello, like "Earshot-A3F2"
     var clipState = ClipLink.State.idle
     var clipsNearby: [ClipLink.Found] = []   // clips heard while searching, for the medic to pick from
@@ -105,6 +111,7 @@ struct Call: Identifiable, Codable {
     @ObservationIgnored private var startAsked: Date?                 // when the clip was last told to start, until it answers
 
     init() {
+        engine.whisperEnabled = whisperEnabled
         link.onState = { [weak self] state in self?.clipChanged(to: state) }
         link.onFound = { [weak self] clips in self?.clipsNearby = clips }
         link.onEvent = { [weak self] event in self?.clipSaid(event) }
@@ -180,6 +187,7 @@ struct Call: Identifiable, Codable {
     func newCall() {
         call = Call()
         engine.beginCall(call.id, at: call.start)
+        recordedBy = engine.recordName
         problem = nil
         live = .ready
         tab = .live
@@ -229,6 +237,7 @@ struct Call: Identifiable, Codable {
         guard live != .listening, live != .none else { return }
         do {
             engine.beginCall(call.id, at: call.start)   // a call reopened after the app closed gets a fresh record
+            recordedBy = engine.recordName
             try engine.start(from: source)
             self.source = source
             self.viaClip = viaClip
@@ -944,6 +953,7 @@ struct ClipScreen: View {
                     .buttonStyle(.plain).underline()
                     .accessibilityHint("Switches between this \(deviceName)'s microphone and the clip's audio for the next recording")
             }
+            whisperRow
             Text("Press the clip to start a recording once a call is open. Hold it to stop. Double tap to mark.")
                 .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 18)
             Spacer(minLength: 16)
@@ -984,6 +994,17 @@ struct ClipScreen: View {
         case .searching: "Power the clip on and keep it close. Until it connects, calls record on the \(deviceName) mic."
         case .connecting: "Waiting for \(model.clipTitle) to answer. It reconnects by itself when it is on and in range."
         case .idle, .ready: "Calls record on the \(deviceName) mic until a clip connects."
+        }
+    }
+
+    /// Which recogniser writes the record: Whisper, or this device's own. The name beside it is the one
+    /// the latest call actually used, so a fallback is seen and not mistaken for the setting.
+    private var whisperRow: some View {
+        row("Record by") {
+            Button(model.whisperEnabled ? "Whisper" : "\(deviceName)'s own") { model.whisperEnabled.toggle() }
+                .buttonStyle(.plain).underline()
+                .accessibilityHint("Switches the recogniser that writes the record, from the next call")
+            if let used = model.recordedBy { Text(used).font(geist(15)).foregroundStyle(Color.dim) }
         }
     }
 
@@ -1045,6 +1066,7 @@ struct ClipScreen: View {
                 }
                 Color.line.frame(height: 1)
             }
+            whisperRow
             Spacer(minLength: 16)
             switch model.clipState {
             case .idle: Button("Find my clip") { model.connect() }.buttonStyle(Pill(grow: true))

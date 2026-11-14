@@ -24,6 +24,15 @@ var targets: [Target] = [
 ]
 var evalDeps: [Target.Dependency] = ["EarshotCore"]
 
+// The tablet's own recogniser on Apple platforms (Speech framework). Its source is wrapped in
+// `#if canImport(Speech)`, so on Linux this module builds empty.
+targets.append(.target(
+    name: "EarshotAppleSpeech",
+    dependencies: ["EarshotCore"],
+    path: "Sources/EarshotAppleSpeech"
+))
+evalDeps.append("EarshotAppleSpeech")
+
 if !noWhisper {
     targets.append(.systemLibrary(
         name: "CWhisper",

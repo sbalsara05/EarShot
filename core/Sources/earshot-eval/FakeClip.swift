@@ -20,7 +20,11 @@ final class FakeClip {
     func log(_ s: String) { FileHandle.standardError.write(("[fake-clip] " + s + "\n").data(using: .utf8)!) }
 
     func run() throws {
+        #if os(Linux)
         let srv = socket(AF_INET, Int32(SOCK_STREAM.rawValue), 0)
+        #else
+        let srv = socket(AF_INET, SOCK_STREAM, 0)
+        #endif
         guard srv >= 0 else { throw NSError(domain: "fake-clip", code: 1, userInfo: [NSLocalizedDescriptionKey: "socket failed"]) }
         var yes: Int32 = 1
         setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &yes, socklen_t(MemoryLayout<Int32>.size))

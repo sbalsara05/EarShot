@@ -56,11 +56,19 @@ final class CallEngine {
 
     /// The live line being spoken.
     var segment: UUID { live.segment }
-    /// Set when Whisper could not load: the record cannot be written, only live words.
+    /// Set when no recogniser could load: the record cannot be written, only live words.
     private(set) var recordProblem: String?
+    /// Which recogniser writes the record, once chosen (see RecognizerSelector).
+    private(set) var recordKind: RecognizerKind?
+    /// Its name, for the Clip tab: "ggml-small.en", "apple-speech". Nil until a call has begun.
+    private(set) var recordName: String?
+    /// Whether Whisper may write the record. Off, the iPad's own recogniser does, so the two can be
+    /// compared on the same build. Takes effect on the next call; a call in progress keeps its recogniser.
+    var whisperEnabled = true
 
     private let dict: EMSDictionary?
-    private var whisper: Transcriber?            // loaded once, shared by every call's session
+    private var recorder: Transcriber?           // the record's recogniser: chosen and loaded once, shared by every call's session
+    private var recorderUsesWhisperSetting: Bool? // the `whisperEnabled` it was chosen under; a change means choosing again
     private var sessions: [UUID: (session: LiveSession, start: Date)] = [:]
     private var current: UUID?                   // the call being recorded
     private var source: Source?                  // set while audio is being taken
@@ -83,7 +91,11 @@ final class CallEngine {
         live.onText = { [weak self] id, text, started in
             guard let self else { return }
             self.onLiveText(id, text)
-            self.session?.liveLine(id: id.uuidString, text: text, start: started, end: Date())
+            // Live words are a second opinion only when a different recogniser writes the record;
+            // Apple's recogniser checking itself would agree with its own mistakes.
+            if self.recordKind != .appleOnDevice {
+                self.session?.liveLine(id: id.uuidString, text: text, start: started, end: Date())
+            }
         }
         live.onCut = { [weak self] in self?.onCut() }
         mic.onBuffer = { [weak self] b in self?.live.append(b) }
@@ -105,14 +117,21 @@ final class CallEngine {
 
     // MARK: The call
 
-    /// Opens a call's session. Whisper loads once and is kept for later calls.
+    /// Opens a call's session. The record's recogniser is chosen and loaded once, and kept for later calls
+    /// until the Whisper setting changes. Sessions of earlier calls keep the recogniser they began with.
     func beginCall(_ id: UUID, at start: Date) {
         current = id
         guard sessions[id] == nil, let dict else { return }
-        if whisper == nil { whisper = Self.loadWhisper(&recordProblem, dict: dict).map { SerialTranscriber($0) } }
+        if recorder == nil || recorderUsesWhisperSetting != whisperEnabled {
+            let choice = Self.chooseRecognizer(&recordProblem, dict: dict, whisper: whisperEnabled)
+            recorder = choice.map { SerialTranscriber($0.transcriber) }
+            recordKind = choice?.kind
+            recordName = choice?.name
+            recorderUsesWhisperSetting = whisperEnabled
+        }
         let s = LiveSession(dict: dict, config: PipelineConfig(), callId: "c\(Int(start.timeIntervalSince1970))",
                             startEpochMs: Int64(start.timeIntervalSince1970 * 1000), tzOffsetSeconds: TimeZone.current.secondsFromGMT(),
-                            transcriber: whisper)
+                            transcriber: recorder)
         s.callbackQueue = .main
         s.onSegments = { [weak self] segs in
             self?.onRecord(id, segs.map {
@@ -238,19 +257,43 @@ final class CallEngine {
 
     private static func ms(since d: Date) -> UInt32 { UInt32(max(0, Date().timeIntervalSince(d) * 1000)) }
 
-    private static func loadWhisper(_ problem: inout String?, dict: EMSDictionary) -> WhisperTranscriber? {
+    /// Every recogniser this app can offer, in no particular order; `RecognizerPolicy.rank` orders them.
+    /// The first that can run on this tablet and loads writes the record.
+    private static func chooseRecognizer(_ problem: inout String?, dict: EMSDictionary, whisper: Bool) -> RecognizerChoice? {
         let asr = PipelineConfig().asr
-        for name in ["whisper-ems-small.en-q5", "ggml-small.en", "ggml-base.en", "ggml-tiny.en"] {
-            if let url = ModelFiles.find(name, ext: "bin"),
-               let t = try? WhisperTranscriber(modelPath: url.path, threads: ProcessInfo.processInfo.activeProcessorCount > 4 ? 4 : 2) {
+        let threads = ProcessInfo.processInfo.activeProcessorCount > 4 ? 4 : 2
+        func whisper(_ file: String, _ kind: RecognizerKind) -> RecognizerOption {
+            RecognizerOption(kind: kind, name: file,
+                             unavailableReason: { ModelFiles.find(file, ext: "bin") == nil ? "no \(file).bin installed" : nil },
+                             make: {
+                let t = try WhisperTranscriber(modelPath: ModelFiles.find(file, ext: "bin")!.path, threads: threads)
                 // lean toward the formulary's drug names while decoding (BiasTrie)
                 if asr.bias { t.setBias(phrases: dict.biasPhrases(), firstBonus: asr.biasFirst, nextBonus: asr.biasNext) }
-                problem = nil
                 return t
-            }
+            })
         }
-        problem = "No Whisper model is installed, so nothing said is written to the record. Run app/scripts/fetch_deps.sh, or copy ggml-small.en.bin into the app's Documents folder."
-        return nil
+        let options: [RecognizerOption] = [
+            RecognizerOption(kind: .appleOnDevice, name: "apple-speech",
+                             unavailableReason: { AppleTranscriber.unavailableReason() },
+                             make: {
+                let t = try AppleTranscriber()
+                t.vocabulary = dict.liveVocabulary()
+                return t
+            }),
+            whisper("whisper-ems-small.en-q5", .whisperFineTuned),
+            whisper("ggml-small.en", .whisperStock),
+            whisper("ggml-base.en", .whisperStock),
+            whisper("ggml-tiny.en", .whisperStock),
+        ]
+        do {
+            let choice = try RecognizerSelector.choose(from: options, whisper: whisper)
+            problem = nil
+            return choice
+        } catch {
+            problem = "No speech recogniser can run, so nothing said is written to the record (\(error.localizedDescription)). "
+                + "Allow speech recognition, run app/scripts/fetch_deps.sh, or copy ggml-small.en.bin into the app's Documents folder."
+            return nil
+        }
     }
 
     // MARK: Draft from the record
@@ -310,7 +353,7 @@ extension EMSDictionary {
     }
 }
 
-/// Whisper shared by every call's session. A completed call can still be transcribing while the next
+/// The record's recogniser, shared by every call's session. A completed call can still be transcribing while the next
 /// one records, and whisper.cpp runs one decode at a time, so calls into it take turns.
 private final class SerialTranscriber: Transcriber {
     private let inner: Transcriber

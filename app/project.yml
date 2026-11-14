@@ -19,6 +19,9 @@ targets:
       # whisper.cpp's Swift wrapper lives with the pipeline; it builds against whisper.xcframework here
       - path: ../core/Sources/EarshotWhisper/WhisperTranscriber.swift
         group: Earshot/Pipeline
+      # The iPad's own on-device recogniser, which writes the record when Whisper is switched off
+      - path: ../core/Sources/EarshotAppleSpeech/AppleTranscriber.swift
+        group: Earshot/Pipeline
       - path: ../shared/formulary.json
         buildPhase: resources
       - path: ../shared/ems_terms.json
