@@ -266,7 +266,7 @@ struct Call: Identifiable, Codable {
     private func begin(from source: CallEngine.Source, viaClip: Bool) {
         guard live != .listening, live != .none else { return }
         do {
-            engine.beginCall(call.id, at: call.start)   // a call reopened after the app closed gets a fresh record
+            engine.beginCall(call.id, at: call.start)   // a call reopened after the app closed carries on from its saved record
             recordedBy = engine.recordName
             try engine.start(from: source)
             self.source = source
@@ -621,6 +621,9 @@ struct Call: Identifiable, Codable {
         }
     }
 
+    /// Writes the pipeline's record of every open call. Called when the app leaves the screen.
+    func saveRecords() { engine.saveRecords() }
+
     private func load() {
         guard let data = try? Data(contentsOf: Self.file) else { return }   // nothing saved yet
         do {
@@ -639,7 +642,9 @@ struct Call: Identifiable, Codable {
                     live = open.recordings.isEmpty ? .ready : .between
                 }
             }
-            // Drafting that was cut off when the app closed is started again.
+            // Records are kept only for calls that can still use one: the open call and those not yet drafted.
+            engine.forgetRecords(except: Set(review.filter { !$0.drafted }.map(\.id) + (live != .none ? [call.id] : [])))
+            // Drafting that was cut off when the app closed is started again, from the record that was saved.
             for waiting in review where !waiting.drafted { draft(waiting.id) }
         } catch {
             // Never overwrite a file that could not be read: set it aside so its calls can be recovered.
@@ -749,7 +754,7 @@ struct EarshotApp: App {
             .onChange(of: scenePhase) { _, phase in
                 // A recording carries on when the app leaves the screen or the device locks: the app is allowed to
                 // keep the microphone and the clip link in the background. Only its state is saved here.
-                if phase != .active { model.save() }
+                if phase != .active { model.save(); model.saveRecords() }
             }
         }
     }

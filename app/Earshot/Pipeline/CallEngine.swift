@@ -70,6 +70,9 @@ final class CallEngine {
     private var recorder: Transcriber?           // the record's recogniser: chosen and loaded once, shared by every call's session
     private var recorderUsesWhisperSetting: Bool? // the `whisperEnabled` it was chosen under; a change means choosing again
     private var sessions: [UUID: (session: LiveSession, start: Date)] = [:]
+    private var broughtBack: Set<UUID> = []      // calls whose record was read back from disk after the app closed
+    private var closed: Set<UUID> = []           // calls drafted or thrown away: their record is no longer written
+    private var saveWaiting: Set<UUID> = []      // calls with a record write due within the second
     private var current: UUID?                   // the call being recorded
     private var source: Source?                  // set while audio is being taken
     private let live = LiveRecognizer()
@@ -138,8 +141,49 @@ final class CallEngine {
                 RecordLine(start: start.addingTimeInterval(Double($0.startMs) / 1000), end: start.addingTimeInterval(Double($0.endMs) / 1000), text: $0.text)
             })
         }
+        // The record is written to disk as it changes, so it is still there if the app closes.
+        s.onEvents = { [weak self] _ in self?.saveSoon(id) }
+        // A call that was open when the app last closed carries on from the record it had.
+        if let kept = RecordStore.load(id) {
+            s.restore(kept)
+            broughtBack.insert(id)
+        }
         sessions[id] = (s, start)
     }
+
+    /// The session of a call that was waiting to be drafted when the app closed, rebuilt from its
+    /// saved record. It has no recogniser: nothing more will be said on it.
+    private func sessionFromDisk(_ id: UUID) -> LiveSession? {
+        guard let dict, let kept = RecordStore.load(id) else { return nil }
+        let s = LiveSession(dict: dict, config: PipelineConfig(), callId: kept.callId, startEpochMs: kept.startEpochMs,
+                            tzOffsetSeconds: kept.tzOffsetSeconds, transcriber: nil)
+        s.callbackQueue = .main
+        s.restore(kept)
+        broughtBack.insert(id)
+        return s
+    }
+
+    /// Writes a call's record within a second. Events change many times a second while someone is
+    /// speaking (every live word), so changes are gathered into one write.
+    private func saveSoon(_ id: UUID) {
+        guard !closed.contains(id), saveWaiting.insert(id).inserted else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self else { return }
+            self.saveWaiting.remove(id)
+            self.saveNow(id)
+        }
+    }
+
+    private func saveNow(_ id: UUID) {
+        guard !closed.contains(id), let s = sessions[id]?.session else { return }
+        RecordStore.save(s.saved(), for: id)
+    }
+
+    /// Writes every open record at once: the app is leaving the screen and may not come back.
+    func saveRecords() { for id in sessions.keys { saveNow(id) } }
+
+    /// Deletes saved records that belong to no call still open or waiting for sign-off.
+    func forgetRecords(except keep: Set<UUID>) { RecordStore.prune(keeping: keep) }
 
     /// Starts taking audio for the current call: from the microphone here, or from the clip through `push`.
     func start(from source: Source) throws {
@@ -198,16 +242,21 @@ final class CallEngine {
     /// The call's session is let go: its audio and working record are wiped once this returns.
     @MainActor func finish(_ id: UUID) async -> CallOutput {
         if id == current { stop(); current = nil }
-        guard let s = sessions.removeValue(forKey: id)?.session else {
+        guard let s = sessions.removeValue(forKey: id)?.session ?? sessionFromDisk(id) else {
             return CallOutput(draft: .blank, docs: [:], notes: [recordProblem
-                ?? "The record for this call was not kept when the app closed, so nothing was drafted. Fill in the lines yourself."])
+                ?? "No record of this call was found on this \(deviceName), so nothing was drafted. Fill in the lines yourself."])
         }
         await withCheckedContinuation { done in audioQueue.async { done.resume() } }   // audio already queued reaches the session
         s.endCapture()
         await Task.detached { s.drain() }.value
-        defer { s.wipe() }
+        RecordStore.save(s.saved(), for: id)   // everything said is now written down: keep it in case drafting is cut off
+        // Once drafted, the paperwork is on the call itself: the working record is wiped, on disk too.
+        defer { closed.insert(id); broughtBack.remove(id); s.wipe(); RecordStore.delete(id) }
         var notes: [String] = []
         if let p = recordProblem { notes.append(p) }
+        if broughtBack.contains(id) {
+            notes.append("The app was closed during this call. Anything said just before it closed may be missing from the record.")
+        }
 
         let chart = s.chartModel()
         var draft = Self.draft(from: chart)
@@ -238,7 +287,9 @@ final class CallEngine {
     /// Throws a call away: its audio and working record are wiped.
     func discard(_ id: UUID) {
         if id == current { stop(); current = nil }
+        closed.insert(id); broughtBack.remove(id)
         sessions.removeValue(forKey: id)?.session.wipe()
+        RecordStore.delete(id)
     }
 
     // MARK: Helpers
@@ -326,6 +377,41 @@ final class CallEngine {
         for e in m.meds { lines.append(ChartModel.medLine(e, clock: m.clock)) }
         for a in m.allergies { lines.append("allergy: \(a.text)") }
         return lines.isEmpty ? "(nothing yet)" : lines.joined(separator: "\n")
+    }
+}
+
+/// Each open call's record on disk (Application Support/records/<call id>.json): what Whisper wrote
+/// and the marks, never audio. Calls hold patient information, so the files are encrypted, kept out
+/// of iCloud backups, and deleted as soon as the call is drafted or thrown away. Like calls.json they
+/// stay writable while the device is locked, since a recording carries on then.
+enum RecordStore {
+    private static let folder = URL.applicationSupportDirectory.appending(path: "records")
+    private static func file(_ id: UUID) -> URL { folder.appending(path: "\(id.uuidString).json") }
+
+    static func save(_ record: SessionRecord, for id: UUID) {
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try JSONEncoder().encode(record).write(to: file(id), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            var url = file(id), values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try url.setResourceValues(values)
+        } catch {
+            // The call itself is still saved in calls.json; only carrying on after a restart is lost.
+        }
+    }
+
+    static func load(_ id: UUID) -> SessionRecord? {
+        guard let data = try? Data(contentsOf: file(id)) else { return nil }
+        return try? JSONDecoder().decode(SessionRecord.self, from: data)
+    }
+
+    static func delete(_ id: UUID) { try? FileManager.default.removeItem(at: file(id)) }
+
+    static func prune(keeping keep: Set<UUID>) {
+        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+        for f in files where !keep.contains(where: { $0.uuidString == f.deletingPathExtension().lastPathComponent }) {
+            try? FileManager.default.removeItem(at: f)
+        }
     }
 }
 

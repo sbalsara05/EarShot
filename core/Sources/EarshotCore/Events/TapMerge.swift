@@ -1,7 +1,7 @@
 import Foundation
 
 /// A tap placed on the call timeline (call-relative ms).
-public struct PlacedTap: Equatable, Sendable {
+public struct PlacedTap: Codable, Equatable, Sendable {
     public var tMs: Int64
     public var source: String
     public var gesture: String

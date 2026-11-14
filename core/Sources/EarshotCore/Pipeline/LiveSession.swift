@@ -91,6 +91,25 @@ public final class Ledger: @unchecked Sendable {
 
 // MARK: - Live session
 
+/// What is needed to rebuild a call's record after the app has closed: what Whisper wrote, the
+/// marks, the gaps in the audio, what the medic typed and the live words. No audio is kept, so
+/// anything said but not yet written down when the app closed is not in it. Events are not stored:
+/// the rules are deterministic, so they are worked out again from the segments.
+public struct SessionRecord: Codable, Equatable, Sendable {
+    public struct Gap: Codable, Equatable, Sendable {
+        public var startMs: Int64, endMs: Int64, missingFrames: Int
+    }
+    public var version = 1
+    public var callId: String
+    public var startEpochMs: Int64
+    public var tzOffsetSeconds: Int
+    public var segments: [RawSegment]
+    public var taps: [PlacedTap]
+    public var gaps: [Gap]
+    public var typed: [EarshotEvent]
+    public var liveLines: [LiveLine]
+}
+
 /// The live call pipeline used by the iPad app: packets -> ADPCM decode ->
 /// in-memory ring buffer -> VAD -> whisper (background queue) -> cleanup
 /// (batched ~30 s) -> rules extraction -> tap merge -> events. Audio is held
@@ -481,6 +500,40 @@ public final class LiveSession {
     /// Transcript context around a time (recall screen), from raw segments.
     public func transcriptAround(_ tMs: Int64, windowMs: Int64 = 8000) -> [RawSegment] {
         work.sync { rawSegments.filter { $0.endMs >= tMs - windowMs && $0.startMs <= tMs + windowMs } }
+    }
+
+    // MARK: keeping the record across an app restart
+
+    /// The record so far, to write to disk. Holds no audio.
+    public func saved() -> SessionRecord {
+        work.sync {
+            SessionRecord(callId: callId, startEpochMs: clock.startEpochMs, tzOffsetSeconds: clock.tzOffsetSeconds,
+                          segments: rawSegments, taps: taps,
+                          gaps: gapList.map { SessionRecord.Gap(startMs: $0.0, endMs: $0.1, missingFrames: $0.2) },
+                          typed: tablet, liveLines: liveLines.values.sorted { ($0.startMs, $0.id) < ($1.startMs, $1.id) })
+        }
+    }
+
+    /// Puts back a record saved by an earlier session of the same call, before any new audio.
+    /// The segments go through cleanup and the rules again, so the events come out as they were.
+    /// New segments carry on numbering after the restored ones.
+    public func restore(_ r: SessionRecord) {
+        work.sync {
+            rawSegments = r.segments
+            segCounter = r.segments.compactMap { Int($0.id.dropFirst()) }.max() ?? r.segments.count
+            taps = r.taps
+            closedGaps = r.gaps.map { ($0.startMs, $0.endMs, $0.missingFrames) }
+            gapList = closedGaps
+            tablet = r.typed
+            liveLines = Dictionary(r.liveLines.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+            clean.removeAll(); findings.removeAll()
+            pendingClean = r.segments
+            if pendingClean.isEmpty { remerge() } else { flushClean(force: true) }
+            if !r.segments.isEmpty, let cb = onSegments {
+                let all = rawSegments
+                callbackQueue.async { cb(all) }
+            }
+        }
     }
 
     /// Medic signed: wipe everything (audio, transcript, events).
