@@ -3,8 +3,8 @@
 The iPhone and iPad app. It records a call, shows a live transcript with marks, then drafts a nurse
 handoff and a PCR for the medic to edit and sign.
 
-Before the first build, run `../transcribe/fetch.sh` once. It fetches Whisper, which writes the transcript
-(see [`transcribe/README.md`](../transcribe/README.md)).
+Before the first build, run `../transcribe/fetch.sh` once. It builds whisper.cpp and pulls the Whisper model from
+Git LFS; Whisper writes the transcript (see [`transcribe/README.md`](../transcribe/README.md)).
 
 It connects to the clip over Bluetooth, following [`firmware/BLUETOOTH.md`](../firmware/BLUETOOTH.md).
 The link lives in `Earshot/ClipLink.swift`. It has been run against the ESP32-S3 Feather stand-in on an

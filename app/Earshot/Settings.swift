@@ -153,7 +153,7 @@ struct SettingsScreen: View {
             Text(model.recordBy.map { "Whisper \($0)" } ?? "This \(deviceName) only").font(geist(19, 600))
             Text(model.recordBy != nil
                  ? "Words show at once as this \(deviceName) hears them, then Whisper's more careful reading takes their place. Lighter lines are ones to read with care."
-                 : "No Whisper model is installed, so the transcript is this \(deviceName)'s own. Run transcribe/fetch.sh and build again.")
+                 : "The Whisper model is not in this build, so the transcript is this \(deviceName)'s own. Run transcribe/fetch.sh and build again.")
                 .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 8)
             Text("Location").font(geist(17, 500)).foregroundStyle(Color.dim).padding(.top, 28).padding(.bottom, 8)
             HStack(spacing: 10) {

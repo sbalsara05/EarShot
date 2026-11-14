@@ -13,7 +13,7 @@ final class Record {
     /// A call's new lines, and the moment in the audio Whisper has got to. On the main queue.
     var onLines: (Call.ID, [Item], Date) -> Void = { _, _, _ in }
 
-    /// The model writing the record, like "small.en". Nil when none is installed: live words are then all there is.
+    /// The model writing the record, like "ems-small.en-ft-f16". Nil when none is installed: live words are then all there is.
     private(set) var name: String?
 
     private var whisper: Whisper?
@@ -28,10 +28,10 @@ final class Record {
     private var waiting: [Call.ID: [() -> Void]] = [:]     // who to tell when a call has been read to the end
 
     /// Loads the model, which takes a few seconds, then calls `done` on the main queue.
-    /// The model is looked for in the app's Documents folder (copied in with Finder), then in the app itself.
+    /// Each model is looked for in the app's Documents folder (copied in with Finder), then in the app itself.
     func load(_ done: @escaping () -> Void) {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let places = [documents.appending(path: "\(Self.model).bin"), Bundle.main.url(forResource: Self.model, withExtension: "bin")]
+        let places = Self.models.flatMap { [documents.appending(path: "\($0).bin"), Bundle.main.url(forResource: $0, withExtension: "bin")] }
         guard let file = places.compactMap({ $0 }).first(where: { FileManager.default.fileExists(atPath: $0.path) }) else { return done() }
         DispatchQueue.global(qos: .userInitiated).async {
             #if targetEnvironment(simulator)
@@ -47,7 +47,9 @@ final class Record {
             }
         }
     }
-    static let model = "ggml-small.en"
+    /// The models to look for, best first: Whisper small.en fine-tuned on EMS speech, which the app is built with,
+    /// then the stock one, for comparing the two.
+    static let models = ["ggml-ems-small.en-ft-f16", "ggml-small.en"]
 
     /// A stretch of audio is starting for this call.
     func begin(for call: Call.ID) {

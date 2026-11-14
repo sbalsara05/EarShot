@@ -13,7 +13,22 @@ Audio in, transcript lines with a confidence out. Nothing else: no clean-up, no 
 ./fetch.sh
 ```
 
-It builds the whisper.cpp framework (about ten minutes) and downloads `ggml-small.en` (465 MB). Neither is in the repo.
+It builds the whisper.cpp framework (about ten minutes, not in the repo) and pulls the model from Git LFS (488 MB;
+needs `brew install git-lfs`).
+
+## The model
+
+`ggml-ems-small.en-ft-f16`: Whisper small.en fine-tuned on EMS speech, from pull request 15. It runs about ten
+times faster than speech on an M1 iPad.
+
+| Test | Stock small.en | Fine-tuned |
+|---|---|---|
+| Scripted call dense with EMS terms (Mac) | "steamy", "end title CO2", "Medik 4" | "STEMI", "end tidal CO2", "Medic 4" |
+| Real call played to an iPad, words wrong | 26.7% | 28.1% (a tie at 645 words) |
+| Punctuation | Kept | Often dropped, which gives long lines |
+
+The stock model still works for comparing: put `ggml-small.en.bin` in `Models/` and bundle it in place of the
+fine-tuned one (`app/project.yml`).
 
 ## What comes out
 
@@ -44,7 +59,7 @@ It says how sure Whisper was, not whether it was right.
 
 | Setting | Value | Where |
 |---|---|---|
-| Model | `small.en`, on the graphics chip | `Whisper.swift` |
+| Model | small.en fine-tuned on EMS speech, on the graphics chip | `Models/`, `Whisper.swift` |
 | Candidates kept while writing (`beam`) | 5 | `Whisper.swift` |
 | A chunk ends after | 0.7 s of quiet, or 25 s | `Chunker.swift` |
 | Quietest sound sent to Whisper | about -55 dB, and 4 dB over the room | `Chunker.swift` |
@@ -53,7 +68,7 @@ It says how sure Whisper was, not whether it was right.
 ## Try it on a Mac
 
 ```bash
-swift run -c release transcribe-wav Models/ggml-small.en.bin call.wav
+swift run -c release transcribe-wav Models/ggml-ems-small.en-ft-f16.bin call.wav
 ```
 
 Prints each line with its confidence and its unsure words, then how long Whisper took. Add `--json` for the full shape.
