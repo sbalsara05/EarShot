@@ -29,6 +29,42 @@ public struct ASRToken: Equatable, Sendable {
 }
 
 extension ASRPiece {
+    /// Whisper splits one chunk's text into segments wherever it likes, sometimes mid-phrase
+    /// ("blood pressure is 150 over" | "90, heart rate is 104"). Cleanup and the rules read one
+    /// segment at a time, so a reading split like that was lost. This joins a piece that does not
+    /// end a sentence with the piece after it. The text is Whisper's, unchanged and in order, so the
+    /// raw transcript stays the source of truth; token times are kept. Hallucinations are dropped
+    /// first so they never join real speech. Pieces from different chunks are never joined.
+    public static func joinUnfinished(_ pieces: [ASRPiece]) -> [ASRPiece] {
+        var out: [ASRPiece] = []
+        for p in pieces where !ASRFilter.isHallucination(p.text) {
+            if let last = out.last, !last.endsSentence {
+                out[out.count - 1] = last.joined(with: p)
+            } else {
+                out.append(p)
+            }
+        }
+        return out
+    }
+
+    /// True when the text ends with ". ? !" (closing quotes and spaces aside).
+    var endsSentence: Bool {
+        let t = text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "\"')]")))
+        guard let c = t.last else { return true }   // empty: nothing to carry over
+        return ".?!".contains(c)
+    }
+
+    func joined(with b: ASRPiece) -> ASRPiece {
+        let shift = text.count
+        let lp: Double?
+        if let x = avgLogprob, let y = b.avgLogprob {
+            let wa = Double(max(1, tokens.count)), wb = Double(max(1, b.tokens.count))
+            lp = ((x * wa + y * wb) / (wa + wb) * 1000).rounded() / 1000
+        } else { lp = avgLogprob ?? b.avgLogprob }
+        return ASRPiece(startMs: min(startMs, b.startMs), endMs: max(endMs, b.endMs), text: text + b.text, avgLogprob: lp,
+                        tokens: tokens + b.tokens.map { ASRToken(charOffset: $0.charOffset + shift, startMs: $0.startMs, endMs: $0.endMs) })
+    }
+
     /// Raw segment with call-relative times taken from the first/last token when available
     /// (VAD chunks can start well before the speech), and per-token times for findings.
     public func rawSegment(id: String, chunkStartMs: Int64, chunkEndMs: Int64) -> RawSegment? {
@@ -275,8 +311,7 @@ public final class EarshotPipeline {
             let a = Int(c.startSample), b = Int(min(Int64(pcm.count), c.endSample))
             guard b > a else { continue }
             let f = pcm[a..<b].map { Float($0) / 32768 }
-            for p in try tr.transcribe(f, prompt: prompt) {
-                if ASRFilter.isHallucination(p.text) { continue }
+            for p in ASRPiece.joinUnfinished(try tr.transcribe(f, prompt: prompt)) {
                 guard let seg = p.rawSegment(id: "s\(n + 1)", chunkStartMs: c.startMs, chunkEndMs: c.endMs) else { continue }
                 n += 1
                 segs.append(seg)

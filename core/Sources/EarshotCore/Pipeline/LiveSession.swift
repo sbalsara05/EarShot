@@ -408,10 +408,9 @@ public final class LiveSession {
         guard let tr = transcriber else { return }
         let prompt = config.asr.useInitialPrompt ? (config.asr.prompt ?? dict.initialPrompt()) : nil
         asrQueue.async {
-            let pieces = (try? tr.transcribe(audio, prompt: prompt)) ?? []
+            let pieces = ASRPiece.joinUnfinished((try? tr.transcribe(audio, prompt: prompt)) ?? [])
             self.work.async {
                 for p in pieces {
-                    if ASRFilter.isHallucination(p.text) { continue }
                     guard let seg = p.rawSegment(id: "s\(self.segCounter + 1)", chunkStartMs: startMs, chunkEndMs: endMs) else { continue }
                     self.segCounter += 1
                     self.rawSegments.append(seg)

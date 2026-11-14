@@ -172,7 +172,41 @@ public final class Cleanup {
             }
             k += 1
         }
+        // post-pass: a clock time after "at" becomes one "HH:MM" token, so it is never read as an
+        // amount ("aspirin given at 1410" is a time, not a 1410 dose). Forms: "at 1410", "at 1410 hours",
+        // "at fourteen ten" (two numbers), "at fourteen hundred" (1400). Left alone when a unit follows
+        // ("running at 1000 ml") or the values cannot be a time.
+        let units = Set(dict.unitIndex.values).union(["%"])
+        k = 0
+        while k + 1 < out.count {
+            guard out[k].text == "at" || out[k].text == "@", out[k].punct == nil else { k += 1; continue }
+            var time: String? = nil
+            var end = k + 1
+            let a = out[k + 1].text
+            if let hm = Cleanup.clock4(a) {
+                time = hm
+            } else if a.count <= 2, let h = Int(a), (0...23).contains(h), out[k + 1].punct == nil, k + 2 < out.count,
+                      out[k + 2].text.count == 2, let m = Int(out[k + 2].text), (0...59).contains(m) {
+                time = String(format: "%02d:%02d", h, m); end = k + 2
+            }
+            guard let t = time else { k += 1; continue }
+            if end + 1 < out.count, ["hours", "hrs", "hour"].contains(out[end + 1].text), out[end].punct == nil { end += 1 }
+            if end + 1 < out.count, units.contains(out[end + 1].text), out[end].punct == nil { k += 1; continue }
+            let merged = CleanToken(text: t, rawStart: out[k + 1].rawStart, rawEnd: out[end].rawEnd, rule: "time:clock", punct: out[end].punct)
+            let chars = Array(seg.text)
+            corr.append(Correction(id: "c\(nextId)", rawSpan: seg.id, rawRange: [merged.rawStart, merged.rawEnd],
+                                   original: String(chars[merged.rawStart..<merged.rawEnd]), replacement: t, rule: "time:clock"))
+            nextId += 1
+            out.replaceSubrange((k + 1)...end, with: [merged])
+            k += 2
+        }
         return (CleanSegment(rawSpan: seg.id, startMs: seg.startMs, endMs: seg.endMs, rawText: seg.text, tokens: out, wordTimes: seg.wordTimes), corr)
+    }
+
+    /// "1410" -> "14:10" when it can be a 24-hour time.
+    static func clock4(_ s: String) -> String? {
+        guard s.count == 4, s.allSatisfy(\.isNumber), let h = Int(s.prefix(2)), let m = Int(s.suffix(2)), h <= 23, m <= 59 else { return nil }
+        return "\(s.prefix(2)):\(s.suffix(2))"
     }
 
     /// If tokens starting at i form a bracketed tag ([...] or (...)), return the index after it.
