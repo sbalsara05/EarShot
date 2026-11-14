@@ -180,13 +180,30 @@ final class Transcriber {
         }
     }
 
-    private static func level(of buffer: AVAudioPCMBuffer) -> Int {
+    /// How loud a buffer is on the meter's scale, 0 to 6 rows.
+    ///
+    /// Three things make it follow quiet speech closely. It takes the loudest few milliseconds in the buffer, not the
+    /// average of all of it, so a single word shows even when the buffer is mostly the pause around it. The scale tops out
+    /// at ordinary speech, not at shouting, so speech fills most of the meter. And the curve lifts the low end, so a
+    /// whisper or a person across the room still moves it.
+    static let meterFloor: Float = -55   // dB: a quiet room sits near here, and shows nothing
+    static let meterCeiling: Float = -22 // dB: ordinary close speech reaches here and fills the meter
+    static let meterCurve: Float = 0.75  // under 1 lifts quiet sounds; 1 would be a straight line
+    static func level(of buffer: AVAudioPCMBuffer) -> Int {
         guard let samples = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return 0 }
-        var sum: Float = 0
-        for i in 0..<Int(buffer.frameLength) { sum += samples[i] * samples[i] }
-        let decibels = 10 * log10(max(sum / Float(buffer.frameLength), 1e-10))
-        // Calibration: a quiet room sits near -55 dB and close speech near -10 dB. Shift these if a real iPad reads low or high.
-        return min(6, max(0, Int(((decibels + 55) / 45 * 6).rounded())))
+        let count = Int(buffer.frameLength), piece = 256   // about five milliseconds at 48 kHz
+        var loudest: Float = 0
+        var start = 0
+        while start < count {
+            let end = min(count, start + piece)
+            var sum: Float = 0
+            for i in start..<end { sum += samples[i] * samples[i] }
+            loudest = max(loudest, sum / Float(end - start))
+            start = end
+        }
+        let decibels = 10 * log10(max(loudest, 1e-10))
+        let position = min(1, max(0, (decibels - meterFloor) / (meterCeiling - meterFloor)))
+        return Int((pow(position, meterCurve) * 6).rounded())
     }
 }
 
