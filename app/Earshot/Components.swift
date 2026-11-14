@@ -96,7 +96,60 @@ let clipArt = [
     "w...wmmmw...w", "w....www....w", "w...........w", "w.....g.....w", "w...........w", ".w.........w.", "..wwwwwwwww..",
 ]
 
+// MARK: Motion
+
+/// Animates changes to `value` the same way everywhere: a short smooth ease, and none at all when the medic has
+/// turned on Reduce Motion, so things then just change.
+private struct Smooth<V: Equatable>: ViewModifier {
+    var value: V
+    var seconds: Double
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content.animation(reduceMotion ? nil : .smooth(duration: seconds), value: value)
+    }
+}
+
+extension View {
+    func smooth<V: Equatable>(_ value: V, _ seconds: Double = 0.3) -> some View { modifier(Smooth(value: value, seconds: seconds)) }
+
+    /// How a whole screen arrives and leaves when the tab or the call's state changes: a fade with a small drift.
+    func screenTransition() -> some View { transition(.opacity.combined(with: .offset(y: 10))) }
+}
+
 // MARK: Small pieces
+
+/// A row that slides left to show a red Delete, like a list row does. For rows in a scrolling column, which has no
+/// swipe actions of its own. A mostly-vertical drag is left to the scrolling.
+struct SwipeToDelete<Content: View>: View {
+    var onDelete: () -> Void
+    @ViewBuilder var content: Content
+    @State private var shift: CGFloat = 0
+    @State private var open = false
+    private let reveal: CGFloat = 104
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            Button(role: .destructive, action: onDelete) {
+                Text("Delete").font(geist(16, 600)).foregroundStyle(Color.bg)
+                    .frame(width: reveal - 12, height: 40).background(Color.red, in: Capsule())
+            }
+            .buttonStyle(Press())
+            .opacity(shift < 0 ? 1 : 0).allowsHitTesting(open)
+            content.offset(x: shift)
+        }
+        .simultaneousGesture(DragGesture(minimumDistance: 14).onChanged { g in
+            guard abs(g.translation.width) > abs(g.translation.height) else { return }
+            shift = min(0, max(-reveal, g.translation.width + (open ? -reveal : 0)))
+        }.onEnded { g in
+            guard abs(g.translation.width) > abs(g.translation.height) else { return }
+            withAnimation(.easeOut(duration: 0.15)) {
+                open = shift < -reveal / 2
+                shift = open ? -reveal : 0
+            }
+        })
+        .accessibilityAction(named: "Delete mark", onDelete)
+    }
+}
 
 /// Seconds since the app launched, redrawn `fps` times a second.
 struct Ticker<Content: View>: View {
@@ -198,6 +251,83 @@ struct LevelDots: View {
             ForEach(0..<of, id: \.self) { Circle().fill($0 < lit ? Color.ink : .off).frame(width: 10, height: 10) }
         }
     }
+}
+
+// MARK: The clip's button, as a key
+
+/// What the clip's one button does: one dot for a click, two for a double click, a bar for a hold. With a call
+/// state it says what each does right now and dims the ones that do nothing; without one it is the general key.
+struct ClipKey: View {
+    var live: Live? = nil
+    var oneLine = false   // iPhone's Live Call screen: the three actions side by side
+
+    private struct Row {
+        var dots: Int   // 0 draws the bar that stands for a hold
+        var name: String, does: String
+        var on = true
+    }
+
+    private var rows: [Row] {
+        guard let live else {
+            return [Row(dots: 1, name: "Click", does: "Mark the moment"), Row(dots: 2, name: "Double click", does: "Pause or resume"),
+                    Row(dots: 0, name: "Hold", does: "End the call, or start one")]
+        }
+        let double: String
+        switch live {
+        case .listening: double = "Pause"
+        case .between, .cutShort: double = "Resume"
+        case .ready: double = "Start recording"
+        case .none: double = "Pause or resume"
+        }
+        return [Row(dots: 1, name: "Click", does: "Mark", on: live == .listening), Row(dots: 2, name: "Double click", does: double, on: live != .none),
+                Row(dots: 0, name: "Hold", does: live == .none ? "Start a call" : "End call")]
+    }
+
+    var body: some View {
+        Group {
+            if oneLine {
+                HStack(spacing: 14) {
+                    Text("Clip").font(geist(13, 600)).foregroundStyle(Color.dim)
+                    ForEach(rows, id: \.name) { row in
+                        HStack(spacing: 6) {
+                            glyph(row.dots)
+                            Text(row.does).font(geist(14, 600))
+                        }
+                        .opacity(row.on ? 1 : 0.35)
+                        .accessibilityElement(children: .ignore).accessibilityLabel(spoken(row))
+                    }
+                }
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Clip button").font(geist(15, 600)).foregroundStyle(Color.dim).padding(.bottom, 6)
+                    ForEach(rows, id: \.name) { row in
+                        HStack(spacing: 12) {
+                            glyph(row.dots).frame(width: 28, alignment: .leading)
+                            Text(row.name).font(geist(16, 500)).foregroundStyle(Color.dim).frame(width: 100, alignment: .leading)
+                            Text(row.does).font(geist(18, 600)).lineLimit(1).minimumScaleFactor(0.7)
+                            Spacer(minLength: 0)
+                        }
+                        .frame(height: 32)
+                        .opacity(row.on ? 1 : 0.35)
+                        .accessibilityElement(children: .ignore).accessibilityLabel(spoken(row))
+                    }
+                }
+            }
+        }
+        .smooth(live, 0.2)   // the dimmed presses fade as the call changes state
+        .foregroundStyle(Color.ink)
+    }
+
+    private func glyph(_ dots: Int) -> some View {
+        HStack(spacing: 4) {
+            if dots == 0 { Capsule().frame(width: 26, height: 10) }
+            ForEach(0..<dots, id: \.self) { _ in Circle().frame(width: 10, height: 10) }
+        }
+    }
+
+    private func spoken(_ row: Row) -> String { "Clip button, \(row.name): \(row.does)" + (row.on ? "" : ", nothing to do right now") }
 }
 
 // MARK: The clip, drawn as a stack of slabs

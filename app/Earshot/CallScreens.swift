@@ -11,13 +11,17 @@ struct LiveScreen: View {
     private var current: Recording { model.call.recordings.last ?? Recording() }
 
     var body: some View {
-        switch model.live {
-        case .none: idle
-        case .ready: ready
-        case .listening: Ticker(fps: 4) { _ in listening }   // redraws the clock
-        case .between: between
-        case .cutShort: cutShort
+        // Each state fades in over the last, so starting, pausing and ending a call do not jump.
+        Group {
+            switch model.live {
+            case .none: idle.transition(.opacity)
+            case .ready: ready.transition(.opacity)
+            case .listening: Ticker(fps: 4) { _ in listening }.transition(.opacity)   // redraws the clock
+            case .between: between.transition(.opacity)
+            case .cutShort: cutShort.transition(.opacity)
+            }
         }
+        .smooth(model.live, 0.25)
     }
 
     /// iPad: headline, meter and controls in a left column, transcript on the right.
@@ -27,11 +31,13 @@ struct LiveScreen: View {
             .padding(.horizontal, fit(40, 20)).padding(.vertical, fit(36, 20))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .panel()
+        // With a clip connected, the key says what its button does at this point in the call.
         if phone {
             VStack(alignment: .leading, spacing: 16) {
                 top()
                 middle()
                 panel
+                if model.clip { ClipKey(live: model.live, oneLine: true) }
                 bottom()
             }
         } else {
@@ -41,6 +47,12 @@ struct LiveScreen: View {
                     Spacer()
                     middle()
                     Spacer()
+                    if model.clip {
+                        ClipKey(live: model.live)
+                            .padding(.horizontal, 20).padding(.vertical, 14)
+                            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color.line))
+                            .padding(.bottom, 24)
+                    }
                     bottom()
                 }
                 .padding(.top, 12).padding(.leading, 24)
@@ -174,7 +186,7 @@ struct LiveScreen: View {
             if current.items.isEmpty {
                 empty("What is said will appear here as you record.")
             } else {
-                feed { TranscriptRows(recording: current, liveLine: model.liveLine) }
+                feed { TranscriptRows(recording: current, liveLine: model.liveLine) }.smooth(current.items.count)
             }
         case .between, .cutShort:
             feed {
@@ -331,6 +343,7 @@ struct ReviewSheet: View {
     @Environment(Model.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var signing = false
+    @Namespace private var pick
 
     var body: some View {
         @Bindable var model = model
@@ -361,22 +374,31 @@ struct ReviewSheet: View {
                                           mark: "Mark \(n)", prompt: "What happened here?")
                                 }
                             }
-                            part("PCR") { PCRView(call: call) }
+                            part("PCR") {
+                                formatChoice(call)
+                                PCRView(call: call)
+                            }
                         }
                         part("Transcript") {
                             if call.transcript.isEmpty { Text("Nothing was heard on this call.").font(geist(fit(22, 19))).foregroundStyle(Color.dim) }
+                            if call.markCount > 0 {
+                                Text("Dropped a mark by accident? Swipe it left to delete it.").font(geist(15, 500)).foregroundStyle(Color.dim)
+                            }
                             ForEach(Array(call.recordings.enumerated()), id: \.offset) { n, recording in
                                 RecordingHeading(number: n + 1, recording: recording)
-                                TranscriptRows(recording: recording, color: .ink)
+                                TranscriptRows(recording: recording, color: .ink) { model.deleteMark($0, in: call.id) }
                             }
                         }
+                        .smooth(call.markCount)
                     }
                 }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
-                Button(call.drafted ? "Sign off" : "Writing reports") { signing = true }
+                // Nothing is signed while its narrative is still being rewritten.
+                let rewriting = model.rewriting[id] != nil
+                Button(!call.drafted ? "Writing reports" : rewriting ? "Writing the narrative" : "Sign off") { signing = true }
                     .buttonStyle(Pill(grow: true))
-                    .disabled(!call.drafted)
+                    .disabled(!call.drafted || rewriting)
             }
             .padding(.horizontal, fit(40, 20)).padding(.top, fit(36, 28)).padding(.bottom, fit(32, 12))
             .font(geist(17))
@@ -400,6 +422,43 @@ struct ReviewSheet: View {
         VStack(alignment: .leading, spacing: 18) {
             Text(title).font(doto(fit(26, 22)))
             content()
+        }
+    }
+
+    /// The layout of the PCR narrative, chosen here before signing. Picking one rewrites the narrative in it from
+    /// the transcript; one already written for this call comes back at once. The line underneath says what the
+    /// format is, that it is being written, or why it could not be.
+    private func formatChoice(_ call: Call) -> some View {
+        let busy = model.rewriting[call.id]
+        let shown = busy ?? call.narrativeFormat
+        let trouble = model.narrativeTrouble[call.id]
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Narrative format").font(geist(15, 600)).foregroundStyle(Color.dim)
+            HStack(spacing: 4) {
+                ForEach(NarrativeFormat.allCases) { format in
+                    let on = format == shown
+                    Button { model.setNarrativeFormat(format, for: call.id) } label: {
+                        Text(format.name).font(geist(fit(16, 15), 600)).lineLimit(1)
+                            .foregroundStyle(on ? Color.bg : .dim)
+                            .padding(.horizontal, fit(24, 6))
+                            .frame(maxWidth: phone ? .infinity : nil)
+                            .frame(height: 44)
+                            .background { if on { Capsule().fill(Color.ink).matchedGeometryEffect(id: "format", in: pick) } }   // slides to the new format
+                            .contentShape(Capsule())
+                    }
+                    .accessibilityLabel("\(format.name) narrative: \(format.detail)")
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(4)
+            .background(Color.panel, in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.line))
+            .smooth(shown, 0.28)
+            .disabled(busy != nil)
+            Text(busy.map { "Writing the narrative as \($0.name) on this \(deviceName). The rest of the report is unchanged." } ?? trouble ?? shown.detail)
+                .font(geist(15, 500)).foregroundStyle(busy == nil && trouble == nil ? Color.dim : .yellow)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -432,11 +491,13 @@ struct TranscriptRows: View {
     var recording: Recording
     var color: Color = .dim
     var liveLine: UUID? = nil   // the line still being spoken, if any
+    var deleteMark: ((Item.ID) -> Void)? = nil   // when given, a mark row slides left to be deleted
 
     var body: some View {
         ForEach(recording.items) { item in
+            Group {
             if let mark = item.mark {
-                HStack(spacing: fit(16, 10)) {
+                let row = HStack(spacing: fit(16, 10)) {
                     stamp(item.time)
                     HStack(spacing: 8) {
                         Flag()
@@ -445,6 +506,7 @@ struct TranscriptRows: View {
                     DottedRule(color: .yellow.opacity(0.45))
                 }
                 .accessibilityElement(children: .combine)
+                if let deleteMark { SwipeToDelete { deleteMark(item.id) } content: { row } } else { row }
             } else if item.id == liveLine {
                 // The line being spoken: bright, with its newest word in red and a blinking dot.
                 let words = item.text.split(separator: " ")
@@ -456,6 +518,9 @@ struct TranscriptRows: View {
             } else if !item.text.isEmpty {
                 said(item.time, Text(item.text).foregroundColor(color))
             }
+            }
+            // A new line or mark rises into place; a deleted mark slides away and fades.
+            .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 14)), removal: .opacity.combined(with: .offset(x: -24))))
         }
     }
 
@@ -508,17 +573,23 @@ struct PCRView: View {
             if part.body.isEmpty {
                 Text("Not heard").font(geist(fit(22, 19))).foregroundStyle(Color.yellow)
             } else {
-                timed(part.body).font(geist(fit(22, 19))).lineSpacing(9)
+                timed(part.body).font(geist(fit(22, 19))).lineSpacing(9).contentTransition(.opacity)
             }
         }
+        .smooth(part.body)   // a narrative rewritten in another format crossfades
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Dims the leading clock time ("14:05 ...") on each line, so the reading stands out.
+    /// Dims the leading clock time ("14:05 ...") on each line, so the reading stands out. In a narrative laid out
+    /// in a format, section headings are set apart and a section that was not heard is yellow, like any empty line.
     private func timed(_ body: String) -> Text {
-        body.split(separator: "\n").enumerated().reduce(Text("")) { text, line in
+        body.split(separator: "\n", omittingEmptySubsequences: false).enumerated().reduce(Text("")) { text, line in
             let isTimed = line.element.count > 6 && line.element.prefix(5).contains(":")
             let newline = Text(line.offset == 0 ? "" : "\n")
+            if NarrativeFormat.isHeading(line.element) {
+                return text + newline + Text(line.element).font(geist(15, 600)).foregroundColor(.dim)
+            }
+            if line.element == NarrativeFormat.notHeard { return text + newline + Text(line.element).foregroundColor(.yellow) }
             return isTimed
                 ? text + newline + Text(line.element.prefix(6)).foregroundColor(.dim) + Text(line.element.dropFirst(6))
                 : text + newline + Text(line.element)

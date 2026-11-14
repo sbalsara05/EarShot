@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 enum Tab: String, CaseIterable { case home = "Home", live = "Live Call", drafts = "AI Drafts", clip = "Clip" }
@@ -37,6 +38,13 @@ struct Call: Identifiable, Codable {
     var signature: Signature?
     var docs: [String: String]?       // chart.md, soap.md, imist_ambo.md, nemsis.xml, rendered from the record
     var reviewNotes: [String]?        // items to confirm, sentences left out of the narrative
+    var format: NarrativeFormat?        // how the narrative is laid out. Nil on calls saved before formats existed: plain
+    var narratives: [String: String]?   // the narrative as written in each format so far, by format, so going back to one is instant
+
+    var narrativeFormat: NarrativeFormat { format ?? .plain }
+
+    /// What was said, for the drafting model. Empty when nothing but marks is on the call.
+    var spoken: String { recordings.flatMap(\.items).contains { $0.mark == nil && !$0.text.isEmpty } ? transcript : "" }
 
     var markCount: Int { recordings.reduce(0) { $0 + $1.marks } }
     var seconds: Int { recordings.reduce(0) { $0 + $1.seconds } }
@@ -52,11 +60,31 @@ struct Call: Identifiable, Codable {
     var pcr: [(title: String, body: String)] {
         [
             ("Dispatch and scene", draft.dispatchAndScene), ("Vitals by time", draft.vitalsByTime.joined(separator: "\n")),
-            ("Narrative", draft.narrative), ("Treatment by time", draft.treatmentByTime.joined(separator: "\n")),
+            (narrativeFormat == .plain ? "Narrative" : "Narrative, \(narrativeFormat.name)", draft.narrative),
+            ("Treatment by time", draft.treatmentByTime.joined(separator: "\n")),
         ]
     }
 
     var pcrText: String { pcr.map { "\($0.title)\n\($0.body.isEmpty ? "Not heard" : $0.body)" }.joined(separator: "\n\n") }
+
+    /// Takes a mark off the call, for one dropped by accident. The marks after it move up a number, so the call
+    /// still reads Mark 1, Mark 2, Mark 3 with no gap, and the notes the medic wrote on later marks go with them.
+    /// The note on the deleted mark goes too. Returns false when there is no such mark.
+    @discardableResult mutating func removeMark(_ id: Item.ID) -> Bool {
+        guard let removed = recordings.flatMap(\.items).first(where: { $0.id == id && $0.mark != nil })?.mark else { return false }
+        var notes: [Int: String] = [:]
+        for r in recordings.indices {
+            recordings[r].items.removeAll { $0.id == id }
+            for i in recordings[r].items.indices {
+                guard let n = recordings[r].items[i].mark else { continue }
+                let now = n > removed ? n - 1 : n
+                if let note = markNotes[n] { notes[now] = note }
+                recordings[r].items[i].mark = now
+            }
+        }
+        markNotes = notes
+        return true
+    }
 
     /// Marks with nothing said within 20 seconds either side. The handoff asks the medic what happened there.
     var silentMarks: [Item] {
@@ -97,6 +125,8 @@ struct Call: Identifiable, Codable {
     var liveLine: UUID?                            // the line still being spoken
     var levels = [Int](repeating: 0, count: 30)    // recent loudness, oldest first
     var problem: String?
+    var rewriting: [Call.ID: NarrativeFormat] = [:]   // calls whose narrative is being written in a newly chosen format
+    var narrativeTrouble: [Call.ID: String] = [:]     // why a call's narrative could not be written in the format last chosen
 
     @ObservationIgnored private let engine = CallEngine()
     @ObservationIgnored private var retired = Set<UUID>()             // live lines already replaced by the record
@@ -457,6 +487,8 @@ struct Call: Identifiable, Codable {
         done.draftNote = nil
         done.markNotes = [:]
         done.drafted = false
+        done.format = nil
+        done.narratives = nil
         review.insert(done, at: 0)
         call = Call()
         live = .none
@@ -476,9 +508,48 @@ struct Call: Identifiable, Codable {
             review[i].docs = out.docs
             review[i].reviewNotes = out.notes
             review[i].draftNote = out.notes.isEmpty ? nil : out.notes.joined(separator: " ")
+            // The record's narrative is the plain one. Another format is written only when the medic picks it.
+            review[i].format = .plain
+            review[i].narratives = out.draft.narrative.isEmpty ? [:] : [NarrativeFormat.plain.rawValue: out.draft.narrative]
             review[i].drafted = true
             save()
         }
+    }
+
+    /// The medic chose a narrative format for a call waiting for sign-off. A format already written for this call is
+    /// shown at once; a new one is written from the transcript first. The choice becomes the crew's format for the
+    /// next calls. If it cannot be written, the call keeps the narrative it had and `narrativeTrouble` says why.
+    func setNarrativeFormat(_ format: NarrativeFormat, for id: Call.ID) {
+        guard let i = review.firstIndex(where: { $0.id == id }), review[i].drafted, rewriting[id] == nil else { return }
+        narrativeTrouble[id] = nil
+        guard format != review[i].narrativeFormat else { return }
+        // Keep the narrative being left, so coming back to its format brings back the same words.
+        var narratives = review[i].narratives ?? [:]
+        if !review[i].draft.narrative.isEmpty { narratives[review[i].narrativeFormat.rawValue] = review[i].draft.narrative }
+        review[i].narratives = narratives
+        if let written = narratives[format.rawValue] {
+            show(written, as: format, for: id)
+            return
+        }
+        rewriting[id] = format
+        let transcript = review[i].spoken
+        Task { @MainActor in
+            defer { rewriting[id] = nil }
+            do {
+                show(try await writeNarrative(from: transcript, as: format), as: format, for: id)
+            } catch {
+                narrativeTrouble[id] = "The narrative could not be written as \(format.name), so it is unchanged. \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func show(_ narrative: String, as format: NarrativeFormat, for id: Call.ID) {
+        guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // signed or removed meanwhile
+        review[i].narratives = (review[i].narratives ?? [:]).merging([format.rawValue: narrative]) { _, new in new }
+        review[i].draft.narrative = narrative
+        review[i].format = format
+        NarrativeFormat.preferred = format
+        save()
     }
 
     /// Signing off moves a call from the ones waiting to the signed ones.
@@ -488,6 +559,13 @@ struct Call: Identifiable, Codable {
         signed.signature = signature
         signed.signedAt = Date()
         past.insert(signed, at: 0)
+        save()
+    }
+
+    /// Deletes a mark from a call waiting for sign-off. It was dropped by accident, for example by a click on the clip
+    /// that was not meant. The handoff line that asked what happened at that mark goes with it.
+    func deleteMark(_ id: Item.ID, in call: Call.ID) {
+        guard let i = review.firstIndex(where: { $0.id == call }), review[i].removeMark(id) else { return }
         save()
     }
 
@@ -588,7 +666,30 @@ struct Call: Identifiable, Codable {
         let copy = try? JSONDecoder().decode(Call.self, from: JSONEncoder().encode(call))
         assert(copy?.id == call.id && copy?.transcript == call.transcript && copy?.markNotes[2] == "Moved to stretcher")
         if case .typed("A. Medic")? = copy?.signature {} else { assertionFailure("the signature was lost on disk") }
+        // A narrative format lays its sections out under lettered headings, and says so when one was not heard.
+        let soap = NarrativeFormat.soap.layOut(["Chest pain for 30 minutes.", "BP 150/90.", "", "Aspirin given."])
+        assert(soap.hasPrefix("S - SUBJECTIVE:\nChest pain for 30 minutes.\n\nO - OBJECTIVE:") && soap.contains("A - ASSESSMENT:\nNot heard.\n\nP - PLAN:"))
+        assert(NarrativeFormat.isHeading("R - RX (TREATMENT):") && !NarrativeFormat.isHeading("BP 150/90.") && !NarrativeFormat.isHeading("Not heard."))
+        assert(NarrativeFormat.allCases.allSatisfy { $0 == .plain || $0.sections.map { $0.prefix(1) }.joined() == $0.name })
+        // A call saved before formats existed has none, and reads as plain. A chosen format survives being saved.
+        assert(copy?.narrativeFormat == .plain && call.pcr[2].title == "Narrative")
+        call.format = .draatt
+        let formatted = try? JSONDecoder().decode(Call.self, from: JSONEncoder().encode(call))
+        assert(formatted?.narrativeFormat == .draatt && formatted?.pcr[2].title == "Narrative, DRAATT")
         // The clip's messages must be readable exactly as firmware/BLUETOOTH.md gives them.
+        // The level meter: silence and a quiet room show nothing, quiet speech still moves it, and louder never reads lower.
+        func tone(_ amplitude: Float) -> [Int16] {   // a quarter second at 16 kHz, the shape the pipeline's audio has
+            (0..<4000).map { Int16(amplitude * 32767 * sin(Float($0) * 0.3)) }
+        }
+        let heard = [0, 0.0005, 0.002, 0.01, 0.03, 0.1, 0.4].map { Audio.level(tone($0)) }
+        assert(heard[2] == 0 && heard[3] >= 3 && heard[5] == 6 && heard == heard.sorted(), "the level meter is off: \(heard)")
+        // A mark dropped by accident can be deleted: the ones after it move up, and their notes with them.
+        var marked = Call()
+        marked.recordings = [Recording(items: [Item(mark: 1), Item(text: "x"), Item(mark: 2)]), Recording(items: [Item(mark: 3)])]
+        marked.markNotes = [2: "two", 3: "three"]
+        let second = marked.recordings[0].items[2].id
+        assert(marked.removeMark(second) && marked.markCount == 2 && marked.markNotes == [2: "three"])
+        assert(marked.recordings.flatMap(\.items).compactMap(\.mark) == [1, 2] && !marked.removeMark(second) && !marked.removeMark(marked.recordings[0].items[1].id))
         let hello = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"hello","device":"Earshot-A3F2","fw":"0.6.0","audio":{"codec":"opus","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}"#.utf8))
         assert(hello?.device == "Earshot-A3F2" && hello?.audio?.codec == "opus")
         let marker = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"marker","id":1,"source":"button","t_ms":47781,"audio_seq":327}"#.utf8))
@@ -623,12 +724,13 @@ struct EarshotApp: App {
                 Header()
                 Group {
                     switch model.tab {
-                    case .home: HomeScreen()
-                    case .live: LiveScreen()
-                    case .drafts: DraftsScreen()
-                    case .clip: ClipScreen()
+                    case .home: HomeScreen().screenTransition()
+                    case .live: LiveScreen().screenTransition()
+                    case .drafts: DraftsScreen().screenTransition()
+                    case .clip: ClipScreen().screenTransition()
                     }
                 }
+                .smooth(model.tab)
                 .padding(.top, 8).padding(.horizontal, fit(32, 20)).padding(.bottom, fit(32, 12))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if phone { Tabs().padding(.horizontal, 20).padding(.bottom, 4) }
@@ -700,6 +802,7 @@ struct Header: View {
 /// The four tabs. In the header on iPad, along the bottom on iPhone.
 struct Tabs: View {
     @Environment(Model.self) private var model
+    @Namespace private var pill
 
     var body: some View {
         HStack(spacing: 4) {
@@ -721,13 +824,14 @@ struct Tabs: View {
                     .padding(.horizontal, fit(22, 6))
                     .frame(maxWidth: phone ? .infinity : nil)
                     .frame(height: 44)
-                    .background(on ? Color.ink : .clear, in: Capsule())
+                    .background { if on { Capsule().fill(Color.ink).matchedGeometryEffect(id: "tab", in: pill) } }   // slides to the new tab
                     .contentShape(Capsule())
                 }
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
         .buttonStyle(.plain)
+        .smooth(model.tab, 0.28)
         .padding(4)
         .background(Color.panel, in: Capsule())
         .overlay(Capsule().strokeBorder(Color.line))
@@ -931,7 +1035,7 @@ struct ClipScreen: View {
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(model.clipTitle).font(doto(fit(46, 34)))
+            Text(model.clipTitle).font(doto(fit(46, 34))).lineLimit(1).minimumScaleFactor(0.5)   // the key below leaves no room for a second line
             HStack(spacing: 10) {
                 Circle().frame(width: 10, height: 10)
                 Text("Connected")
@@ -954,8 +1058,8 @@ struct ClipScreen: View {
                     .accessibilityHint("Switches between this \(deviceName)'s microphone and the clip's audio for the next recording")
             }
             whisperRow
-            Text("Press the clip to start a recording once a call is open. Hold it to stop. Double tap to mark.")
-                .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 18)
+            Color.line.frame(height: 1)
+            ClipKey().padding(.top, 16)
             Spacer(minLength: 16)
             VStack(spacing: 14) {
                 Button(finding ? "Blinking" : "Find clip") {

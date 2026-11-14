@@ -33,6 +33,10 @@ iPad, not yet against the Atom VoiceS3R.
 | Double click | Pauses the recording, or resumes it |
 | Click and hold | Completes the open call. With no call open, starts one and begins recording |
 
+The Clip tab and the Live Call screen show this as a **Clip button** key: one dot for a click, two for a
+double click, a bar for a hold. On Live Call it says what each does at that point in the call and dims the
+ones that do nothing.
+
 **Audio from** on the Clip tab chooses the microphone. It is set to this device's microphone for now,
 because the stand-in board has none and plays a stored voice. Switch it to **Clip** once a clip with a
 microphone is in use. The Live Call header always names the microphone in use.
@@ -98,7 +102,15 @@ To keep your team and bundle identifier between regenerations, set `DEVELOPMENT_
 3. **Complete**, and confirm, closes the recording for good. The call moves to the AI Drafts tab under
    **Needs sign-off**, where its handoff and PCR are drafted, and a new call can start straight away.
 4. Open a waiting call to fix any line. Yellow lines are ones the AI did not hear.
-5. **Sign off** by drawing a signature or typing your name. The call moves to **Signed**.
+   A mark dropped by accident (a stray click on the clip) can be deleted here: swipe it left in the transcript
+   and tap **Delete**. The marks after it move up a number, and the note on a deleted mark goes with it.
+5. Choose the **Narrative format** under PCR: Plain, SOAP, CHART or DRAATT. The narrative is rewritten in
+   that format from the transcript, on the device, in a few seconds; the rest of the report does not change.
+   Going back to a format already written for the call is instant and brings back the same words. The
+   format you choose is used for the first draft of your next calls. A section the call said nothing
+   about reads "Not heard."
+6. **Sign off** by drawing a signature or typing your name. The call moves to **Signed**, with its
+   narrative in the format it was signed in. **Copy PCR** copies it that way too.
 
 The AI Drafts tab shows how many calls are waiting for sign-off, and lists every signed call below
 them. Home lists three calls: those waiting for sign-off first, then the most recent signed ones. Signed calls open with a tap and delete with a swipe; **Edit**

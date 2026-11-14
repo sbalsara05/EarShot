@@ -38,5 +38,3 @@ models/*.gguf
 models/*.part
 core/.pkgconfig/
 
-# Saxon + SchXslt for the NEMSIS Schematron check (core/scripts/nemsis_schematron.py fetches them)
-core/.tools/
