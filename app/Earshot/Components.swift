@@ -200,6 +200,82 @@ struct LevelDots: View {
     }
 }
 
+// MARK: The clip's button, as a key
+
+/// What the clip's one button does: one dot for a click, two for a double click, a bar for a hold. With a call
+/// state it says what each does right now and dims the ones that do nothing; without one it is the general key.
+struct ClipKey: View {
+    var live: Live? = nil
+    var oneLine = false   // iPhone's Live Call screen: the three actions side by side
+
+    private struct Row {
+        var dots: Int   // 0 draws the bar that stands for a hold
+        var name: String, does: String
+        var on = true
+    }
+
+    private var rows: [Row] {
+        guard let live else {
+            return [Row(dots: 1, name: "Click", does: "Mark the moment"), Row(dots: 2, name: "Double click", does: "Pause or resume"),
+                    Row(dots: 0, name: "Hold", does: "End the call, or start one")]
+        }
+        let double: String
+        switch live {
+        case .listening: double = "Pause"
+        case .between, .cutShort: double = "Resume"
+        case .ready: double = "Start recording"
+        case .none: double = "Pause or resume"
+        }
+        return [Row(dots: 1, name: "Click", does: "Mark", on: live == .listening), Row(dots: 2, name: "Double click", does: double, on: live != .none),
+                Row(dots: 0, name: "Hold", does: live == .none ? "Start a call" : "End call")]
+    }
+
+    var body: some View {
+        Group {
+            if oneLine {
+                HStack(spacing: 14) {
+                    Text("Clip").font(geist(13, 600)).foregroundStyle(Color.dim)
+                    ForEach(rows, id: \.name) { row in
+                        HStack(spacing: 6) {
+                            glyph(row.dots)
+                            Text(row.does).font(geist(14, 600))
+                        }
+                        .opacity(row.on ? 1 : 0.35)
+                        .accessibilityElement(children: .ignore).accessibilityLabel(spoken(row))
+                    }
+                }
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Clip button").font(geist(15, 600)).foregroundStyle(Color.dim).padding(.bottom, 6)
+                    ForEach(rows, id: \.name) { row in
+                        HStack(spacing: 12) {
+                            glyph(row.dots).frame(width: 28, alignment: .leading)
+                            Text(row.name).font(geist(16, 500)).foregroundStyle(Color.dim).frame(width: 100, alignment: .leading)
+                            Text(row.does).font(geist(18, 600)).lineLimit(1).minimumScaleFactor(0.7)
+                            Spacer(minLength: 0)
+                        }
+                        .frame(height: 32)
+                        .opacity(row.on ? 1 : 0.35)
+                        .accessibilityElement(children: .ignore).accessibilityLabel(spoken(row))
+                    }
+                }
+            }
+        }
+        .foregroundStyle(Color.ink)
+    }
+
+    private func glyph(_ dots: Int) -> some View {
+        HStack(spacing: 4) {
+            if dots == 0 { Capsule().frame(width: 26, height: 10) }
+            ForEach(0..<dots, id: \.self) { _ in Circle().frame(width: 10, height: 10) }
+        }
+    }
+
+    private func spoken(_ row: Row) -> String { "Clip button, \(row.name): \(row.does)" + (row.on ? "" : ", nothing to do right now") }
+}
+
 // MARK: The clip, drawn as a stack of slabs
 
 struct ClipModel: View {

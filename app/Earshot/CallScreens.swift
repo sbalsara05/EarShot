@@ -27,11 +27,13 @@ struct LiveScreen: View {
             .padding(.horizontal, fit(40, 20)).padding(.vertical, fit(36, 20))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .panel()
+        // With a clip connected, the key says what its button does at this point in the call.
         if phone {
             VStack(alignment: .leading, spacing: 16) {
                 top()
                 middle()
                 panel
+                if model.clip { ClipKey(live: model.live, oneLine: true) }
                 bottom()
             }
         } else {
@@ -41,6 +43,12 @@ struct LiveScreen: View {
                     Spacer()
                     middle()
                     Spacer()
+                    if model.clip {
+                        ClipKey(live: model.live)
+                            .padding(.horizontal, 20).padding(.vertical, 14)
+                            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color.line))
+                            .padding(.bottom, 24)
+                    }
                     bottom()
                 }
                 .padding(.top, 12).padding(.leading, 24)

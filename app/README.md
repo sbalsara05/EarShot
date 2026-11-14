@@ -20,6 +20,10 @@ iPad, not yet against the Atom VoiceS3R.
 | Double click | Pauses the recording, or resumes it |
 | Click and hold | Completes the open call. With no call open, starts one and begins recording |
 
+The Clip tab and the Live Call screen show this as a **Clip button** key: one dot for a click, two for a
+double click, a bar for a hold. On Live Call it says what each does at that point in the call and dims the
+ones that do nothing.
+
 **Audio from** on the Clip tab chooses the microphone. It is set to this device's microphone for now,
 because the stand-in board has none and plays a stored voice. Switch it to **Clip** once a clip with a
 microphone is in use. The Live Call header always names the microphone in use.

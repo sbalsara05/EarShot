@@ -954,7 +954,7 @@ struct ClipScreen: View {
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(model.clipTitle).font(doto(fit(46, 34)))
+            Text(model.clipTitle).font(doto(fit(46, 34))).lineLimit(1).minimumScaleFactor(0.5)   // the key below leaves no room for a second line
             HStack(spacing: 10) {
                 Circle().frame(width: 10, height: 10)
                 Text("Connected")
@@ -976,8 +976,8 @@ struct ClipScreen: View {
                     .buttonStyle(.plain).underline()
                     .accessibilityHint("Switches between this \(deviceName)'s microphone and the clip's audio for the next recording")
             }
-            Text("Press the clip to start a recording once a call is open. Hold it to stop. Double tap to mark.")
-                .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 18)
+            Color.line.frame(height: 1)
+            ClipKey().padding(.top, 16)
             Spacer(minLength: 16)
             VStack(spacing: 14) {
                 Button(finding ? "Blinking" : "Find clip") {
