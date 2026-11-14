@@ -195,6 +195,7 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
     /// Forgets everything the last connection confirmed.
     private func reset() {
+        audioEnded()
         commands = nil
         audioOn = false
         eventsOn = false
@@ -396,6 +397,7 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
                 settle()
             }
             if event.type == "consent", event.event == "granted" { nextSeq = 0 }   // the frame counter restarts with every capture
+            if event.type == "consent" && event.event == "stopped" || event.type == "state" && event.listening == false { audioEnded() }
             onEvent(event)
         }
     }
@@ -427,13 +429,35 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
                 onProblem("Audio is arriving from the clip but cannot be decoded, so nothing is being transcribed.")
             }
         }
-        #if DEBUG
-        if Date().timeIntervalSince(counted) >= 1 {
-            print("clip audio: \(packets) packets in the last second, \(lost) frames lost and \(undecoded) undecodable since connecting")
+        // The log stays quiet while audio is healthy: one line when it starts, one when it ends (in audioEnded),
+        // and a line for any second in which frames were lost, could not be decoded, or arrived too slowly.
+        total += 1
+        if !flowing {
+            flowing = true
+            log("audio started")
             packets = 0
             counted = Date()
+            reported = (lost, undecoded)
+        } else if Date().timeIntervalSince(counted) >= 1 {
+            if lost > reported.lost || undecoded > reported.undecoded || packets < 40 {
+                log("audio trouble: \(packets) packets in the last second (50 expected), \(lost - reported.lost) frames lost, \(undecoded - reported.undecoded) undecodable")
+            }
+            packets = 0
+            counted = Date()
+            reported = (lost, undecoded)
         }
-        #endif
+    }
+    private var flowing = false, total = 0
+    private var reported = (lost: 0, undecoded: 0)
+
+    /// The capture ended, or the link went: sums up the audio that arrived, then starts counting afresh.
+    private func audioEnded() {
+        guard flowing else { return }
+        flowing = false
+        log("audio ended: \(total) packets (\(total / 50) s), \(lost) frames lost, \(undecoded) undecodable")
+        total = 0
+        lost = 0
+        undecoded = 0
     }
 
     /// The frame counter at the start of an audio packet: four bytes, least significant first.
