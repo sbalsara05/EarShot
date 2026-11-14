@@ -279,7 +279,7 @@ final class CallEngine {
     private static func chooseRecognizer(_ problem: inout String?, dict: EMSDictionary, whisper: Bool) -> RecognizerChoice? {
         let asr = PipelineConfig().asr
         let threads = ProcessInfo.processInfo.activeProcessorCount > 4 ? 4 : 2
-        func whisper(_ file: String, _ kind: RecognizerKind) -> RecognizerOption {
+        func model(_ file: String, _ kind: RecognizerKind) -> RecognizerOption {
             RecognizerOption(kind: kind, name: file,
                              unavailableReason: { ModelFiles.find(file, ext: "bin") == nil ? "no \(file).bin installed" : nil },
                              make: {
@@ -297,10 +297,10 @@ final class CallEngine {
                 t.vocabulary = dict.liveVocabulary()
                 return t
             }),
-            whisper("whisper-ems-small.en-q5", .whisperFineTuned),
-            whisper("ggml-small.en", .whisperStock),
-            whisper("ggml-base.en", .whisperStock),
-            whisper("ggml-tiny.en", .whisperStock),
+            model("whisper-ems-small.en-q5", .whisperFineTuned),
+            model("ggml-small.en", .whisperStock),
+            model("ggml-base.en", .whisperStock),
+            model("ggml-tiny.en", .whisperStock),
         ]
         do {
             let choice = try RecognizerSelector.choose(from: options, whisper: whisper)
