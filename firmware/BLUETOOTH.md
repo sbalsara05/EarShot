@@ -47,7 +47,7 @@ the app never has to join packets together.
 **Events** (UTF-8 JSON, clip to app):
 
 ```json
-{"type":"hello","device":"Earshot-A3F2","fw":"0.6.0","audio":{"codec":"opus","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}
+{"type":"hello","device":"Earshot-A3F2","fw":"0.7.0","audio":{"codec":"opus","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}
 {"type":"state","state":"listening","listening":true,"t_ms":41234}
 {"type":"consent","event":"granted","source":"button","t_ms":41230}
 {"type":"consent","event":"stopped","source":"tablet","t_ms":63010}
@@ -64,9 +64,15 @@ the app never has to join packets together.
 {"cmd":"start"}
 {"cmd":"stop"}
 {"cmd":"marker"}
+{"cmd":"find"}
 ```
 
 `start` begins a capture exactly as a button press does. Either write type works.
+
+`find` is for the Clip tab's **Find clip** button. The clip blinks its light white and beeps for
+3.2 seconds, the same time the button shows "Blinking and buzzing", then stops by itself.
+Sending it again restarts the timer. It never starts or stops a capture. While the clip is
+listening it only blinks, so the beep cannot end up in a recording. There is no reply message.
 
 ## App checklist
 

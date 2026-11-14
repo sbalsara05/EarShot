@@ -43,6 +43,11 @@
 #error "At more than 56 kbit/s an Opus frame no longer fits in one Bluetooth packet."
 #endif
 
+// ---- the "find" beep
+#ifndef BEEP_HZ
+#define BEEP_HZ 2700            // around where small speakers and piezo buzzers are loudest
+#endif
+
 // ---- board: pins and microphone
 #if defined(EARSHOT_BOARD_FEATHER)
 // Adafruit ESP32-S3 Feather. No microphone and no LED ring, so:
@@ -54,10 +59,13 @@
 #define LED_COUNT 1
 #define EARSHOT_BOARD_NAME "ESP32-S3 Feather"
 #define EARSHOT_MIC_VOICE 1     // plays the stored voice recording as the microphone
+// No speaker either. "Find" blinks the light; to hear a beep, wire a piezo buzzer between a
+// free pin and GND and name the pin in config.h, for example:  #define BUZZER_PIN 5
 #elif defined(EARSHOT_WOKWI)
 #define EARSHOT_BOARD_NAME "Wokwi virtual ESP32-S3"
 #define EARSHOT_MIC_TONE 1      // a generated 440 Hz tone
 #else
 #define EARSHOT_BOARD_NAME "Atom VoiceS3R"
 #define EARSHOT_MIC_M5 1        // the real microphone, through M5Unified
+#define EARSHOT_SPEAKER_M5 1    // and the built-in speaker, for the "find" beep
 #endif

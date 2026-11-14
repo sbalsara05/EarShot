@@ -195,6 +195,7 @@ class SimHal : public Hal {
     }
     return samples;
   }
+  void beep(bool on) override { out("{\"sim\":\"beep\",\"on\":%s}", on ? "true" : "false"); }
   bool networkUp() override { return true; }
   void log(const char* message) override { out("{\"sim\":\"log\",\"msg\":\"%s\"}", message); }
 

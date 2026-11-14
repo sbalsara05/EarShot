@@ -35,6 +35,16 @@ starts the microphone. If the patient says no, the medic does not press.
 The tablet can drive the same flow with commands (`start`, `stop`, `marker`), so the PCR app can
 start and stop a recording.
 
+**Find clip.** The tablet's `find` command makes the clip blink white and beep for 3.2 seconds
+so it can be found, then stop by itself. It works whether or not the clip is listening and never
+changes that. While listening the clip only blinks, so the beep cannot land in a recording.
+
+| Board | Find does |
+|---|---|
+| Atom VoiceS3R | Blinks the ring and beeps the built-in speaker (not yet tried on the board) |
+| ESP32-S3 Feather | Blinks the onboard light. It has no speaker; for a beep, wire a piezo buzzer from a free pin to GND and set `BUZZER_PIN` in `include/config.h` |
+| Simulator | Blinks the ring and beeps through the laptop (the **Find clip** button) |
+
 Details worth knowing:
 
 - The microphone is only on while the ring is green. Nothing is captured before the press, so there is nothing to wipe or withhold.
@@ -257,7 +267,7 @@ and sends events as text frames and audio as binary frames. Full definition is i
 
 - **Events** (text, JSON): `hello`, `state` (`not_listening`, `listening`), `consent` (`granted`, `stopped`), `marker`.
 - **Audio** (binary, only between `granted` and `stopped`): 8-byte header (`uint32 seq`, `uint32 t_ms`, little-endian) followed by one 20 ms frame. The `hello` event names the codec: `opus` (one 80-byte packet at 32 kbit/s) or `pcm` (640 bytes of 16-bit samples).
-- **Commands** (text, JSON, tablet to clip): `{"cmd":"start"}`, `stop`, `marker`.
+- **Commands** (text, JSON, tablet to clip): `{"cmd":"start"}`, `stop`, `marker`, `find`.
 
 `t_ms` is milliseconds since the clip booted. The tablet should stamp wall-clock time on receipt.
 `sim/tablet.py` is a working reference for the tablet side over Wi-Fi, and

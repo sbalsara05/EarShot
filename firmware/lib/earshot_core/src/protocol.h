@@ -6,7 +6,7 @@
 //                  binary frames
 //
 // Clip -> tablet, text (JSON):
-//   {"type":"hello","device":"earshot-clip","fw":"0.6.0",
+//   {"type":"hello","device":"earshot-clip","fw":"0.7.0",
 //    "audio":{"codec":"opus|pcm","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}
 //   {"type":"state","state":"not_listening|listening","listening":bool,"t_ms":N}
 //   {"type":"consent","event":"granted|stopped","source":"button|tablet","t_ms":N}
@@ -29,6 +29,9 @@
 //   {"cmd":"start"}    log consent and start capture
 //   {"cmd":"stop"}     end the capture
 //   {"cmd":"marker"}   drop a timestamp marker (while listening)
+//   {"cmd":"find"}     blink and beep for a few seconds so the clip can be found. Works whether
+//                      or not it is listening; while listening it only blinks, so the beep
+//                      never lands in a recording. Sending it again restarts the timer.
 //
 // t_ms is milliseconds since the clip booted (it has no real-time clock). The tablet should
 // stamp wall-clock time on receipt.
@@ -55,7 +58,7 @@ static const uint32_t kSampleRate = 16000;
 static const uint32_t kFrameMs = 20;
 static const size_t kFrameSamples = 320;  // kSampleRate * kFrameMs / 1000
 static const size_t kAudioHeaderBytes = 8;
-static const char kFirmwareVersion[] = "0.6.0";
+static const char kFirmwareVersion[] = "0.7.0";
 
 static const char kBleServiceUuid[] = "e5a70001-7c1b-4f0e-9d52-3a6b8c4d2e10";
 static const char kBleAudioUuid[] = "e5a70002-7c1b-4f0e-9d52-3a6b8c4d2e10";
