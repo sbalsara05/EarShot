@@ -115,20 +115,24 @@ async def main():
         check("ring is green: connected, not listening", t.sim_led == "green", t.sim_led)
         check("the stop was logged", consent_events(t) == ["granted", "stopped"], str(consent_events(t)))
 
-        print("hold = end the call")
+        print("hold = toggle the call")
         await t.send_command("start")
         check("capture running again", await wait_for(lambda: t.device_state == "listening"))
-        ends = t.ends
+        calls = t.call_toggles
         await t.sim_input("long")
         check("a hold stops the capture at once", await wait_for(lambda: t.device_state == "not_listening", 4.0))
-        check("and tells the tablet to end the call", await wait_for(lambda: t.ends == ends + 1), f"{t.ends - ends}")
-        kinds = [e["event"].get("type") for e in t.events if e["dir"].startswith("clip")]
-        check("in order: stopped, state, end", kinds[-3:] == ["consent", "state", "end"], str(kinds[-3:]))
+        check("and tells the tablet to toggle the call", await wait_for(lambda: t.call_toggles == calls + 1),
+              f"{t.call_toggles - calls}")
+        last = [e["event"] for e in t.events if e["dir"].startswith("clip")][-3:]
+        check("in order: stopped, state, call toggle",
+              [e.get("type") for e in last] == ["consent", "state", "toggle"] and last[-1].get("target") == "call",
+              str(last))
         await asyncio.sleep(0.3)
         n = t.audio_frames
         consents = len(consent_events(t))
         await t.sim_input("long")
-        check("a hold while paused sends end alone", await wait_for(lambda: t.ends == ends + 2, 4.0), f"{t.ends - ends}")
+        check("a hold while not recording sends the same call toggle, alone",
+              await wait_for(lambda: t.call_toggles == calls + 2, 4.0), f"{t.call_toggles - calls}")
         check("with no change to the capture", len(consent_events(t)) == consents and t.device_state == "not_listening")
 
         print("tablet commands")

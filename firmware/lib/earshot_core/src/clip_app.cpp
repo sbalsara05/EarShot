@@ -65,18 +65,18 @@ void ClipApp::onButtonEvent(ButtonEvent event, uint32_t began_ms) {
   switch (event) {
     case ButtonEvent::ShortPress: apply(Input::ShortPress, "button", began_ms); break;
     case ButtonEvent::LongPress: {
-      // A hold ends the call. The microphone goes off here and now if it was on, tablet or
-      // no tablet. Then the tablet is told, so it can close the call; like a toggle, that is
-      // sent directly and never queued.
+      // A hold toggles the call. The microphone goes off here and now if it was on, tablet or
+      // no tablet. Then the tablet is told, and decides: end the call that is open, or open a
+      // new one. Sent directly, never queued.
       apply(Input::LongPress, "button", began_ms);
-      if (!cfg_.gateway_enabled) break;  // standalone: there is no call to end
+      if (!cfg_.gateway_enabled) break;  // standalone: there is no call
       if (!linkOpen()) {
-        hal_.log("hold: no tablet connected, so the call was not ended");
+        hal_.log("hold: no tablet connected, so nothing was sent about the call");
         break;
       }
       uint32_t now = hal_.millis();
-      ++stats_.ends;
-      link_->sendText(endJson("button", now));
+      ++stats_.call_toggles;
+      link_->sendText(toggleJson("call", "button", now));
       flashing_ = true;  // one white flash: the hold was taken
       flash_start_ = now;
       break;
@@ -91,7 +91,7 @@ void ClipApp::onButtonEvent(ButtonEvent event, uint32_t began_ms) {
         // whatever state the clip is in, and let it answer "start" or "stop". Sent directly,
         // never queued: a double click must not take effect minutes later after a reconnect.
         ++stats_.toggles;
-        link_->sendText(toggleJson("button", began_ms));
+        link_->sendText(toggleJson("recording", "button", began_ms));
       }
       break;
     case ButtonEvent::None: break;

@@ -47,23 +47,25 @@ the app never has to join packets together.
 **Events** (UTF-8 JSON, clip to app):
 
 ```json
-{"type":"hello","device":"ESP-CLIP-A3F2","fw":"0.10.0","audio":{"codec":"opus","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}
+{"type":"hello","device":"ESP-CLIP-A3F2","fw":"0.11.0","audio":{"codec":"opus","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}
 {"type":"state","state":"listening","listening":true,"t_ms":41234}
 {"type":"consent","event":"granted","source":"button","t_ms":41230}
 {"type":"consent","event":"stopped","source":"tablet","t_ms":63010}
 {"type":"marker","id":1,"source":"button","t_ms":47781,"audio_seq":327}
-{"type":"toggle","source":"button","t_ms":52310}
-{"type":"end","source":"button","t_ms":91500}
+{"type":"toggle","target":"recording","source":"button","t_ms":52310}
+{"type":"toggle","target":"call","source":"button","t_ms":91500}
 ```
 
-- **`toggle` is a double click on the clip's button: pause or resume.** It is the same message
-  whether or not the clip is recording, and the clip does nothing else: the app decides. Answer
-  `{"cmd":"stop"}` to pause a recording in progress, or `{"cmd":"start"}` to begin the next one.
-- **`end` is a 1.5 second hold: end the call.** If the clip was recording it has already
-  stopped by itself, and a `consent` `stopped` and a `state` arrive just before `end`. It is
-  sent whether or not the clip was recording.
-- `toggle` and `end` are only sent while the app is connected, and are never replayed after a
-  reconnect.
+- **`toggle` with target `recording` is a double click: toggle the recording.** It is the same
+  message whether or not the clip is recording, and the clip does nothing else: the app decides.
+  Answer `{"cmd":"stop"}` to pause a recording in progress, or `{"cmd":"start"}` to begin the
+  next one. The call stays open either way.
+- **`toggle` with target `call` is a 1.5 second hold: toggle the call.** End the open call,
+  generate its reports and save it; or open a new call if none is open. If the clip was
+  recording it has already stopped by itself, and a `consent` `stopped` and a `state` arrive
+  just before the toggle.
+- Toggles are only sent while the app is connected, and are never replayed after a reconnect.
+  `firmware/APP_AGENT_PROMPT.md` spells out what the app should do on each.
 - **`marker` is a mark** (a single click while recording, or the app's own `marker` command).
   `t_ms` and `audio_seq` are those of the click itself; `audio_seq` is the audio packet being
   captured at that moment. `id` counts up from 1 since the clip was powered on.

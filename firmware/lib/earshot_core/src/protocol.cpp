@@ -38,17 +38,10 @@ std::string markerJson(uint32_t id, const char* source, uint32_t t_ms, uint32_t 
   return buf;
 }
 
-std::string toggleJson(const char* source, uint32_t t_ms) {
-  char buf[96];
-  snprintf(buf, sizeof buf, "{\"type\":\"toggle\",\"source\":\"%s\",\"t_ms\":%lu}", source,
-           (unsigned long)t_ms);
-  return buf;
-}
-
-std::string endJson(const char* source, uint32_t t_ms) {
-  char buf[96];
-  snprintf(buf, sizeof buf, "{\"type\":\"end\",\"source\":\"%s\",\"t_ms\":%lu}", source,
-           (unsigned long)t_ms);
+std::string toggleJson(const char* target, const char* source, uint32_t t_ms) {
+  char buf[120];
+  snprintf(buf, sizeof buf, "{\"type\":\"toggle\",\"target\":\"%s\",\"source\":\"%s\",\"t_ms\":%lu}",
+           target, source, (unsigned long)t_ms);
   return buf;
 }
 

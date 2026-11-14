@@ -462,7 +462,7 @@ static void test_app_gestures() {
   // A double click is only reported: the clip sends "toggle" and waits for the tablet.
   r.app_answers = false;
   r.doubleTap();
-  CHECK_EQ(r.textCount("\"type\":\"toggle\",\"source\":\"button\""), 1);
+  CHECK_EQ(r.textCount("\"type\":\"toggle\",\"target\":\"recording\",\"source\":\"button\""), 1);
   CHECK(r.app.state() == ClipState::NotListening);  // nothing happens until the tablet answers
   CHECK_EQ(r.hal.mic_starts, 0);
   CHECK_EQ(r.textCount("\"type\":\"consent\""), 0);
@@ -525,12 +525,12 @@ static void test_app_gestures() {
   // A double click while listening sends exactly the same message as one while not
   // listening; the stand-in app answers "stop" this time.
   r.doubleTap();
-  CHECK_EQ(r.textCount("\"type\":\"toggle\",\"source\":\"button\""), 2);
+  CHECK_EQ(r.textCount("\"type\":\"toggle\",\"target\":\"recording\",\"source\":\"button\""), 2);
   {
     f = r.frames();
     std::vector<std::string> toggles;
     for (size_t i = 0; i < f.size(); ++i)
-      if (f[i].opcode == 0x1 && f[i].payload.find("\"type\":\"toggle\"") != std::string::npos)
+      if (f[i].opcode == 0x1 && f[i].payload.find("\"target\":\"recording\"") != std::string::npos)
         toggles.push_back(f[i].payload.substr(0, f[i].payload.find("\"t_ms\"")));
     CHECK(toggles.size() == 2 && toggles[0] == toggles[1]);   // identical apart from the time
   }
@@ -664,7 +664,7 @@ static void test_app_link_loss() {
   q.run(3000);
   CHECK(q.app.linkOpen());
   CHECK(q.app.state() == ClipState::NotListening);
-  CHECK_EQ(q.textCount("\"type\":\"toggle\""), 0);
+  CHECK_EQ(q.textCount("\"target\":\"recording\""), 0);
   CHECK_EQ(q.textCount("\"type\":\"consent\""), 0);
   CHECK_EQ(q.audioFrames(), 0);
 
@@ -863,7 +863,7 @@ class FakeLink : public Link {
     // Stand in for the app: follow the clip's state, and answer a toggle with start or stop.
     if (t.find("\"listening\":true") != std::string::npos) clip_listening = true;
     if (t.find("\"listening\":false") != std::string::npos) clip_listening = false;
-    if (app_answers && t.find("\"type\":\"toggle\"") != std::string::npos)
+    if (app_answers && t.find("\"target\":\"recording\"") != std::string::npos)
       from_tablet.push_back(clip_listening ? "{\"cmd\":\"stop\"}" : "{\"cmd\":\"start\"}");
     return true;
   }
@@ -977,10 +977,12 @@ static void test_message_sizes() {
   CHECK(consentJson("granted", "button", big).size() <= kBleMaxMessage);
   CHECK(consentJson("stopped", "tablet", big).size() <= kBleMaxMessage);
   CHECK(markerJson(big, "button", big, big).size() <= kBleMaxMessage);
-  CHECK(toggleJson("button", big).size() <= kBleMaxMessage);
-  CHECK(endJson("button", big).size() <= kBleMaxMessage);
-  CHECK(endJson("button", 91500) == "{\"type\":\"end\",\"source\":\"button\",\"t_ms\":91500}");
-  CHECK(toggleJson("button", 123456) == "{\"type\":\"toggle\",\"source\":\"button\",\"t_ms\":123456}");
+  CHECK(toggleJson("recording", "button", big).size() <= kBleMaxMessage);
+  CHECK(toggleJson("call", "button", big).size() <= kBleMaxMessage);
+  CHECK(toggleJson("recording", "button", 123456) ==
+        "{\"type\":\"toggle\",\"target\":\"recording\",\"source\":\"button\",\"t_ms\":123456}");
+  CHECK(toggleJson("call", "button", 91500) ==
+        "{\"type\":\"toggle\",\"target\":\"call\",\"source\":\"button\",\"t_ms\":91500}");
   CHECK(kAudioHeaderBytes + 80 <= kBleMaxMessage);     // one Opus frame at 32 kbit/s
   CHECK(kBleMaxMessage <= 182);                        // what iOS allows per packet
 }
@@ -1149,14 +1151,14 @@ static void test_end_call() {
     r.longPress();
     CHECK(r.app.state() == ClipState::NotListening);
     CHECK(!r.hal.mic_on);
-    CHECK_EQ(r.app.stats().ends, 1);
+    CHECK_EQ(r.app.stats().call_toggles, 1);
     std::vector<WsFrame> f = r.frames();
     size_t stopped = 0, state = 0, end = 0;
     for (size_t i = 0; i < f.size(); ++i) {
       if (f[i].opcode != 0x1) continue;
       if (f[i].payload.find("\"event\":\"stopped\",\"source\":\"button\"") != std::string::npos) stopped = i;
       if (f[i].payload.find("\"state\":\"not_listening\"") != std::string::npos) state = i;
-      if (f[i].payload.find("\"type\":\"end\",\"source\":\"button\"") != std::string::npos) end = i;
+      if (f[i].payload.find("\"type\":\"toggle\",\"target\":\"call\",\"source\":\"button\"") != std::string::npos) end = i;
     }
     CHECK(stopped > 0 && state > stopped && end > state);
     int after = r.audioFrames();
@@ -1167,12 +1169,38 @@ static void test_end_call() {
     int consents = r.textCount("\"type\":\"consent\"");
     size_t mark = r.hal.led_history.size();
     r.longPress();
-    CHECK_EQ(r.textCount("\"type\":\"end\""), 2);
+    CHECK_EQ(r.textCount("\"target\":\"call\""), 2);
     CHECK_EQ(r.textCount("\"type\":\"consent\""), consents);
     CHECK(r.app.state() == ClipState::NotListening);
     CHECK_EQ(r.hal.mic_starts, 1);
     CHECK(ledChanges(r.hal, mark, LedColor::White) >= 1);   // the clip shows the hold was taken
     CHECK(r.hal.led == LedColor::Green);
+  }
+  {  // after a call is ended, the next double click starts a fresh one
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    r.doubleTap();                                       // call 1: the stand-in app answers "start"
+    CHECK(r.app.state() == ClipState::Listening);
+    r.run(400);
+    r.longPress();                                       // end call 1
+    CHECK(r.app.state() == ClipState::NotListening);
+    CHECK_EQ(r.app.stats().call_toggles, 1);
+    int toggles = r.textCount("\"target\":\"recording\"");
+    r.doubleTap();                                       // call 2
+    CHECK_EQ(r.textCount("\"target\":\"recording\""), toggles + 1);
+    CHECK(r.app.state() == ClipState::Listening);
+    CHECK(r.hal.mic_on);
+    CHECK_EQ(r.app.stats().captures, 2);
+    r.run(300);
+    std::vector<WsFrame> f = r.frames();                 // its audio counts from 0 again
+    size_t last_granted = 0;
+    for (size_t i = 0; i < f.size(); ++i)
+      if (f[i].opcode == 0x1 && f[i].payload.find("\"event\":\"granted\"") != std::string::npos) last_granted = i;
+    size_t next_audio = last_granted + 1;
+    while (next_audio < f.size() && f[next_audio].opcode != 0x2) ++next_audio;
+    CHECK(next_audio < f.size());
+    if (next_audio < f.size()) CHECK_EQ(seqOf(f[next_audio]), 0);
   }
   {  // no tablet: the microphone still goes off, and no "end" turns up later
     AppRig r;
@@ -1185,12 +1213,12 @@ static void test_end_call() {
     r.longPress();
     CHECK(r.app.state() == ClipState::NotListening);
     CHECK(!r.hal.mic_on);
-    CHECK_EQ(r.app.stats().ends, 0);
+    CHECK_EQ(r.app.stats().call_toggles, 0);
     r.tr.up = true;
     r.run(3000);
     CHECK(r.app.linkOpen());
     CHECK_EQ(r.textCount("\"event\":\"stopped\",\"source\":\"button\""), 1);   // the stop is reported
-    CHECK_EQ(r.textCount("\"type\":\"end\""), 0);                                 // the hold is not replayed
+    CHECK_EQ(r.textCount("\"target\":\"call\""), 0);                                 // the hold is not replayed
   }
   {  // a standalone clip has no call to end: a hold just stops the capture
     FakeHal hal;
@@ -1203,7 +1231,7 @@ static void test_end_call() {
     CHECK(solo.state() == ClipState::Listening);
     solo.onButtonEvent(ButtonEvent::LongPress);
     CHECK(solo.state() == ClipState::NotListening);
-    CHECK_EQ(solo.stats().ends, 0);
+    CHECK_EQ(solo.stats().call_toggles, 0);
     CHECK_EQ(link.texts.size(), 0);
   }
 }
