@@ -6,6 +6,9 @@ import Foundation
 // Set EARSHOT_NO_WHISPER=1 to build without it; earshot-eval then only
 // accepts --transcript input (pre-made transcripts) instead of audio.
 let noWhisper = ProcessInfo.processInfo.environment["EARSHOT_NO_WHISPER"] == "1"
+// libopus (pkg-config "opus") decodes the clip's Opus frames for the eval tool. The iPad app uses
+// AVAudioConverter instead. Set EARSHOT_NO_OPUS=1 to build without it.
+let noOpus = ProcessInfo.processInfo.environment["EARSHOT_NO_OPUS"] == "1"
 
 var targets: [Target] = [
     .target(
@@ -36,6 +39,26 @@ if !noWhisper {
     evalDeps.append("EarshotWhisper")
 }
 
+if !noOpus {
+    targets.append(.systemLibrary(
+        name: "COpus",
+        path: "Sources/COpus",
+        pkgConfig: "opus",
+        providers: [.brew(["opus"]), .apt(["libopus-dev"])]
+    ))
+    targets.append(.target(
+        name: "EarshotOpus",
+        dependencies: ["EarshotCore", "COpus"],
+        path: "Sources/EarshotOpus"
+    ))
+    targets.append(.testTarget(
+        name: "EarshotOpusTests",
+        dependencies: ["EarshotOpus"],
+        path: "Tests/EarshotOpusTests"
+    ))
+    evalDeps.append("EarshotOpus")
+}
+
 targets.append(.executableTarget(
     name: "earshot-eval",
     dependencies: evalDeps,
@@ -48,6 +71,7 @@ let package = Package(
     products: [
         .library(name: "EarshotCore", targets: ["EarshotCore"]),
         .executable(name: "earshot-eval", targets: ["earshot-eval"]),
-    ] + (noWhisper ? [] : [.library(name: "EarshotWhisper", targets: ["EarshotWhisper"])]),
+    ] + (noWhisper ? [] : [.library(name: "EarshotWhisper", targets: ["EarshotWhisper"])])
+      + (noOpus ? [] : [.library(name: "EarshotOpus", targets: ["EarshotOpus"])]),
     targets: targets
 )

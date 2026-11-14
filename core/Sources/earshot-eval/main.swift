@@ -3,6 +3,9 @@ import EarshotCore
 #if canImport(EarshotWhisper)
 import EarshotWhisper
 #endif
+#if canImport(EarshotOpus)
+import EarshotOpus
+#endif
 
 let usage = """
 earshot-eval — run the Earshot pipeline offline (same code as the iPad app).
@@ -19,6 +22,8 @@ USAGE
 INPUT (by extension)
   .wav                16 kHz mono 16-bit PCM (other rates/channels are converted in memory)
   .replay / .bin      Earshot replay packet file (length-prefixed packets, docs/WIRE_FORMAT.md)
+  .clipcap            a capture of the clip firmware's messages (core/tools/record_clip.py): runs the
+                      live path the iPad uses (LiveSession), Opus decoded with libopus
   .json               a raw transcript (skips audio + ASR): either transcript.raw.json from a
                       previous run, or a list [{"start_ms":0,"end_ms":2000,"text":"..."}]
 
@@ -187,6 +192,55 @@ if let tp = config.tagger {
     #endif
 }
 for n in notes { FileHandle.standardError.write(("note: " + n + "\n").data(using: .utf8)!) }
+
+if ext == "clipcap" {
+    runClipCapture(inputURL)
+    exit(0)
+}
+
+/// A capture file: one JSON object per line, {"t": epoch ms on receipt, "text": "..."} for events or
+/// {"t": ..., "bin": "<base64>"} for audio frames, exactly as they arrived from the clip.
+func runClipCapture(_ url: URL) {
+    guard let body = try? String(contentsOf: url, encoding: .utf8) else { fail("cannot read \(url.path)") }
+    var lines: [(Date, ClipMessage)] = []
+    for l in body.split(separator: "\n") {
+        guard let o = try? JSONSerialization.jsonObject(with: Data(l.utf8)) as? [String: Any],
+              let t = (o["t"] as? NSNumber)?.doubleValue else { continue }
+        let when = Date(timeIntervalSince1970: t / 1000)
+        if let text = o["text"] as? String, let m = ClipProtocol.parseText(text) { lines.append((when, m)) }
+        if let b = o["bin"] as? String, let d = Data(base64Encoded: b), let m = ClipProtocol.parseAudio([UInt8](d)) { lines.append((when, m)) }
+    }
+    guard let first = lines.first?.0 else { fail("no clip messages in \(url.path)") }
+    var codec = "opus"
+    if case .hello(let h)? = lines.first(where: { if case .hello = $0.1 { return true }; return false })?.1 { codec = h.codec }
+    let decoder: ClipFrameDecoder
+    if codec == "pcm" { decoder = PCMFrameDecoder() } else {
+        #if canImport(EarshotOpus)
+        do { decoder = try LibOpusFrameDecoder() } catch { fail("\(error)") }
+        #else
+        fail("this build has no libopus (EARSHOT_NO_OPUS); cannot decode an Opus capture")
+        #endif
+    }
+    let start = config.startTime.flatMap { CallClock(iso: $0) }?.startEpochMs ?? Int64(first.timeIntervalSince1970 * 1000)
+    let s = LiveSession(dict: dict, config: config, callId: config.callId, startEpochMs: start,
+                        tzOffsetSeconds: TimeZone.current.secondsFromGMT(), transcriber: transcriber, tagger: tagger)
+    s.callbackQueue = DispatchQueue(label: "eval.cb")
+    for (when, m) in lines { s.handle(m, decoder: decoder, receivedAt: when) }
+    s.endCapture()          // a capture cut off without "stopped" is still transcribed
+    s.drain()
+    let out = URL(fileURLWithPath: outOpt ?? "out/" + url.deletingPathExtension().lastPathComponent)
+    do {
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        try writeJSON(RawTranscript(callId: config.callId, asrModel: transcriber?.modelName ?? "none", segments: s.rawSegments),
+                      out.appendingPathComponent("transcript.raw.json"))
+        try writeJSON(s.events, out.appendingPathComponent("events.json"))
+        for d in s.render() { try d.text.write(to: out.appendingPathComponent(d.name), atomically: true, encoding: .utf8) }
+    } catch { fail("cannot write output: \(error)") }
+    let frames = lines.filter { if case .audio = $0.1 { return true }; return false }.count
+    print("clip \(s.clipHello?.device ?? "?") fw \(s.clipHello?.firmware ?? "?"), codec \(codec): \(frames) frames, \(s.framesUndecodable) undecodable")
+    print("wrote \(out.path): \(s.rawSegments.count) segments, \(s.events.count) events")
+    for seg in s.rawSegments { print("  [\(seg.startMs) ms] \(seg.text)") }
+}
 
 let input: PipelineInput
 do {

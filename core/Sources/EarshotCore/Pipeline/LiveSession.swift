@@ -250,6 +250,10 @@ public final class LiveSession {
         }
     }
 
+    /// The clip went away, or the call is ending: close any open capture as if it had stopped,
+    /// so the audio already received is transcribed.
+    public func endCapture() { work.async { self.closeCapture() } }
+
     private func openCapture(clipMs: Int64, at d: Date) {
         capture = Capture(anchorClipMs: clipMs, anchorTMs: callMs(d), startSample: sampleCursor)
         state = .listening
