@@ -22,6 +22,10 @@
 	<string>1</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Earshot uses Bluetooth to connect to your clip.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Earshot keeps noting where a call takes place while the screen is off or another app is open, so the report can say where the patient was found and taken.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Earshot notes where a call takes place, so the report can say where the patient was found and taken.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Earshot listens to the call so it can write the transcript.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
@@ -35,6 +39,7 @@
 	<array>
 		<string>audio</string>
 		<string>bluetooth-central</string>
+		<string>location</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>

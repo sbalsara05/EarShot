@@ -9,6 +9,7 @@ extension Color {
     static let bg = Color(0x0C0C0D), ink = Color(0xF1EFEA), dim = Color(0xA5A39E), panel = Color(0x151516)
     static let line = Color(0x2A2A2D), outline = Color(0x4A4A4F), off = Color(0x2B2B2F), mid = Color(0x6B6B70)
     static let ghost = Color(0x3A3A3E), red = Color(0xFF5D4D), green = Color(0x6FD39A), yellow = Color(0xF5C451)
+    static let place = Color(0x7FB2FF)   // a location row in the transcript
 }
 
 /// Both fonts ship as variable files, so the weight is set on the `wght` axis.
