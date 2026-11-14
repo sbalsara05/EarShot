@@ -19,6 +19,11 @@ final class Transcriber {
     var onCut: () -> Void = {}                  // the current segment closed; the next words start a new line
     var onLevel: (Int) -> Void = { _ in }       // loudness, 0...6, about twelve times a second
     var onProblem: (String) -> Void = { _ in }  // listening cannot continue
+    /// The same audio as 16 kHz mono samples, for Whisper. Called on the audio's own thread.
+    var onAudio: ([Int16]) -> Void = { _ in }
+    /// Set when Whisper is writing the record, so live words are a help and not a need: where this device cannot
+    /// recognise speech itself, the recording runs without them and text arrives a pause at a time.
+    var liveOptional = false
 
     private(set) var segment = UUID()
     private let engine = AVAudioEngine()
@@ -27,6 +32,9 @@ final class Transcriber {
     private let lock = NSLock()   // the audio thread reads `request` while the main thread swaps it
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var running = false
+    private var live = true   // live words are on for this recording
+    private var converter: AVAudioConverter?   // the microphone's own format to Whisper's
+    private static let wire = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true)!
     private var source = Source.mic
     private var heard = false, lastHeard = Date(), segmentStart = Date(), quickFailures = 0
     private var pauseTimer: Timer?
@@ -58,9 +66,10 @@ final class Transcriber {
 
     /// Asks for speech access, and for the microphone unless the audio comes from the clip.
     /// Returns what to tell the user if either is refused.
-    static func authorize(microphone: Bool = true) async -> String? {
+    /// With `liveOptional`, refusing speech recognition only turns the live words off.
+    static func authorize(microphone: Bool = true, liveOptional: Bool = false) async -> String? {
         let speech = await withCheckedContinuation { done in SFSpeechRecognizer.requestAuthorization { done.resume(returning: $0) } }
-        guard speech == .authorized else { return "Speech recognition is off for Earshot. Turn it on in Settings." }
+        guard speech == .authorized || liveOptional else { return "Speech recognition is off for Earshot. Turn it on in Settings." }
         guard !microphone else {
             return await AVAudioApplication.requestRecordPermission() ? nil : "The microphone is off for Earshot. Turn it on in Settings."
         }
@@ -69,21 +78,27 @@ final class Transcriber {
 
     /// Starts listening. From the clip, the audio arrives through `push`; the device's own microphone stays off.
     func start(from source: Source = .mic) throws {
-        guard let recognizer, recognizer.isAvailable else { throw Problem("Speech recognition is not available right now.") }
-        guard staysOnDevice || Self.mayUseServers else {
-            throw Problem("This \(deviceName) cannot transcribe English on the device yet, so Earshot will not record. Call audio is never sent off the \(deviceName).")
+        let allowed = SFSpeechRecognizer.authorizationStatus() == .authorized
+        if !liveOptional {
+            guard allowed, let recognizer, recognizer.isAvailable else { throw Problem("Speech recognition is not available right now.") }
+            guard staysOnDevice || Self.mayUseServers else {
+                throw Problem("This \(deviceName) cannot transcribe English on the device yet, so Earshot will not record. Call audio is never sent off the \(deviceName).")
+            }
         }
+        live = allowed && recognizer?.isAvailable == true && (staysOnDevice || Self.mayUseServers)
         if source == .mic {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.record, mode: .measurement)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
             let format = engine.inputNode.outputFormat(forBus: 0)
             guard format.sampleRate > 0 else { throw Problem("No microphone was found.") }
+            converter = AVAudioConverter(from: format, to: Self.wire)
 
             engine.inputNode.removeTap(onBus: 0)
             engine.inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
                 guard let self else { return }
                 self.lock.withLock { self.request }?.append(buffer)
+                self.onAudio(self.samples(from: buffer))
                 let level = Self.level(of: buffer)
                 DispatchQueue.main.async { self.onLevel(level) }
             }
@@ -96,6 +111,7 @@ final class Transcriber {
             engine.prepare()
             try engine.start()
         }
+        guard live else { return }
         pauseTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             guard let self, self.heard, Date().timeIntervalSince(self.lastHeard) > 1.5 else { return }
             self.newSegment()   // a pause ends the line
@@ -106,6 +122,9 @@ final class Transcriber {
     func push(_ buffer: AVAudioPCMBuffer) {
         guard running, source == .clip else { return }
         lock.withLock { request }?.append(buffer)
+        if let samples = buffer.floatChannelData?[0] {
+            onAudio((0..<Int(buffer.frameLength)).map { Int16(max(-1, min(1, samples[$0])) * 32767) })
+        }
         levelFrames += Int(buffer.frameLength)
         levelPeak = max(levelPeak, Self.level(of: buffer))
         if levelFrames >= 1280 {   // the clip sends 20 ms at a time; report loudness about twelve times a second, as the mic does
@@ -115,6 +134,20 @@ final class Transcriber {
         }
     }
     private var levelFrames = 0, levelPeak = 0
+
+    /// A microphone buffer as 16 kHz mono samples.
+    private func samples(from buffer: AVAudioPCMBuffer) -> [Int16] {
+        let room = AVAudioFrameCount(Double(buffer.frameLength) * 16000 / buffer.format.sampleRate) + 32
+        guard let converter, let out = AVAudioPCMBuffer(pcmFormat: Self.wire, frameCapacity: room) else { return [] }
+        var given = false
+        converter.convert(to: out, error: nil) { _, status in
+            status.pointee = given ? .noDataNow : .haveData
+            defer { given = true }
+            return given ? nil : buffer
+        }
+        guard let samples = out.int16ChannelData?[0] else { return [] }
+        return Array(UnsafeBufferPointer(start: samples, count: Int(out.frameLength)))
+    }
 
     func stop() {
         guard running else { return }
@@ -138,7 +171,7 @@ final class Transcriber {
     }
 
     private func newSegment() {
-        guard let recognizer else { return }
+        guard live, let recognizer else { return }
         let id = UUID()
         segment = id
         heard = false
@@ -171,7 +204,13 @@ final class Transcriber {
                 // The recogniser gave up on the segment we are still filling (silence, or its time limit): open a fresh one.
                 guard id == self.segment, self.running, error != nil || result?.isFinal == true else { return }
                 self.quickFailures = error != nil && Date().timeIntervalSince(self.segmentStart) < 1 ? self.quickFailures + 1 : 0
-                if self.quickFailures >= 3 {
+                if self.quickFailures >= 3 && self.liveOptional {
+                    // Live words have failed, but Whisper is still writing the record: carry on without them.
+                    self.live = false
+                    self.pauseTimer?.invalidate()
+                    self.lock.withLock { () -> SFSpeechAudioBufferRecognitionRequest? in defer { self.request = nil }; return self.request }?.endAudio()
+                    self.onCut()
+                } else if self.quickFailures >= 3 {
                     self.onProblem(error?.localizedDescription ?? "Speech recognition stopped.")
                 } else {
                     self.newSegment()

@@ -15,3 +15,10 @@ firmware/evidence/**/*.mov
 
 # compression test audio samples (large); the results table is kept
 firmware/codec_test/results/samples/
+
+# transcription (transcribe/): the whisper.cpp framework is built by transcribe/fetch.sh; the one model kept is in Git LFS
+.build/
+transcribe/Frameworks/
+transcribe/Models/*
+!transcribe/Models/ggml-ems-small.en-ft-q5_0.bin
+xcuserdata/

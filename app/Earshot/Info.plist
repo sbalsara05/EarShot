@@ -41,6 +41,8 @@
 		<string>bluetooth-central</string>
 		<string>location</string>
 	</array>
+	<key>UIFileSharingEnabled</key>
+	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiresFullScreen</key>
