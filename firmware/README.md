@@ -1,7 +1,14 @@
 # Earshot clip firmware
 
 Firmware for the Earshot clip (M5Stack Atom VoiceS3R), plus a laptop simulator so it can be
-tested without the hardware.
+tested without the hardware. It also builds for an Adafruit ESP32-S3 Feather, as a stand-in
+board until the Atom arrives.
+
+The clip sends to the tablet over Bluetooth LE. [BLUETOOTH.md](BLUETOOTH.md) is the app-side
+guide: how to find the clip, connect, read the packets and stay connected.
+
+Not yet run on a board: the Bluetooth link and the Feather build compile and are unit tested,
+but nothing has been flashed.
 
 ## What the clip does
 
@@ -47,17 +54,35 @@ A test with Whisper (`codec_test/`, results in `codec_test/results/results.md`) 
 32 kbit/s transcribed as accurately as raw audio, within the test's margin, including in
 simulated ambulance noise. Lower bitrates and halving the sample rate were clearly worse.
 
-`AUDIO_OPUS_KBPS` in `include/config.h` sets the bitrate; 0 sends raw audio, which only makes
-sense over Wi-Fi. The link today is still Wi-Fi: Bluetooth is not implemented yet.
+`AUDIO_OPUS_KBPS` in `include/config.h` sets the bitrate. 0 sends raw audio, which only works
+over the Wi-Fi link: a raw frame does not fit in a Bluetooth packet.
+
+### Link to the tablet
+
+| | Bluetooth LE (default) | Wi-Fi |
+|---|---|---|
+| Setting | `LINK_BLUETOOTH 1` | `LINK_BLUETOOTH 0` in `include/config.h` |
+| Who connects | The tablet finds the clip and connects | The clip connects to the tablet's WebSocket server |
+| Needs | Nothing shared | Both on the same 2.4 GHz network, and the tablet's address in `config.h` |
+| Used by | The iPad app | The laptop simulator and mock tablet |
+
+The messages are the same on both. The simulator and Wokwi cannot do Bluetooth, so they use
+Wi-Fi.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `lib/earshot_core/` | All behaviour: button gestures, state machine, WebSocket client, streaming. Portable C++11, no Arduino code |
+| `lib/earshot_core/` | All behaviour: button gestures, state machine, streaming, the Wi-Fi link, the voice-recording player. Portable C++11, no Arduino code |
 | `lib/earshot_opus/` | Opus encoder wrapper, shared by the device and the simulator |
-| `src/main.cpp` | Atom VoiceS3R hardware layer: button pin, LED ring, mic, Wi-Fi |
-| `include/config.example.h` | Wi-Fi, gateway address, pins |
+| `lib/earshot_voice/` | The voice recording the Feather plays in place of a microphone (generated) |
+| `src/main.cpp` | Hardware layer for all three builds: button, light, mic |
+| `src/ble_link.cpp` | The Bluetooth LE link |
+| `src/build_config.h` | Picks pins, microphone and link for each build |
+| `include/config.example.h` | Link choice, Wi-Fi details, pins |
+| `BLUETOOTH.md` | App-side guide to the Bluetooth link |
+| `tools/ble_receiver.py` | Mac stand-in for the app: connects over Bluetooth, saves and transcribes the audio |
+| `tools/make_voice_clip.py`, `tools/check_voice_clip.py` | Build the voice recording; check it transcribes correctly end to end |
 | `host_tests/` | Unit tests for the core, run on the laptop |
 | `sim/sim_clip.cpp` | Simulated clip: the same core with a keyboard/UI button, generated audio and a real socket |
 | `sim/tablet.py`, `sim/index.html` | Mock tablet and browser UI |
@@ -169,24 +194,56 @@ nothing is streamed. A recorded run of the earlier two-press flow is in
 
 ## Real device
 
-1. Install PlatformIO (`pip install platformio`, or the VS Code extension).
-2. `cp include/config.example.h include/config.h` and fill in Wi-Fi and the laptop's IP.
-3. Start the mock tablet so a clip on the Wi-Fi can reach it: `python3 sim/tablet.py --no-sim --lan`
-4. Put the clip in download mode if needed (hold the reset button about 2 s until the internal green LED lights, then release), then `pio run -t upload`.
-5. `pio device monitor` prints a status line every 5 seconds, including the slowest Opus encode so far. That figure must stay well under 20 ms; if it does not, set `AUDIO_OPUS_KBPS 0` to fall back to raw audio over Wi-Fi.
+Install PlatformIO first (`pip install platformio`, or the VS Code extension).
 
-Add `--save-wav` to the tablet command to write received audio to `sim/out/` and listen to it.
-That flag is a test aid only.
+### ESP32-S3 Feather (stand-in until the Atom arrives)
+
+The Feather has the same chip as the Atom but no microphone, so this build plays a stored
+12.9 second voice recording as if it were the microphone. The BOOT button is the clip's button
+and the onboard NeoPixel is the light. No `config.h` is needed for Bluetooth.
+
+1. Plug the Feather into the laptop with a USB-C data cable.
+2. Flash it: `pio run -e feather-s3 -t upload`. If the upload cannot find the board, hold BOOT,
+   tap RESET, release BOOT, and run it again; press RESET when it finishes.
+3. Watch the log: `pio device monitor`. It should say `link: Bluetooth, advertising as Earshot-XXXX`.
+4. Receive on the Mac, from Terminal (macOS asks once to let Terminal use Bluetooth):
+   `build/codec-test-venv/bin/python tools/ble_receiver.py --start --seconds 13 --transcribe`
+   It should print the events, about 50 packets a second, 0 lost, and the recording's words.
+5. Or press BOOT to start, hold it 1.5 s to stop, double tap for a marker, and watch with the
+   iPad app, nRF Connect or LightBlue.
+
+The status line every 5 seconds shows the slowest Opus encode so far. It must stay well under
+20 ms. This is the first place that figure can be measured, and it applies to the Atom too.
+
+The build is for the 4 MB flash / 2 MB PSRAM Feather; it also runs on the 8 MB no-PSRAM one.
+For the Feather with a screen, change `board` in `platformio.ini` to
+`adafruit_feather_esp32s3_tft` or `adafruit_feather_esp32s3_reversetft`.
+
+### Atom VoiceS3R (the real clip)
+
+1. Put the clip in download mode if needed (hold the reset button about 2 s until the internal green LED lights, then release), then `pio run -e atom-voices3r -t upload`.
+2. `pio device monitor` prints a status line every 5 seconds, including the slowest Opus encode so far.
+3. Connect from the iPad app, or check with `tools/ble_receiver.py` as above.
 
 Hardware notes for the Atom VoiceS3R:
 
 - Button is G41. The mic goes through the ES8311 codec, driven by M5Unified.
 - The board has no RGB LED. The consent ring is an external WS2812 ring on the Grove port (data on G2, yellow wire). Set `LED_COUNT` in `config.h`.
-- Wi-Fi is 2.4 GHz only.
+
+### Over Wi-Fi instead
+
+1. `cp include/config.example.h include/config.h`, set `LINK_BLUETOOTH 0`, and fill in Wi-Fi (2.4 GHz only) and the laptop's IP.
+2. Start the mock tablet so a clip on the Wi-Fi can reach it: `python3 sim/tablet.py --no-sim --lan`
+3. Flash as above.
+
+Add `--save-wav` to the tablet command to write received audio to `sim/out/` and listen to it.
+That flag is a test aid only.
 
 ## Protocol
 
-WebSocket, clip connects to `ws://<gateway>:8765/clip`. Full definition is in
+The same messages go over either link. Over Bluetooth each is one packet on its own channel
+(see [BLUETOOTH.md](BLUETOOTH.md)); over Wi-Fi the clip connects to `ws://<gateway>:8765/clip`
+and sends events as text frames and audio as binary frames. Full definition is in
 [`lib/earshot_core/src/protocol.h`](lib/earshot_core/src/protocol.h).
 
 - **Events** (text, JSON): `hello`, `state` (`not_listening`, `listening`), `consent` (`granted`, `stopped`), `marker`.
@@ -194,9 +251,11 @@ WebSocket, clip connects to `ws://<gateway>:8765/clip`. Full definition is in
 - **Commands** (text, JSON, tablet to clip): `{"cmd":"start"}`, `stop`, `marker`.
 
 `t_ms` is milliseconds since the clip booted. The tablet should stamp wall-clock time on receipt.
-`sim/tablet.py` is a working reference for the tablet side.
+`sim/tablet.py` is a working reference for the tablet side over Wi-Fi, and
+`tools/ble_receiver.py` over Bluetooth.
 
 ## Porting to another ESP32 board
 
-Only `src/main.cpp` changes: swap the mic code for the new board's I2S microphone and adjust the
-pins in `config.h`. The core, tests and simulator stay as they are.
+Add a build to `platformio.ini` and a block to `src/build_config.h` with the board's pins and
+microphone, as the Feather has. A board with an I2S microphone needs its read code added beside
+the Atom's in `src/main.cpp`. The core, tests and simulator stay as they are.

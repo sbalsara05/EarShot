@@ -26,9 +26,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 CORE = ROOT / "lib" / "earshot_core" / "src"
 OUT = ROOT / "build" / "wokwi_web"
 
-HEADERS = ["button.h", "clip_fsm.h", "ws_client.h", "protocol.h", "audio_encoder.h", "clip_app.h"]
-SOURCES = ["button.cpp", "clip_fsm.cpp", "ws_client.cpp", "protocol.cpp", "clip_app.cpp"]
-OURS = set(HEADERS) | {"config.h", "config.example.h"}
+HEADERS = ["button.h", "clip_fsm.h", "hal.h", "link.h", "ws_client.h", "ws_link.h", "protocol.h",
+           "audio_encoder.h", "clip_app.h"]
+SOURCES = ["button.cpp", "clip_fsm.cpp", "ws_client.cpp", "ws_link.cpp", "protocol.cpp", "clip_app.cpp"]
+OURS = set(HEADERS) | {"config.h", "config.example.h", "build_config.h"}
 
 
 def strip(text: str) -> str:
@@ -54,6 +55,8 @@ def main():
         parts.append(f"\n// ======================= {name}\n" + strip((CORE / name).read_text()))
     parts.append("\n// ======================= config.example.h\n"
                  + strip((ROOT / "include" / "config.example.h").read_text()))
+    parts.append("\n// ======================= build_config.h\n"
+                 + strip((ROOT / "src" / "build_config.h").read_text()))
     main_cpp = strip((ROOT / "src" / "main.cpp").read_text())
     main_cpp = main_cpp.replace("void setup() {", "void earshotSetup() {")
     main_cpp = main_cpp.replace("void loop() {", "void earshotLoop() {")

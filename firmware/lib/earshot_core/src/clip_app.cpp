@@ -11,18 +11,30 @@ const size_t kMaxPendingEvents = 32;
 ClipApp::ClipApp(Hal& hal, Transport& transport, const ClipConfig& config, uint32_t random_seed)
     : hal_(hal),
       cfg_(config),
-      ws_(transport, random_seed),
-      button_(config.button),
-      state_(ClipState::NotListening),
-      announced_(false),
-      tried_connect_(false),
-      last_attempt_(0),
-      enc_(config.encoder ? config.encoder : &pcm_),
-      audio_seq_(0),
-      flashing_(false),
-      flash_start_(0),
-      led_(LedColor::Off) {
+      own_link_(new WsLink(hal, transport, random_seed, config.gateway_host, config.gateway_port,
+                           config.gateway_path, config.reconnect_ms, config.handshake_timeout_ms)),
+      link_(own_link_),
+      button_(config.button) {
+  init();
+}
+
+ClipApp::ClipApp(Hal& hal, Link& link, const ClipConfig& config)
+    : hal_(hal), cfg_(config), own_link_(NULL), link_(&link), button_(config.button) {
+  init();
+}
+
+ClipApp::~ClipApp() { delete own_link_; }
+
+void ClipApp::init() {
+  state_ = ClipState::NotListening;
+  announced_ = false;
+  enc_ = cfg_.encoder ? cfg_.encoder : &pcm_;
+  audio_seq_ = 0;
+  flashing_ = false;
+  flash_start_ = 0;
+  led_ = LedColor::Off;
   memset(frame_, 0, sizeof frame_);
+  memset(packet_, 0, sizeof packet_);
 }
 
 void ClipApp::begin() {
@@ -83,61 +95,44 @@ void ClipApp::apply(Input input, const char* source) {
 }
 
 void ClipApp::emit(const std::string& json) {
-  if (linkOpen() && ws_.sendText(json)) return;
-  // Link is down: keep the event (consent changes and markers must not be lost).
+  // Events go through a queue so that none is lost, and none overtakes another, while the link
+  // is down or briefly cannot take a message (consent changes and markers must all arrive).
   if (pending_.size() >= kMaxPendingEvents) pending_.pop_front();
   pending_.push_back(json);
+  flushPending();
+}
+
+void ClipApp::flushPending() {
+  while (!pending_.empty() && linkOpen()) {
+    if (!link_->sendText(pending_.front())) break;
+    pending_.pop_front();
+  }
 }
 
 void ClipApp::announce(uint32_t now) {
   announced_ = true;
-  ws_.sendText(helloJson(cfg_.device_id, enc_->codecName(), enc_->bitrate()));
-  while (!pending_.empty() && ws_.isOpen()) {
-    if (!ws_.sendText(pending_.front())) break;
-    pending_.pop_front();
-  }
-  ws_.sendText(stateJson(state_, now));
-  hal_.log("gateway link open");
+  link_->sendText(helloJson(cfg_.device_id, enc_->codecName(), enc_->bitrate()));
+  flushPending();
+  link_->sendText(stateJson(state_, now));
+  hal_.log("tablet link open");
 }
 
 void ClipApp::serviceLink(uint32_t now) {
   if (!cfg_.gateway_enabled) return;  // standalone: there is no tablet to reach
-  if (!hal_.networkUp()) {
-    if (ws_.state() != WsClient::State::Closed) ws_.close();
-    announced_ = false;
-    return;
-  }
-
-  switch (ws_.state()) {
-    case WsClient::State::Closed:
-      if (announced_) {
-        announced_ = false;
-        hal_.log("gateway link lost");
-      }
-      if (!tried_connect_ || (uint32_t)(now - last_attempt_) >= cfg_.reconnect_ms) {
-        tried_connect_ = true;
-        last_attempt_ = now;
-        ws_.open(cfg_.gateway_host, cfg_.gateway_port, cfg_.gateway_path);
-      }
-      break;
-    case WsClient::State::Handshaking:
-      if ((uint32_t)(now - last_attempt_) >= cfg_.handshake_timeout_ms) ws_.close();
-      break;
-    case WsClient::State::Open:
-      break;
-  }
+  link_->service(now);
 
   std::string msg;
   for (;;) {
-    bool got = ws_.poll(msg);
-    if (ws_.isOpen() && !announced_) announce(now);
+    bool got = link_->poll(msg);
+    if (link_->isOpen() && !announced_) announce(now);
     if (!got) break;
     Input in;
     if (parseCommand(msg, in)) apply(in, "tablet");
   }
-  if (!ws_.isOpen() && announced_) {
+  flushPending();
+  if (!link_->isOpen() && announced_) {
     announced_ = false;
-    hal_.log("gateway link lost");
+    hal_.log("tablet link lost");
   }
 }
 
@@ -153,7 +148,7 @@ void ClipApp::serviceAudio(uint32_t now) {
   putLe32(header, audio_seq_++);
   putLe32(header + 4, now);
   size_t n = enc_->encode(frame_, kFrameSamples, packet_, sizeof packet_);
-  if (n > 0 && linkOpen() && ws_.sendBinary(header, sizeof header, packet_, n)) {
+  if (n > 0 && linkOpen() && link_->sendBinary(header, sizeof header, packet_, n)) {
     ++stats_.frames_sent;
     stats_.audio_bytes_sent += (uint32_t)n;
   } else {

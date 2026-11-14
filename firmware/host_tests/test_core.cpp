@@ -1,6 +1,9 @@
 // Host-side tests for the portable firmware core. Build and run with `make test`.
 #include <stdio.h>
 #include <string.h>
+#include <deque>
+#include <math.h>
+#include <stdlib.h>
 #include <string>
 #include <vector>
 
@@ -8,6 +11,8 @@
 #include "clip_app.h"
 #include "clip_fsm.h"
 #include "protocol.h"
+#include "voice_clip.h"
+#include "voice_clip_data.h"
 #include "ws_client.h"
 
 using namespace earshot;
@@ -729,6 +734,205 @@ static void test_app_encoder() {
         g[0].payload.find("\"bitrate\":256000") != std::string::npos);
 }
 
+// ---------------------------------------------------------------- packet link (Bluetooth)
+
+// Stands in for the Bluetooth link: one message per packet, a size limit, a tablet that can
+// go away and come back, and sends that can fail for a moment.
+class FakeLink : public Link {
+ public:
+  bool up;                 // a tablet is connected and subscribed
+  bool reopened;           // the tablet reconnected since the last pass
+  int fail_text;           // this many text sends fail before one succeeds
+  size_t max_bytes;
+  std::vector<std::string> texts;
+  std::vector<std::string> audio;
+  std::deque<std::string> from_tablet;
+  FakeLink() : up(false), reopened(false), fail_text(0), max_bytes(kBleMaxMessage), open_(false) {}
+
+  void connect() { up = true; reopened = true; }
+  void service(uint32_t) override {
+    if (reopened) {  // read as closed for one pass, as link.h requires
+      reopened = false;
+      open_ = false;
+      return;
+    }
+    open_ = up;
+  }
+  bool isOpen() const override { return open_; }
+  bool poll(std::string& out) override {
+    if (from_tablet.empty()) return false;
+    out = from_tablet.front();
+    from_tablet.pop_front();
+    return true;
+  }
+  bool sendText(const std::string& t) override {
+    if (!open_ || t.size() > max_bytes) return false;
+    if (fail_text > 0) {
+      --fail_text;
+      return false;
+    }
+    texts.push_back(t);
+    return true;
+  }
+  bool sendBinary(const uint8_t* h, size_t hl, const uint8_t* b, size_t bl) override {
+    if (!open_ || hl + bl > max_bytes) return false;
+    audio.push_back(std::string((const char*)h, hl) + std::string((const char*)b, bl));
+    return true;
+  }
+  int count(const char* needle) const {
+    int n = 0;
+    for (size_t i = 0; i < texts.size(); ++i) n += texts[i].find(needle) != std::string::npos;
+    return n;
+  }
+
+ private:
+  bool open_;
+};
+
+static void test_app_packet_link() {
+  printf("app: packet link (Bluetooth)\n");
+  FakeHal hal;
+  FakeLink link;
+  FakeEncoder enc;
+  ClipConfig cfg;
+  cfg.encoder = &enc;
+  cfg.device_id = "Earshot-A3F2";
+  ClipApp app(hal, link, cfg);
+  app.begin();
+
+  for (int i = 0; i < 10; ++i) app.tick();
+  CHECK(!app.linkOpen());                              // nobody connected: nothing sent
+  CHECK_EQ(link.texts.size(), 0);
+
+  link.connect();
+  for (int i = 0; i < 5; ++i) app.tick();
+  CHECK(app.linkOpen());
+  CHECK_EQ(link.texts.size(), 2);                      // introduces itself: hello, then state
+  CHECK(link.texts.size() == 2 && link.texts[0].find("\"type\":\"hello\"") != std::string::npos &&
+        link.texts[0].find("\"device\":\"Earshot-A3F2\"") != std::string::npos &&
+        link.texts[1].find("\"state\":\"not_listening\"") != std::string::npos);
+
+  // A command from the tablet starts a capture; every audio frame is one packet that fits.
+  link.from_tablet.push_back("{\"cmd\":\"start\"}");
+  for (int i = 0; i < 50; ++i) app.tick();
+  CHECK(app.state() == ClipState::Listening);
+  CHECK_EQ(link.count("\"event\":\"granted\",\"source\":\"tablet\""), 1);
+  CHECK(link.audio.size() >= 45);
+  bool sizes_ok = true;
+  for (size_t i = 0; i < link.audio.size(); ++i) sizes_ok = sizes_ok && link.audio[i].size() == 8 + 80;
+  CHECK(sizes_ok);
+  CHECK_EQ(app.stats().frames_dropped, 0);
+
+  // A send that fails for a moment is tried again, and events still arrive in order.
+  link.fail_text = 3;
+  size_t before = link.texts.size();
+  app.onButtonEvent(ButtonEvent::DoubleTap);
+  app.onButtonEvent(ButtonEvent::DoubleTap);
+  for (int i = 0; i < 10; ++i) app.tick();
+  CHECK_EQ(link.texts.size(), before + 2);
+  CHECK(link.texts.size() == before + 2 &&
+        link.texts[before].find("\"type\":\"marker\",\"id\":1") != std::string::npos &&
+        link.texts[before + 1].find("\"type\":\"marker\",\"id\":2") != std::string::npos);
+
+  // The tablet goes away mid-capture: the clip keeps listening, audio is dropped (not stored),
+  // and what happened meanwhile is delivered when it comes back.
+  link.up = false;
+  for (int i = 0; i < 5; ++i) app.tick();
+  CHECK(!app.linkOpen());
+  size_t audio_before = link.audio.size();
+  app.onButtonEvent(ButtonEvent::DoubleTap);           // marker 3 while disconnected
+  for (int i = 0; i < 20; ++i) app.tick();
+  CHECK(app.state() == ClipState::Listening);
+  CHECK_EQ(link.audio.size(), audio_before);
+  CHECK(app.stats().frames_dropped >= 15);
+  CHECK_EQ(link.count("\"id\":3"), 0);
+
+  int hellos = link.count("\"type\":\"hello\"");
+  link.connect();
+  for (int i = 0; i < 10; ++i) app.tick();
+  CHECK(app.linkOpen());
+  CHECK_EQ(link.count("\"type\":\"hello\""), hellos + 1);   // says hello again
+  CHECK_EQ(link.count("\"id\":3"), 1);                         // the missed marker arrives
+  CHECK(link.texts.back().find("\"state\":\"listening\"") != std::string::npos);
+  CHECK(link.audio.size() > audio_before);                      // and audio flows again
+
+  // A tablet that reconnects between two passes (never seen as "down") still gets a hello.
+  hellos = link.count("\"type\":\"hello\"");
+  link.connect();
+  for (int i = 0; i < 5; ++i) app.tick();
+  CHECK_EQ(link.count("\"type\":\"hello\""), hellos + 1);
+
+  // Raw audio is too big for a packet: it is dropped rather than sent broken.
+  FakeHal hal2;
+  FakeLink link2;
+  ClipApp raw(hal2, link2, ClipConfig());
+  raw.begin();
+  link2.connect();
+  raw.onButtonEvent(ButtonEvent::ShortPress);
+  for (int i = 0; i < 20; ++i) raw.tick();
+  CHECK_EQ(link2.audio.size(), 0);
+  CHECK(raw.stats().frames_dropped >= 15);
+}
+
+static void test_message_sizes() {
+  printf("protocol: every message fits one Bluetooth packet\n");
+  const uint32_t big = 0xFFFFFFFFu;  // longest possible numbers
+  CHECK(helloJson("Earshot-A3F2", "opus", 32000).size() <= kBleMaxMessage);
+  CHECK(stateJson(ClipState::NotListening, big).size() <= kBleMaxMessage);
+  CHECK(stateJson(ClipState::Listening, big).size() <= kBleMaxMessage);
+  CHECK(consentJson("granted", "button", big).size() <= kBleMaxMessage);
+  CHECK(consentJson("stopped", "tablet", big).size() <= kBleMaxMessage);
+  CHECK(markerJson(big, "button", big, big).size() <= kBleMaxMessage);
+  CHECK(kAudioHeaderBytes + 80 <= kBleMaxMessage);     // one Opus frame at 32 kbit/s
+  CHECK(kBleMaxMessage <= 182);                        // what iOS allows per packet
+}
+
+// ---------------------------------------------------------------- stored voice recording
+
+static void test_voice_clip() {
+  printf("voice recording\n");
+  VoiceClip clip(kVoiceClipAdpcm, kVoiceClipBytes);
+  size_t total = clip.totalSamples();
+  CHECK_EQ(total, kVoiceClipBytes * 2);
+  CHECK_EQ(total % kFrameSamples, 0);                  // loops on a frame boundary
+  CHECK(total >= 5 * kSampleRate && total <= 30 * kSampleRate);
+  CHECK(strlen(kVoiceClipText) > 20);
+
+  std::vector<int16_t> a(total), b(total);
+  clip.read(a.data(), total);
+  CHECK_EQ(clip.position(), total);
+
+  // It is speech-like: a quiet start, plenty of signal overall, and no clipping.
+  double lead = 0, all = 0;
+  int peak = 0;
+  for (size_t i = 0; i < total; ++i) {
+    double v = a[i];
+    all += v * v;
+    if (i < 1600) lead += v * v;
+    if (abs(a[i]) > peak) peak = abs(a[i]);
+  }
+  double rms_all = sqrt(all / total), rms_lead = sqrt(lead / 1600);
+  CHECK(rms_all > 1000);
+  CHECK(rms_lead < 100);
+  CHECK(peak > 12000 && peak < 32000);
+
+  clip.read(b.data(), total);                          // second time round is identical
+  CHECK(memcmp(a.data(), b.data(), total * sizeof(int16_t)) == 0);
+
+  int16_t frame[kFrameSamples];                        // reading in frames gives the same audio
+  clip.rewind();
+  bool same = true;
+  for (size_t f = 0; f < 100; ++f) {
+    clip.read(frame, kFrameSamples);
+    same = same && memcmp(frame, &a[f * kFrameSamples], sizeof frame) == 0;
+  }
+  CHECK(same);
+
+  VoiceClip empty(NULL, 0);                            // no data: silence, no crash
+  empty.read(frame, kFrameSamples);
+  CHECK(frame[0] == 0 && frame[kFrameSamples - 1] == 0);
+}
+
 int main() {
   test_button();
   test_fsm();
@@ -739,6 +943,9 @@ int main() {
   test_app_external_button();
   test_app_standalone();
   test_app_encoder();
+  test_app_packet_link();
+  test_message_sizes();
+  test_voice_clip();
   printf("\n%d checks, %d failed\n", g_checks, g_failed);
   return g_failed ? 1 : 0;
 }
