@@ -6,6 +6,9 @@ import EarshotWhisper
 #if canImport(EarshotOpus)
 import EarshotOpus
 #endif
+#if canImport(EarshotLLM)
+import EarshotLLM
+#endif
 
 let usage = """
 earshot-eval — run the Earshot pipeline offline (same code as the iPad app).
@@ -48,6 +51,9 @@ OPTIONS
   --bias-next <x>         logit bonus for continuing a drug name (default 2.0)
   --min-conf <p>          flag drugs/doses/vitals whose words fall below this token probability (default 0.3; 0 = off)
   --pii-scrub             replace names/DOB/addresses/phones in quotes and fields with tokens (off by default)
+  --llm-model <path|none> Phi-3.5-mini GGUF (models/phi-3.5-mini-instruct-Q4_K_M.gguf) for the optional LLM passes; none = off (default)
+  --llm <passes>          which passes: recover,narrative (default both). Every proposal is verified by code; see docs/pipeline/PIPELINE_READY.md
+  --llm-threads <n>       llama.cpp threads (default 4; keep fixed for repeatable output)
 """
 
 func fail(_ s: String) -> Never {
@@ -152,6 +158,10 @@ if let pf = opt("--prompt-file") { config.asr.prompt = (try? String(contentsOfFi
 if flag("--greedy") { config.asr.beamSize = 1; config.asr.temperatureFallback = false }
 if let b = opt("--beam"), let n = Int(b) { config.asr.beamSize = n }
 if flag("--pii-scrub") { config.piiScrub = true }
+if let m = opt("--llm-model") { config.llm.model = m == "none" ? nil : m }
+if let p = opt("--llm") { config.llm.passes = p.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+if let t = opt("--llm-threads"), let n = Int(t) { config.llm.threads = n }
+for p in config.llm.passes where LLMPass(rawValue: p) == nil { fail("unknown --llm pass \(p) (recover, narrative)") }
 if flag("--no-bias") { config.asr.bias = false }
 if flag("--gpu") { config.asr.gpu = true }
 if let v = opt("--bias-first"), let x = Double(v) { config.asr.biasFirst = x }
@@ -203,6 +213,18 @@ if let tp = config.tagger {
     do { tagger = try CoreMLTagger(modelPath: tp) } catch { notes.append("tagger failed to load (\(error)); running rules only") }
     #else
     notes.append("tagger \(tp) requested but Core ML is not available on this platform; running rules only")
+    #endif
+}
+var llm: LLMEngine? = nil
+var llmLoadSecs = 0.0
+if config.llm.enabled, let path = config.llm.model {
+    #if canImport(EarshotLLM)
+    let tl = Date()
+    do { llm = try LlamaEngine(modelPath: path, threads: config.llm.threads, context: config.llm.context) }
+    catch { notes.append("LLM model failed to load (\(error)); running rules only") }
+    llmLoadSecs = Date().timeIntervalSince(tl)
+    #else
+    notes.append("LLM model \(path) requested but this build has no llama.cpp; running rules only")
     #endif
 }
 for n in notes { FileHandle.standardError.write(("note: " + n + "\n").data(using: .utf8)!) }
@@ -265,7 +287,7 @@ do {
     }
 } catch { fail("cannot read input: \(error)") }
 
-let pipeline = EarshotPipeline(dict: dict, config: config, transcriber: transcriber, tagger: tagger)
+let pipeline = EarshotPipeline(dict: dict, config: config, transcriber: transcriber, tagger: tagger, llm: llm)
 let result: PipelineResult
 do { result = try pipeline.run(input) } catch { fail("pipeline failed: \(error)") }
 
@@ -275,6 +297,11 @@ try writeJSON(result.raw, out.appendingPathComponent("transcript.raw.json"))
 try writeJSON(result.clean, out.appendingPathComponent("transcript.clean.json"))
 try writeJSON(result.events, out.appendingPathComponent("events.json"))
 for d in result.docs { try d.text.write(to: out.appendingPathComponent(d.name), atomically: true, encoding: .utf8) }
+if var report = result.llm {
+    report.timing["llm_load"] = llmLoadSecs
+    report.timing = report.timing.mapValues { ($0 * 1000).rounded() / 1000 }
+    try writeJSON(report, out.appendingPathComponent("llm.json"))
+}
 
 struct Timing: Encodable {
     var seconds: [String: Double]
@@ -283,6 +310,8 @@ struct Timing: Encodable {
     var asr_model: String
     var extractor: String
     var tagger: String
+    var llm_model: String
+    var peak_rss_mb: Double
     var dictionary: String
     var threads: Int
     var notes: [String]
@@ -290,8 +319,28 @@ struct Timing: Encodable {
 notes += result.notes
 var secs = result.timing.mapValues { ($0 * 1000).rounded() / 1000 }
 secs["total"] = ((Date().timeIntervalSince(t0)) * 1000).rounded() / 1000
+if llm != nil { secs["llm_load"] = (llmLoadSecs * 1000).rounded() / 1000 }
 try writeJSON(Timing(seconds: secs, stats: result.stats, model_load_s: (loadSecs * 1000).rounded() / 1000,
                      asr_model: result.raw.asrModel, extractor: RulesExtractor.version, tagger: tagger?.name ?? "none",
+                     llm_model: llm?.modelName ?? "none", peak_rss_mb: PeakMemory.megabytes(),
                      dictionary: dict.version, threads: config.asr.threads, notes: notes),
               out.appendingPathComponent("timing.json"))
 print("wrote \(out.path): \(result.raw.segments.count) segments, \(result.events.count) events")
+
+/// Peak resident memory of this process (getrusage: bytes on Darwin, KiB on Linux).
+enum PeakMemory {
+    static func megabytes() -> Double {
+        var u = rusage()
+        #if os(Linux)
+        getrusage(__rusage_who_t(RUSAGE_SELF.rawValue), &u)
+        #else
+        getrusage(RUSAGE_SELF, &u)
+        #endif
+        #if os(Linux)
+        let bytes = Double(u.ru_maxrss) * 1024
+        #else
+        let bytes = Double(u.ru_maxrss)
+        #endif
+        return (bytes / 1_048_576 * 10).rounded() / 10
+    }
+}

@@ -91,6 +91,11 @@ public enum Renderers {
         var L: [String] = []
         L.append("# CHART narrative — call \(m.callId)")
         L.append("")
+        if let n = m.narrative, !n.isEmpty {
+            L.append("**Narrative (drafted on device, every sentence checked against the events it cites):** " +
+                     n.map { $0.text + ChartModel.receipt($0.events) }.joined(separator: " "))
+            L.append("")
+        }
         L.append("**C — Chief complaint:** \(ChartModel.show(m.chiefComplaint ?? m.found)). Dispatched for \(ChartModel.show(m.dispatch)).")
         if m.dispatchChanged { L.append("Dispatch reason changed on scene: dispatched for \"\(m.dispatch!.text)\", found \"\((m.found ?? m.chiefComplaint)!.text)\".") }
         L.append("")

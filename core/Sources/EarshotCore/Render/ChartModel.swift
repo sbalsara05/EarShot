@@ -49,6 +49,8 @@ public struct ChartModel: Sendable {
     public var consent: EarshotEvent?
     public var unlabeledTaps: [EarshotEvent] = []
     public var confirmItems: [EarshotEvent] = []
+    /// Model-written narrative that passed `NarrativeChecker`. Nil: the template narrative.
+    public var narrative: [NarrativeSentence]? = nil
     public var gaps: [EarshotEvent] = []
 
     public var wallTimeMs: Int64? {

@@ -83,6 +83,11 @@ struct Call: Identifiable, Codable {
         didSet { UserDefaults.standard.set(whisperEnabled, forKey: "whisperEnabled"); engine.whisperEnabled = whisperEnabled }
     }
     var recordedBy: String?                // the recogniser that wrote the latest call's record, like "ggml-small.en"
+    /// Optional on-device Phi-3.5-mini: after a call, it looks for values the rules missed and drafts the
+    /// narrative, and code keeps only what the transcript proves. Off by default (docs/HYBRID.md).
+    var phiEnabled = UserDefaults.standard.object(forKey: "phiEnabled") as? Bool ?? false {
+        didSet { UserDefaults.standard.set(phiEnabled, forKey: "phiEnabled"); engine.phiEnabled = phiEnabled }
+    }
     var clipName: String?                  // the last clip that said hello, like "Earshot-A3F2"
     var clipState = ClipLink.State.idle
     var clipsNearby: [ClipLink.Found] = []   // clips heard while searching, for the medic to pick from
@@ -112,6 +117,7 @@ struct Call: Identifiable, Codable {
 
     init() {
         engine.whisperEnabled = whisperEnabled
+        engine.phiEnabled = phiEnabled
         link.onState = { [weak self] state in self?.clipChanged(to: state) }
         link.onFound = { [weak self] clips in self?.clipsNearby = clips }
         link.onEvent = { [weak self] event in self?.clipSaid(event) }
@@ -954,6 +960,7 @@ struct ClipScreen: View {
                     .accessibilityHint("Switches between this \(deviceName)'s microphone and the clip's audio for the next recording")
             }
             whisperRow
+            phiRow
             Text("Press the clip to start a recording once a call is open. Hold it to stop. Double tap to mark.")
                 .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 18)
             Spacer(minLength: 16)
@@ -1005,6 +1012,15 @@ struct ClipScreen: View {
                 .buttonStyle(.plain).underline()
                 .accessibilityHint("Switches the recogniser that writes the record, from the next call")
             if let used = model.recordedBy { Text(used).font(geist(15)).foregroundStyle(Color.dim) }
+        }
+    }
+
+    /// The optional Phi passes, off by default.
+    private var phiRow: some View {
+        row("Phi checks") {
+            Button(model.phiEnabled ? "On" : "Off") { model.phiEnabled.toggle() }
+                .buttonStyle(.plain).underline()
+                .accessibilityHint("After a call, an on-device language model looks for values the rules missed and drafts the narrative. Only what the transcript proves is kept.")
         }
     }
 
@@ -1067,6 +1083,7 @@ struct ClipScreen: View {
                 Color.line.frame(height: 1)
             }
             whisperRow
+            phiRow
             Spacer(minLength: 16)
             switch model.clipState {
             case .idle: Button("Find my clip") { model.connect() }.buttonStyle(Pill(grow: true))

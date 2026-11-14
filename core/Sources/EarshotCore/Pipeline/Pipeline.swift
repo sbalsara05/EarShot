@@ -152,8 +152,10 @@ public struct PipelineConfig: Codable, Sendable {
     public var merge = MergeConfig()
     public var agency = NEMSISAgency()
     public var piiScrub: Bool = false   // PII kept by default (ePCR needs it); scrub is opt-in
+    /// Optional Phi-3.5-mini passes (recovery, narrative). Off unless a model is given.
+    public var llm = LLMConfig()
     public init() {}
-    enum CodingKeys: String, CodingKey { case callId = "call_id", startTime = "start_time", asr, tagger, vad, merge, piiScrub = "pii_scrub", agency }
+    enum CodingKeys: String, CodingKey { case callId = "call_id", startTime = "start_time", asr, tagger, vad, merge, piiScrub = "pii_scrub", agency, llm }
     public init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
         callId = try c.decodeIfPresent(String.self, forKey: .callId) ?? "c1"
@@ -164,6 +166,7 @@ public struct PipelineConfig: Codable, Sendable {
         merge = try c.decodeIfPresent(MergeConfig.self, forKey: .merge) ?? MergeConfig()
         piiScrub = try c.decodeIfPresent(Bool.self, forKey: .piiScrub) ?? false
         agency = try c.decodeIfPresent(NEMSISAgency.self, forKey: .agency) ?? NEMSISAgency()
+        llm = try c.decodeIfPresent(LLMConfig.self, forKey: .llm) ?? LLMConfig()
     }
 }
 
@@ -184,6 +187,8 @@ public struct PipelineResult {
     public var timing: [String: Double]
     public var stats: [String: Int]
     public var notes: [String] = []
+    /// What the LLM passes proposed, kept and rejected (llm.json). Nil when no model ran.
+    public var llm: LLMReport? = nil
 }
 
 public enum PipelineError: Error, CustomStringConvertible {
@@ -203,9 +208,11 @@ public final class EarshotPipeline {
     public let config: PipelineConfig
     public let transcriber: Transcriber?
     public let tagger: TokenTagger?
+    /// Phi-3.5-mini (or a stub). Nil: rules-only, exactly as without it.
+    public let llm: LLMEngine?
 
-    public init(dict: EMSDictionary, config: PipelineConfig, transcriber: Transcriber?, tagger: TokenTagger? = nil) {
-        self.dict = dict; self.config = config; self.transcriber = transcriber; self.tagger = tagger
+    public init(dict: EMSDictionary, config: PipelineConfig, transcriber: Transcriber?, tagger: TokenTagger? = nil, llm: LLMEngine? = nil) {
+        self.dict = dict; self.config = config; self.transcriber = transcriber; self.tagger = tagger; self.llm = llm
     }
 
     public func run(_ input: PipelineInput) throws -> PipelineResult {
@@ -281,6 +288,18 @@ public final class EarshotPipeline {
         if let tg = tagger {
             try timed("extract_tagger") { findings += try TaggerMerge(dict: dict, tagger: tg).findings(cleanSegs, existing: findings) }
         }
+        // LLM recovery: proposals the verifier accepts join the findings before tap merge
+        var report: LLMReport? = llm.map { LLMReport(model: $0.modelName, passes: config.llm.passes) }
+        if let llm, config.llm.runs(.recover) {
+            var rr = RecoveryReport()
+            let u0 = llm.usage
+            defer { report?.usage["recover"] = llm.usage - u0 }
+            timed("llm_recover") {
+                findings += RecoveryPass(dict: dict, llm: llm, window: config.llm.window).run(raw: raw.segments, findings: findings, report: &rr)
+            }
+            report?.recovery = rr
+            report?.timing["llm_recover"] = timing["llm_recover"]
+        }
         // merge
         let models = ModelInfo(asr: asrName, extract: RulesExtractor.version + (tagger.map { "+" + $0.name } ?? ""))
         let merger = TapMerger(cfg: config.merge, callId: config.callId, clock: clock, models: models)
@@ -296,10 +315,21 @@ public final class EarshotPipeline {
                 stats["pii_tokens"] = pii.vault.count
             }
         }
+        // LLM narrative: used only if every sentence passes the checker; else the template
+        var narrative: [NarrativeSentence]? = nil
+        if let llm, config.llm.runs(.narrative) {
+            var nr = NarrativeReport()
+            let u0 = llm.usage
+            defer { report?.usage["narrative"] = llm.usage - u0 }
+            timed("llm_narrative") { narrative = NarrativePass(dict: dict, llm: llm).run(events: events, clock: clock, report: &nr) }
+            report?.narrative = nr
+            report?.timing["llm_narrative"] = timing["llm_narrative"]
+        }
         // render
         var docs: [RenderedDoc] = []
         timed("render") {
-            let m = ChartModel(events: events, callId: config.callId, clock: clock)
+            var m = ChartModel(events: events, callId: config.callId, clock: clock)
+            m.narrative = narrative
             docs = [Renderers.soap(m), Renderers.chart(m), Renderers.imistAmbo(m), NEMSISExport.render(m, events: events, dict: dict, agency: config.agency)]
         }
         if clockSource == "assumed" {
@@ -310,7 +340,7 @@ public final class EarshotPipeline {
         stats["segments"] = raw.segments.count; stats["events"] = events.count; stats["corrections"] = corrections.count
         stats["taps"] = taps.count
         let clean = CleanTranscript(segments: cleanSegs.map { .init(rawSpan: $0.rawSpan, text: $0.text) }, corrections: corrections)
-        return PipelineResult(raw: raw, clean: clean, events: events, docs: docs, timing: timing, stats: stats, notes: notes)
+        return PipelineResult(raw: raw, clean: clean, events: events, docs: docs, timing: timing, stats: stats, notes: notes, llm: report)
     }
 
     func transcribeAll(_ pcm: [Int16], _ timing: inout [String: Double], _ stats: inout [String: Int], _ asrName: String) throws -> RawTranscript {

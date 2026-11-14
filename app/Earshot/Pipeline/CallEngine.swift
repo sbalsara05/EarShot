@@ -65,6 +65,8 @@ final class CallEngine {
     /// Whether Whisper may write the record. Off, the iPad's own recogniser does, so the two can be
     /// compared on the same build. Takes effect on the next call; a call in progress keeps its recogniser.
     var whisperEnabled = true
+    /// Run the optional Phi passes (recovery, narrative) when a call is finished. Off by default.
+    var phiEnabled = false
 
     private let dict: EMSDictionary?
     private var recorder: Transcriber?           // the record's recogniser: chosen and loaded once, shared by every call's session
@@ -209,10 +211,25 @@ final class CallEngine {
         var notes: [String] = []
         if let p = recordProblem { notes.append(p) }
 
+        // Phi: after Whisper has drained, so it never runs at the same time. Loaded for this call only
+        // and let go afterwards, so its memory is not held while the next call records.
+        var phiNarrative: String? = nil
+        if phiEnabled, !s.rawSegments.isEmpty {
+            let (phi, problem) = await Task.detached { PhiSlot.load() }.value
+            if let problem { notes.append(problem + " Drafted by the rules only.") }
+            if let phi {
+                let report = await Task.detached { s.runLLM(phi) }.value
+                if let n = report.recovery?.accepted, n > 0 { notes.append("\(n) value(s) found by Phi, each checked against the medic's words.") }
+                if let n = s.narrative, !n.isEmpty { phiNarrative = n.map(\.text).joined(separator: " ") }
+                else if let why = report.narrative?.fallbackReason { notes.append("Phi's narrative was not used (\(why)).") }
+            }
+        }
+
         let chart = s.chartModel()
         var draft = Self.draft(from: chart)
+        if let p = phiNarrative { draft.narrative = p }
 
-        if let writer = NoteWriters.available(), !s.rawSegments.isEmpty {
+        if phiNarrative == nil, let writer = NoteWriters.available(), !s.rawSegments.isEmpty {
             do {
                 let written = try await writer.write(transcript: s.transcriptText, record: Self.recordSummary(chart))
                 let results = s.addSuggestions(written.suggestions.map { AISuggestion(field: $0.field, value: $0.value, quote: $0.quote) })
@@ -354,13 +371,13 @@ extension EMSDictionary {
 }
 
 /// The record's recogniser, shared by every call's session. A completed call can still be transcribing while the next
-/// one records, and whisper.cpp runs one decode at a time, so calls into it take turns.
+/// one records, and only one model runs at a time (whisper.cpp decodes one chunk at a time, and Phi
+/// must never run alongside it), so calls into it take turns on `ModelTurn`.
 private final class SerialTranscriber: Transcriber {
     private let inner: Transcriber
-    private let lock = NSLock()
     init(_ inner: Transcriber) { self.inner = inner }
     var modelName: String { inner.modelName }
     func transcribe(_ pcm: [Float], prompt: String?) throws -> [ASRPiece] {
-        try lock.withLock { try inner.transcribe(pcm, prompt: prompt) }
+        try ModelTurn.lock.withLock { try inner.transcribe(pcm, prompt: prompt) }
     }
 }

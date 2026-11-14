@@ -126,6 +126,11 @@ public final class LiveSession {
     private let grounding: Grounding
     private var liveLines: [String: LiveLine] = [:]
     private var aiEvents: [EarshotEvent] = []
+    private var llmFindings: [Finding] = []
+    /// The checked Phi narrative for this call, when `runLLM` produced one.
+    public private(set) var narrative: [NarrativeSentence]? = nil
+    /// What the last `runLLM` proposed, kept and rejected.
+    public private(set) var llmReport: LLMReport? = nil
     private var clean: [String: CleanSegment] = [:]
     private var findings: [String: [Finding]] = [:]
     private var pendingClean: [RawSegment] = []
@@ -450,7 +455,7 @@ public final class LiveSession {
         let merger = TapMerger(cfg: config.merge, callId: callId, clock: clock, models: models)
         var times: [String: (Int64, Int64)] = [:]
         for s in rawSegments { times[s.id] = (s.startMs, s.endMs) }
-        let all = rawSegments.flatMap { findings[$0.id] ?? [] }
+        let all = rawSegments.flatMap { findings[$0.id] ?? [] } + llmFindings
         var ev = merger.merge(findings: all, segments: times, taps: taps, gaps: gapList, extra: [])
         // medic-typed entries: labels for taps replace the unlabeled tap event
         for m in tablet {
@@ -472,7 +477,42 @@ public final class LiveSession {
 
     // MARK: outputs
 
-    public func chartModel() -> ChartModel { ChartModel(events: events, callId: callId, clock: clock) }
+    public func chartModel() -> ChartModel {
+        var m = ChartModel(events: events, callId: callId, clock: clock)
+        m.narrative = narrative
+        return m
+    }
+
+    // MARK: optional Phi passes (docs/HYBRID.md)
+
+    /// Runs the optional language-model passes on what Whisper has written so far: recovery (verified
+    /// values join the findings before tap merge) and the narrative (used only if it passes the
+    /// checker). Blocking; call it when Whisper is idle, e.g. after `drain()` at the end of a call.
+    /// The caller makes sure the model never runs at the same time as Whisper.
+    @discardableResult
+    public func runLLM(_ llm: LLMEngine, passes: [LLMPass] = LLMPass.allCases, window: Int = 8) -> LLMReport {
+        var report = LLMReport(model: llm.modelName, passes: passes.map(\.rawValue))
+        if passes.contains(.recover) {
+            let (raw, found) = work.sync { (rawSegments, rawSegments.flatMap { findings[$0.id] ?? [] }) }
+            var rr = RecoveryReport()
+            let t0 = Date()
+            let added = RecoveryPass(dict: dict, llm: llm, window: window).run(raw: raw, findings: found, report: &rr)
+            report.timing["llm_recover"] = Date().timeIntervalSince(t0)
+            report.recovery = rr
+            work.sync { llmFindings = added; remerge() }
+        }
+        if passes.contains(.narrative) {
+            let ev = work.sync { events }
+            var nr = NarrativeReport()
+            let t0 = Date()
+            let n = NarrativePass(dict: dict, llm: llm).run(events: ev, clock: clock, report: &nr)
+            report.timing["llm_narrative"] = Date().timeIntervalSince(t0)
+            report.narrative = nr
+            work.sync { narrative = n }
+        }
+        work.sync { llmReport = report }
+        return report
+    }
     public func render() -> [RenderedDoc] {
         let m = chartModel()
         return [Renderers.soap(m), Renderers.chart(m), Renderers.imistAmbo(m), NEMSISExport.render(m, events: events, dict: dict)]
@@ -489,6 +529,7 @@ public final class LiveSession {
             ring.wipe(); rawSegments.removeAll(); clean.removeAll(); findings.removeAll(); events.removeAll()
             taps.removeAll(); tablet.removeAll(); pendingClean.removeAll()
             capture = nil; closedGaps.removeAll(); gapList.removeAll(); liveLines.removeAll(); aiEvents.removeAll()
+            llmFindings.removeAll(); narrative = nil; llmReport = nil
         }
     }
 

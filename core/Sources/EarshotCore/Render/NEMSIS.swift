@@ -228,8 +228,11 @@ public enum NEMSISExport {
         return RenderedDoc(name: "nemsis.xml", text: x.joined(separator: "\n") + "\n")
     }
 
+    /// eNarrative.01: the checked model narrative when there is one (plain sentences; the model
+    /// never writes XML, the text is escaped like any other value), else the CHART template.
     static func narrative(_ m: ChartModel) -> String {
-        Renderers.chart(m).text.replacingOccurrences(of: "**", with: "")
+        if let n = m.narrative, !n.isEmpty { return n.map(\.text).joined(separator: " ") }
+        return Renderers.chart(m).text.replacingOccurrences(of: "**", with: "")
     }
 
     /// Deterministic UUID-shaped id from the call id (FNV-1a based).

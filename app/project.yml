@@ -22,6 +22,9 @@ targets:
       # The iPad's own on-device recogniser, which writes the record when Whisper is switched off
       - path: ../core/Sources/EarshotAppleSpeech/AppleTranscriber.swift
         group: Earshot/Pipeline
+      # llama.cpp's Swift wrapper (optional Phi passes); builds against llama.xcframework here
+      - path: ../core/Sources/EarshotLLM/LlamaEngine.swift
+        group: Earshot/Pipeline
       - path: ../shared/formulary.json
         buildPhase: resources
       - path: ../shared/ems_terms.json
@@ -35,6 +38,10 @@ targets:
       - package: EarshotCore
         product: EarshotCore
       - framework: Frameworks/whisper.xcframework
+        embed: true
+      # Each xcframework carries its own ggml inside its dynamic library; Apple's two-level
+      # namespace keeps the two copies apart.
+      - framework: Frameworks/llama.xcframework
         embed: true
       - package: Opus
     info:

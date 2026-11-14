@@ -9,6 +9,10 @@ let noWhisper = ProcessInfo.processInfo.environment["EARSHOT_NO_WHISPER"] == "1"
 // libopus (pkg-config "opus") decodes the clip's Opus frames for the eval tool. The iPad app uses
 // AVAudioConverter instead. Set EARSHOT_NO_OPUS=1 to build without it.
 let noOpus = ProcessInfo.processInfo.environment["EARSHOT_NO_OPUS"] == "1"
+// llama.cpp (Phi-3.5-mini, the optional recovery + narrative passes) is linked the same way
+// (pkg-config "llama"). Set EARSHOT_NO_LLAMA=1 to build without it; the pipeline then runs
+// rules-only, exactly as before.
+let noLlama = ProcessInfo.processInfo.environment["EARSHOT_NO_LLAMA"] == "1"
 
 var targets: [Target] = [
     .target(
@@ -68,6 +72,26 @@ if !noOpus {
     evalDeps.append("EarshotOpus")
 }
 
+if !noLlama {
+    targets.append(.systemLibrary(
+        name: "CLlama",
+        path: "Sources/CLlama",
+        pkgConfig: "llama",
+        providers: [.brew(["llama.cpp"])]
+    ))
+    targets.append(.target(
+        name: "EarshotLLM",
+        dependencies: ["EarshotCore", "CLlama"],
+        path: "Sources/EarshotLLM"
+    ))
+    targets.append(.testTarget(
+        name: "EarshotLLMTests",
+        dependencies: ["EarshotLLM", "EarshotCore"],
+        path: "Tests/EarshotLLMTests"
+    ))
+    evalDeps.append("EarshotLLM")
+}
+
 targets.append(.executableTarget(
     name: "earshot-eval",
     dependencies: evalDeps,
@@ -81,6 +105,7 @@ let package = Package(
         .library(name: "EarshotCore", targets: ["EarshotCore"]),
         .executable(name: "earshot-eval", targets: ["earshot-eval"]),
     ] + (noWhisper ? [] : [.library(name: "EarshotWhisper", targets: ["EarshotWhisper"])])
-      + (noOpus ? [] : [.library(name: "EarshotOpus", targets: ["EarshotOpus"])]),
+      + (noOpus ? [] : [.library(name: "EarshotOpus", targets: ["EarshotOpus"])])
+      + (noLlama ? [] : [.library(name: "EarshotLLM", targets: ["EarshotLLM"])]),
     targets: targets
 )
