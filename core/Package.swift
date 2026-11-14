@@ -45,6 +45,11 @@ if !noWhisper {
         dependencies: ["EarshotCore", "CWhisper"],
         path: "Sources/EarshotWhisper"
     ))
+    targets.append(.testTarget(
+        name: "EarshotWhisperTests",
+        dependencies: ["EarshotWhisper", "CWhisper"],
+        path: "Tests/EarshotWhisperTests"
+    ))
     evalDeps.append("EarshotWhisper")
 }
 

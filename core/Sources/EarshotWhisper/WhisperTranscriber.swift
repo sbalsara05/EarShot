@@ -38,6 +38,7 @@ public final class WhisperTranscriber: Transcriber {
     ///   GPU results can differ in the last digits, so compare runs made the same way.
     public init(modelPath: String, name: String? = nil, threads: Int = 4, beamSize: Int = 5, temperatureFallback: Bool = true,
                 useGPU: Bool = false) throws {
+        _ = Self.loadBackends
         var cp = whisper_context_default_params()
         cp.use_gpu = useGPU
         guard let c = whisper_init_from_file_with_params(modelPath, cp) else {
@@ -47,26 +48,32 @@ public final class WhisperTranscriber: Transcriber {
         self.threads = Int32(threads)
         self.beamSize = Int32(max(1, beamSize))
         self.temperatureFallback = temperatureFallback
-        let base = URL(fileURLWithPath: modelPath).lastPathComponent
-        modelName = name ?? "whisper.cpp \(base.replacingOccurrences(of: "ggml-", with: "").replacingOccurrences(of: ".bin", with: ""))"
+        modelName = name ?? ASRModel.name(forModelFile: modelPath)
     }
+
+    /// A ggml built with dynamic backends (Homebrew whisper.cpp 1.8+, Linux packages) loads its CPU and
+    /// Metal backends as plugins; without this whisper finds no device. The iOS xcframework links them in.
+    private static let loadBackends: Void = {
+        #if canImport(CWhisper)
+        ggml_backend_load_all()
+        #endif
+    }()
 
     deinit { whisper_free(ctx) }
 
     /// Decodes a chunk. If the result has no speech at all (Whisper's "♪♪♪" in noise,
     /// often from temperature fallback), the chunk is decoded once more at
     /// temperature 0 with no fallback, and that result is kept when it has words.
-    public func transcribe(_ pcm: [Float], prompt: String?) throws -> [ASRPiece] {
-        let first = try decode(pcm, prompt: prompt, fallback: temperatureFallback)
+    public func transcribe(_ pcm: [Float]) throws -> [ASRPiece] {
+        let first = try decode(pcm, fallback: temperatureFallback)
         guard temperatureFallback, !first.isEmpty, first.allSatisfy({ ASRFilter.isHallucination($0.text) }) else { return first }
-        let retry = try decode(pcm, prompt: prompt, fallback: false)
+        let retry = try decode(pcm, fallback: false)
         return retry.contains(where: { !ASRFilter.isHallucination($0.text) }) ? retry : first
     }
 
-    private func decode(_ pcm: [Float], prompt: String?, fallback: Bool) throws -> [ASRPiece] {
-        // whisper needs >= 1 s of audio; pad short chunks with silence
-        var audio = pcm
-        if audio.count < 16000 + 1600 { audio += [Float](repeating: 0, count: 16000 + 1600 - audio.count) }
+    /// The decoder settings for one chunk. No initial prompt: `initial_prompt` and `prompt_tokens`
+    /// stay unset (tested in EarshotWhisperTests).
+    public static func decodeParams(beamSize: Int32, threads: Int32, fallback: Bool) -> whisper_full_params {
         var p = whisper_full_default_params(beamSize > 1 ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY)
         if beamSize > 1 { p.beam_search.beam_size = beamSize }
         p.n_threads = threads
@@ -83,6 +90,17 @@ public final class WhisperTranscriber: Transcriber {
         p.suppress_blank = true
         p.suppress_nst = true
         p.no_timestamps = false
+        p.initial_prompt = nil
+        p.prompt_tokens = nil
+        p.prompt_n_tokens = 0
+        return p
+    }
+
+    private func decode(_ pcm: [Float], fallback: Bool) throws -> [ASRPiece] {
+        // whisper needs >= 1 s of audio; pad short chunks with silence
+        var audio = pcm
+        if audio.count < 16000 + 1600 { audio += [Float](repeating: 0, count: 16000 + 1600 - audio.count) }
+        var p = Self.decodeParams(beamSize: beamSize, threads: threads, fallback: fallback)
         if let b = bias {
             p.logits_filter_callback = { _, _, tokens, n, logits, user in
                 guard let user, let logits else { return }
@@ -95,12 +113,6 @@ public final class WhisperTranscriber: Transcriber {
         }
         let rc: Int32 = "en".withCString { lang in
             p.language = lang
-            if let prompt = prompt {
-                return prompt.withCString { pp in
-                    p.initial_prompt = pp
-                    return audio.withUnsafeBufferPointer { whisper_full(ctx, p, $0.baseAddress, Int32($0.count)) }
-                }
-            }
             return audio.withUnsafeBufferPointer { whisper_full(ctx, p, $0.baseAddress, Int32($0.count)) }
         }
         guard rc == 0 else {

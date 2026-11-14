@@ -5,8 +5,9 @@ import Foundation
 public protocol Transcriber: AnyObject {
     var modelName: String { get }
     /// Transcribe one speech chunk (16 kHz mono float). Times are relative to
-    /// the chunk start, in ms.
-    func transcribe(_ pcm: [Float], prompt: String?) throws -> [ASRPiece]
+    /// the chunk start, in ms. There is no prompt parameter on purpose: Whisper runs with no
+    /// initial prompt (docs/pipeline/PROMPT_PRIMING.md), so no prompt text can reach the decoder.
+    func transcribe(_ pcm: [Float]) throws -> [ASRPiece]
 }
 
 public struct ASRPiece: Equatable, Sendable {
@@ -105,11 +106,8 @@ public struct PipelineConfig: Codable, Sendable {
     public struct ASR: Codable, Sendable {
         public var engine: String = "whisper.cpp"
         public var model: String? = nil
-        public var name: String = "whisper.cpp small.en"
+        public var name: String = ASRModel.fineTunedName
         public var threads: Int = 4
-        public var useInitialPrompt: Bool = true
-        /// Prompt text; nil = the dictionary's sentence-style prompt.
-        public var prompt: String? = nil
         /// 1 = greedy. Beam search is slower but more accurate on noisy audio (review R3-4).
         public var beamSize: Int = 5
         /// Re-decode low-confidence windows at higher temperature (whisper.cpp fallback; deterministic seed).
@@ -124,16 +122,14 @@ public struct PipelineConfig: Codable, Sendable {
         /// Run Whisper on the GPU (Metal) when the build supports it.
         public var gpu: Bool = false
         public init() {}
-        enum CodingKeys: String, CodingKey { case engine, model, name, threads, useInitialPrompt = "use_initial_prompt", prompt, beamSize = "beam_size", temperatureFallback = "temperature_fallback"
+        enum CodingKeys: String, CodingKey { case engine, model, name, threads, beamSize = "beam_size", temperatureFallback = "temperature_fallback"
             case bias, biasFirst = "bias_first", biasNext = "bias_next", minWordConfidence = "min_word_confidence", gpu }
         public init(from d: Decoder) throws {
             let c = try d.container(keyedBy: CodingKeys.self)
             engine = try c.decodeIfPresent(String.self, forKey: .engine) ?? "whisper.cpp"
             model = try c.decodeIfPresent(String.self, forKey: .model)
-            name = try c.decodeIfPresent(String.self, forKey: .name) ?? "whisper.cpp small.en"
+            name = try c.decodeIfPresent(String.self, forKey: .name) ?? ASRModel.fineTunedName
             threads = try c.decodeIfPresent(Int.self, forKey: .threads) ?? 4
-            useInitialPrompt = try c.decodeIfPresent(Bool.self, forKey: .useInitialPrompt) ?? true
-            prompt = try c.decodeIfPresent(String.self, forKey: .prompt)
             beamSize = try c.decodeIfPresent(Int.self, forKey: .beamSize) ?? 5
             temperatureFallback = try c.decodeIfPresent(Bool.self, forKey: .temperatureFallback) ?? true
             bias = try c.decodeIfPresent(Bool.self, forKey: .bias) ?? true
@@ -327,20 +323,19 @@ public final class EarshotPipeline {
         chunks += vad.finish()
         timing["vad"] = Date().timeIntervalSince(t0)
         stats["speech_chunks"] = chunks.count
-        let prompt = config.asr.useInitialPrompt ? (config.asr.prompt ?? dict.initialPrompt()) : nil
         var segs: [RawSegment] = []
         var n = 0
         for c in chunks {
             let a = Int(c.startSample), b = Int(min(Int64(pcm.count), c.endSample))
             guard b > a else { continue }
             let f = pcm[a..<b].map { Float($0) / 32768 }
-            for p in ASRPiece.joinUnfinished(try tr.transcribe(f, prompt: prompt)) {
+            for p in ASRPiece.joinUnfinished(try tr.transcribe(f)) {
                 guard let seg = p.rawSegment(id: "s\(n + 1)", chunkStartMs: c.startMs, chunkEndMs: c.endMs) else { continue }
                 n += 1
                 segs.append(seg)
             }
         }
-        return RawTranscript(callId: config.callId, asrModel: asrName, initialPrompt: prompt, segments: segs)
+        return RawTranscript(callId: config.callId, asrModel: asrName, segments: segs)
     }
 }
 

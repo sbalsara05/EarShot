@@ -62,7 +62,7 @@ iPad; the simulator has none.
 |---|---|
 | Mac | Xcode 26 or later |
 | Device or simulator | iOS or iPadOS 26 or later |
-| Whisper | `scripts/fetch_deps.sh` builds whisper.xcframework and downloads a model (once, on the Mac) |
+| Whisper | `scripts/fetch_deps.sh` builds whisper.xcframework and checks the fine-tuned model (once, on the Mac) |
 | For live words (optional) | A real iPhone or iPad with on-device speech recognition |
 | For a written narrative (optional) | Apple Intelligence turned on. Everything else works without it |
 
@@ -72,9 +72,12 @@ iPad; the simulator has none.
 app/scripts/fetch_deps.sh
 ```
 
-This builds whisper.cpp for iOS, downloads `ggml-small.en.bin` into `app/Models/`, and regenerates
+This builds whisper.cpp for iOS, makes sure `models/ggml-ems-small.en-ft-q5_0.bin` is the real file
+(`git lfs pull`, else `core/scripts/fetch_model.sh` with `HF_TOKEN`), and regenerates
 `Earshot.xcodeproj` from `project.yml` (the pipeline package and new files are only in the project
-after this step). A model can also be copied into the app's Documents folder from Finder.
+after this step). The model is bundled into the app at build time, and a build step checks its
+sha256 (the build fails on a missing or wrong file). It is the app's only Whisper model: there is no
+stock fallback, and the app never downloads a model or reads one from Documents.
 
 ## Run it in the simulator
 
@@ -131,7 +134,7 @@ on Home.
 
 | Message | What it means |
 |---|---|
-| "No Whisper model is installed" | Run `scripts/fetch_deps.sh`, or copy `ggml-small.en.bin` into the app's Documents folder |
+| "No speech recogniser can run" | This build has no fine-tuned model: run `scripts/fetch_deps.sh` and build again |
 | "N item(s) need you to confirm them" | The two recognisers disagreed, or a value was suggested by the language model. Check the yellow lines |
 | "Left out of the narrative because the record does not support them" | The language model wrote a number or drug that was not heard. It was removed |
 | "Transcription stopped" | The microphone was taken by a phone call or Siri and could not be taken back. Record again |

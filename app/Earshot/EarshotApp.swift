@@ -125,7 +125,7 @@ struct Call: Identifiable, Codable {
     var whisperEnabled = UserDefaults.standard.object(forKey: "whisperEnabled") as? Bool ?? true {
         didSet { UserDefaults.standard.set(whisperEnabled, forKey: "whisperEnabled"); engine.whisperEnabled = whisperEnabled }
     }
-    var recordedBy: String?                // the recogniser that wrote the latest call's record, like "ggml-small.en"
+    var recordedBy: String?                // the recogniser that wrote the latest call's record, like "whisper-small.en-ems-ft-q5_0"
     var clipName: String?                  // the last clip that said hello, like "Earshot-A3F2"
     var clipState = ClipLink.State.idle
     var clipsNearby: [ClipLink.Found] = []   // clips heard while searching, for the medic to pick from

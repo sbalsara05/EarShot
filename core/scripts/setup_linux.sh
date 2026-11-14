@@ -14,6 +14,7 @@ if ! pkg-config --exists whisper 2>/dev/null; then
     -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX="$PREFIX"
   cmake --build /tmp/whisper.cpp/build -j"$(nproc)" && sudo cmake --install /tmp/whisper.cpp/build && sudo ldconfig
 fi
-mkdir -p models
-[ -f models/ggml-small.en.bin ] || curl -sSL -o models/ggml-small.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
+# The fine-tuned EMS model: git lfs pull, or from the private HF repo (needs HF_TOKEN); sha256-checked
+git lfs pull --include models/ggml-ems-small.en-ft-q5_0.bin 2>/dev/null || true
+core/scripts/fetch_model.sh --verify 2>/dev/null || core/scripts/fetch_model.sh
 echo "done. build: cd core && swift build -c release"

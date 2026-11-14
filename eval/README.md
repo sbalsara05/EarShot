@@ -11,10 +11,9 @@ with the data team's own scorer. Results so far are in `docs/BIASING.md`.
   git clone -b claude/eager-volta-za1pmi https://github.com/shourya0523/earshot-data ../earshot-data
   ```
 - `earshot-eval` built in release: `cd core && swift build -c release`
-- A Whisper model, e.g. `models/ggml-small.en.bin` (the data team's model):
-  ```bash
-  curl -L -o models/ggml-small.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
-  ```
+- The fine-tuned Whisper model, `models/ggml-ems-small.en-ft-q5_0.bin` (in git via LFS; or
+  `HF_TOKEN=... core/scripts/fetch_model.sh`). Whisper runs with no initial prompt. Stock
+  `ggml-small.en.bin` can still be passed for a comparison.
 - Python for scoring: `pip install jiwer soundfile`
 - Python for rendering audio (separate venv is easiest): `pip install piper-tts==1.8.0 librosa soundfile scipy numpy`
 
@@ -39,7 +38,7 @@ truth it writes (`gt/tts_regen`). `compare_gt.py` reports that drift. Each rende
 ## 2. Score variants
 
 ```bash
-python3 eval/measure.py --data ../earshot-data --model models/ggml-small.en.bin \
+python3 eval/measure.py --data ../earshot-data --model models/ggml-ems-small.en-ft-q5_0.bin \
   --wavs '../earshot-data/data/audio/test/tts_gtlocked/c*.snr10.wav' --out eval/runs/snr10 \
   nobias="--no-bias" bias=""
 ```

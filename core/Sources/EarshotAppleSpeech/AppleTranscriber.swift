@@ -45,7 +45,7 @@ public final class AppleTranscriber: Transcriber {
         modelName = "apple-speech on-device \(locale.identifier) (OS \(ProcessInfo.processInfo.operatingSystemVersionString))"
     }
 
-    public func transcribe(_ pcm: [Float], prompt: String?) throws -> [ASRPiece] {
+    public func transcribe(_ pcm: [Float]) throws -> [ASRPiece] {
         guard !pcm.isEmpty, let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(pcm.count)) else { return [] }
         buffer.frameLength = AVAudioFrameCount(pcm.count)
         pcm.withUnsafeBufferPointer { buffer.floatChannelData![0].update(from: $0.baseAddress!, count: pcm.count) }

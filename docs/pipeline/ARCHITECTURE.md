@@ -12,7 +12,7 @@
                                               ▼
                                          PCMRingBuffer (RAM only)  ──►  EnergyVAD (adaptive floor)
                                               ▼                             ▼ speech chunk
-                                         whisper.cpp small.en (initial prompt from EMS dictionary)
+                                         whisper.cpp small.en EMS fine-tune, q5_0 (no initial prompt)
                                               ▼ chunk freed right after transcription
                                          RawSegment s1..sN  (never edited: source of truth)
                                               ▼

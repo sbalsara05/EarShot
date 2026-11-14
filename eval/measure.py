@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run earshot-eval variants on the test-call audio and score them with the data team's scorer.
 
-  python3 eval/measure.py --data <earshot-data checkout> --wavs '<glob>' --model models/ggml-small.en.bin \\
+  python3 eval/measure.py --data <earshot-data checkout> --wavs '<glob>' --model models/ggml-ems-small.en-ft-q5_0.bin \\
       --out eval/runs/snr10 nobias="--no-bias" bias="" [more name="extra earshot-eval args" ...]
 
 Each variant is run on every WAV (skipped if already done), converted with the data team's

@@ -26,11 +26,17 @@ targets:
         buildPhase: resources
       - path: ../shared/ems_terms.json
         buildPhase: resources
-      # Whisper models (app/scripts/fetch_deps.sh); a model can also be copied into Documents
-      - path: Models
-        type: folder
+      # The one Whisper model: small.en fine-tuned on EMS speech, q5_0 (in git via LFS; core/scripts/fetch_model.sh).
+      # Bundled at build time; the app never downloads a model. Checked by the pre-build script below.
+      - path: ../models/ggml-ems-small.en-ft-q5_0.bin
         buildPhase: resources
-        optional: true
+    preBuildScripts:
+      - name: Verify Whisper model
+        script: '"$SRCROOT/../core/scripts/fetch_model.sh" --verify "$SRCROOT/../models/ggml-ems-small.en-ft-q5_0.bin"'
+        inputFiles:
+          - $(SRCROOT)/../core/scripts/fetch_model.sh
+          - $(SRCROOT)/../models/ggml-ems-small.en-ft-q5_0.bin
+        basedOnDependencyAnalysis: false
     dependencies:
       - package: EarshotCore
         product: EarshotCore
@@ -52,7 +58,7 @@ targets:
         # location: so does the once-a-minute place check.
         UIBackgroundModes: [audio, bluetooth-central, location]
         UIStatusBarHidden: true
-        UIFileSharingEnabled: true          # copy a Whisper model into Documents from Finder
+        UIFileSharingEnabled: true
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]

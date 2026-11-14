@@ -7,14 +7,36 @@ import Foundation
 /// decides the order to try them in; the first one that is available and builds is used, and every
 /// option passed over is kept with its reason so the app and eval can say why.
 
+/// The Whisper model files Earshot knows, and the name each records in `models.asr`.
+public enum ASRModel {
+    /// Whisper small.en fine-tuned on EMS speech, whisper.cpp ggml q5_0 (core/scripts/fetch_model.sh).
+    /// The only Whisper model the app ships.
+    public static let fineTunedFile = "ggml-ems-small.en-ft-q5_0"
+    public static let fineTunedName = "whisper-small.en-ems-ft-q5_0"
+    public static let fineTunedSHA256 = "b1c1a267796a30d46d63eefa58b880c8451a9ed98031b255333521379506b0a5"
+    /// Stock small.en, for eval comparisons only (--asr-model models/ggml-small.en.bin).
+    public static let stockFile = "ggml-small.en"
+    public static let stockName = "whisper-small.en"
+
+    /// The `models.asr` name for a model file path. Unknown files keep their file name.
+    public static func name(forModelFile path: String) -> String {
+        let base = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+        switch base {
+        case fineTunedFile: return fineTunedName
+        case stockFile: return stockName
+        default: return "whisper.cpp " + base.replacingOccurrences(of: "ggml-", with: "")
+        }
+    }
+}
+
 /// What kind of recogniser an option is. The policy ranks by this.
 public enum RecognizerKind: String, Sendable, CaseIterable {
     /// Apple's on-device recogniser (Speech framework, `EarshotAppleSpeech`). No model file to ship;
     /// Apple's model, which changes with iOS updates.
     case appleOnDevice = "apple-on-device"
-    /// Whisper fine-tuned on EMS speech (whisper-ems-*.bin).
+    /// Whisper fine-tuned on EMS speech (ggml-ems-small.en-ft-q5_0.bin). The app's only Whisper.
     case whisperFineTuned = "whisper-fine-tuned"
-    /// Stock Whisper (ggml-small.en, base.en, tiny.en).
+    /// Stock Whisper (ggml-small.en). Not offered by the app; kept for eval comparisons.
     case whisperStock = "whisper-stock"
 
     /// Whisper reads its own logits, so the BiasTrie and token confidences apply. Apple's does not.
@@ -23,7 +45,7 @@ public enum RecognizerKind: String, Sendable, CaseIterable {
 
 public struct RecognizerOption {
     public let kind: RecognizerKind
-    /// For logs and the "models" field of the outputs, e.g. "ggml-small.en" or "apple-speech".
+    /// For logs and the "models" field of the outputs, e.g. "whisper-small.en-ems-ft-q5_0" or "apple-speech".
     public let name: String
     /// Nil when it can run on this device; otherwise why not (no model file, not authorised, ...).
     public let unavailableReason: () -> String?

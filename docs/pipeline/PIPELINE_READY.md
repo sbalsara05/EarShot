@@ -5,7 +5,8 @@ Repo/branch: `shourya0523/earshot-data` @ `overnight`. Status: **stock pipeline 
 ## Build
 
 ```bash
-core/scripts/setup_linux.sh          # Swift 6.2.1, whisper.cpp (pkg-config "whisper"), models/ggml-small.en.bin
+core/scripts/setup_linux.sh          # Swift 6.2.1, whisper.cpp (pkg-config "whisper")
+HF_TOKEN=... core/scripts/fetch_model.sh   # models/ggml-ems-small.en-ft-q5_0.bin, sha256-checked (also in git via LFS)
 cd core && swift build -c release    # binary: core/.build/release/earshot-eval
 ```
 - whisper.cpp installed elsewhere: `export PKG_CONFIG_PATH=<prefix>/lib/pkgconfig LD_LIBRARY_PATH=<prefix>/lib`.
@@ -17,16 +18,16 @@ cd core && swift build -c release    # binary: core/.build/release/earshot-eval
 
 ```bash
 B=core/.build/release/earshot-eval
-$B run call.wav --taps taps.json --asr-model models/ggml-small.en.bin --out out/call1          # stock
-$B run call.wav --taps taps.json --asr-model models/whisper-ems-small.en-q5.bin --out out/ft     # fine-tuned slot
+$B run call.wav --taps taps.json --out out/call1                                    # fine-tuned EMS model (default)
+$B run call.wav --taps taps.json --asr-model models/ggml-small.en.bin --out out/stock   # stock small.en, comparison only
 $B run transcript.json --taps taps.json --out out/text_only    # skip ASR: test extraction alone
 $B make-replay call.wav call.replay --taps taps.json           # wav -> replay packet file
-$B run call.replay --asr-model models/ggml-small.en.bin        # replay input (packets, taps inside)
+$B run call.replay                                              # replay input (packets, taps inside)
 $B check-stream capture.replay                                 # clip capture vs docs/FIRMWARE_CONTRACT.md (exit 1 on failure)
 $B fake-clip --port 7070 --wav call.wav --taps taps.json       # reference clip over TCP (Wi-Fi framing) for app/bring-up tests
 ```
 Demo: `$B run mocks/demo_call/transcript.truth.json --taps mocks/demo_call/taps.json --start 2026-11-15T14:00:00-05:00 --out out/demo`.
-Demo replay (contract-conformant stream; arrival/handoff are tablet taps): `$B run mocks/demo_call/demo_call.replay --taps mocks/demo_call/tablet_taps.json --start 2026-11-15T14:00:00-05:00 --asr-model models/ggml-small.en.bin`.
+Demo replay (contract-conformant stream; arrival/handoff are tablet taps): `$B run mocks/demo_call/demo_call.replay --taps mocks/demo_call/tablet_taps.json --start 2026-11-15T14:00:00-05:00 --asr-model models/ggml-ems-small.en-ft-q5_0.bin`.
 
 ## Inputs
 | Input | Format |
@@ -35,14 +36,14 @@ Demo replay (contract-conformant stream; arrival/handoff are tablet taps): `$B r
 | replay | `.replay`/`.bin` — length-prefixed packets (`docs/WIRE_FORMAT.md`) |
 | transcript | `.json` — `[{"start_ms":0,"end_ms":2000,"text":"..."}]` or a previous `transcript.raw.json` |
 | taps | `[{"clip_ms":52500,"source":"button","gesture":"mark"}]`; source `button|tablet` (older tap files with `knock`/`snap` still load and are treated like any tap); gesture `mark` (default) `yes|no|arrival|handoff`. `clip_ms` = ms from audio start (wav/json) or clip-boot ms (replay) |
-| config (`--config`) | `{"call_id":"c1","start_time":"2026-11-15T14:00:00-05:00","asr":{"model":"...","threads":4,"use_initial_prompt":true,"prompt":null,"beam_size":5,"temperature_fallback":true},"tagger":null,"vad":{"mode":"energy"\|"fixed","startDb":6,"hangoverMs":700,"maxSegmentMs":25000},"merge":{"windowMs":3000,"extendedMs":10000},"pii_scrub":false,"agency":{"stateId":"…","number":"…","stateCode":"25","vehicle":"…","callSign":"…"}}` — all optional |
+| config (`--config`) | `{"call_id":"c1","start_time":"2026-11-15T14:00:00-05:00","asr":{"model":"...","threads":4,"beam_size":5,"temperature_fallback":true},"tagger":null,"vad":{"mode":"energy"\|"fixed","startDb":6,"hangoverMs":700,"maxSegmentMs":25000},"merge":{"windowMs":3000,"extendedMs":10000},"pii_scrub":false,"agency":{"stateId":"…","number":"…","stateCode":"25","vehicle":"…","callSign":"…"}}` — all optional |
 
-Flags: `--asr-model <path>`, `--beam <n>` (default 5, with temperature fallback), `--greedy` (beam 1, no fallback: fastest), `--prompt-file <f>` (override the initial prompt; default is the sentence-style prompt in `shared/ems_terms.json` → `initial_prompt`), `--tagger <path|none>` (Core ML, macOS only; on Linux it's ignored with a note in timing.json), `--threads`, `--call-id`, `--start`, `--dict <dir>` (default: finds `shared/`), `--no-prompt`, `--pii-scrub` (off by default: PII is kept).
+Flags: `--asr-model <path>`, `--beam <n>` (default 5, with temperature fallback), `--greedy` (beam 1, no fallback: fastest), `--tagger <path|none>` (Core ML, macOS only; on Linux it's ignored with a note in timing.json), `--threads`, `--call-id`, `--start`, `--dict <dir>` (default: finds `shared/`), `--pii-scrub` (off by default: PII is kept).
 
 ## Outputs (in `--out`)
 | File | Contents |
 |---|---|
-| `transcript.raw.json` | `{call_id, asr_model, initial_prompt, segments:[{id:"s1",start_ms,end_ms,text,avg_logprob,word_times:[[char_offset, ms], …]}]}` — never edited. `start_ms`/`end_ms` come from whisper token timestamps (first/last token), not the VAD chunk; finding times use `word_times`. |
+| `transcript.raw.json` | `{call_id, asr_model, segments:[{id:"s1",start_ms,end_ms,text,avg_logprob,word_times:[[char_offset, ms], …]}]}` — never edited. `start_ms`/`end_ms` come from whisper token timestamps (first/last token), not the VAD chunk; finding times use `word_times`. |
 | `transcript.clean.json` | `{segments:[{raw_span,text}], corrections:[{id,raw_span,raw_range:[a,b],original,replacement,rule}]}` |
 | `events.json` | event list (format below) |
 | `soap.md`, `chart.md`, `imist_ambo.md` | rendered by code; every line cites `[eN]`; missing = "not heard" |
@@ -56,7 +57,7 @@ Types: vitals, medication, procedure, status, dispatch, transport, tap, consent,
 - Dispatch: `fields.dispatch_reason`, `fields.found`, `fields.chief_complaint` (not `text`).
 Vitals field names: `bp_systolic bp_diastolic bp_method heart_rate resp_rate spo2 etco2 glucose gcs temp pain mental_status pupils o2_on` (`mental_status` = "A&O×4"; rhythm names are not extracted: they are interpretations, and "afib" is a diagnosis trap). Medication: routes include device routes for oxygen (`NRB`, `NC`, `BVM`, `CPAP`, `BLOWBY`). `drug`(generic) `dose unit route drug_as_heard unit_suggested` — `unit` only when spoken; `unit_suggested` is the protocol unit when unspoken (not a heard value, don't score it as one).
 
-**Prompt is format-only and frozen** (see `docs/PROMPT_PRIMING.md`): vocabulary and style, no realistic values. The Kaggle fine-tune trains with it, so it must not change without retraining (pinned by `PromptFreezeTests`). Check outputs for copied prompt values with `core/tools/prompt_copy_check.py`; compare models with `--no-prompt` as well.
+**ASR model and prompt.** Default model: Whisper small.en fine-tuned on EMS speech, whisper.cpp q5_0 (`models/ggml-ems-small.en-ft-q5_0.bin`); `models.asr` = `whisper-small.en-ems-ft-q5_0` (`whisper-small.en` for stock in eval). The app bundles only the fine-tuned model, with no stock fallback, and never downloads one. **Whisper runs with no initial prompt** (see `docs/pipeline/PROMPT_PRIMING.md`, decision 27): the `Transcriber` protocol has no prompt parameter, and `NoPromptDecoderTests` checks the decoder settings. `core/tools/prompt_copy_check.py` stays as a guard and should report 0.
 
 Determinism: same input + config + threads ⇒ same files, except `timing.json`.
 

@@ -33,14 +33,13 @@ OPTIONS
                           "gesture": "mark"|"yes"|"no"|"arrival"|"handoff"}]  (gesture optional, default mark)
                           clip_ms = ms from audio start (wav/json) or clip-boot ms (replay)
   --config <file.json>    pipeline config (see docs/PIPELINE_READY.md)
-  --asr-model <path>      whisper.cpp ggml model (stock: ggml-small.en.bin; fine-tuned: models/whisper-ems-small.en-q5.bin)
+  --asr-model <path>      whisper.cpp ggml model (default: models/ggml-ems-small.en-ft-q5_0.bin, the fine-tuned EMS model;
+                          core/scripts/fetch_model.sh). Whisper always runs with no initial prompt.
   --tagger <path|none>    EMSTagger.mlpackage (Core ML; macOS/iOS only) or none (default)
   --dict <dir>            folder with formulary.json + ems_terms.json (default: find ../shared)
   --threads <n>           whisper threads (default 4; keep fixed for repeatable output)
   --call-id <id>          default c1
   --start <iso8601>       call start wall time. Without it: replay clock-sync packet, else an assumed start that is flagged in every output
-  --no-prompt             disable the EMS initial prompt for whisper
-  --prompt-file <f>       use this initial prompt instead of the dictionary's
   --beam <n>              beam size (default 5); --greedy = beam 1, no temperature fallback (fastest)
   --gpu                   run Whisper on the GPU (Metal on a Mac): much faster; results can differ slightly from CPU
   --no-bias               turn off biasing Whisper toward drug names
@@ -142,13 +141,13 @@ if let c = opt("--config") {
     do { config = try JSONDecoder().decode(PipelineConfig.self, from: Data(contentsOf: URL(fileURLWithPath: c))) }
     catch { fail("bad config: \(error)") }
 }
-if let m = opt("--asr-model") { config.asr.model = m; config.asr.name = "whisper.cpp " + URL(fileURLWithPath: m).deletingPathExtension().lastPathComponent.replacingOccurrences(of: "ggml-", with: "") }
+if let m = opt("--asr-model") { config.asr.model = m; config.asr.name = ASRModel.name(forModelFile: m) }
 if let t = opt("--tagger") { config.tagger = t == "none" ? nil : t }
 if let t = opt("--threads"), let n = Int(t) { config.asr.threads = n }
 if let c = opt("--call-id") { config.callId = c }
 if let s = opt("--start") { config.startTime = s }
-if flag("--no-prompt") { config.asr.useInitialPrompt = false }
-if let pf = opt("--prompt-file") { config.asr.prompt = (try? String(contentsOfFile: pf, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) }
+_ = flag("--no-prompt") // old flag: there is no initial prompt any more
+if opt("--prompt-file") != nil { fail("--prompt-file was removed: Whisper runs with no initial prompt (docs/pipeline/PROMPT_PRIMING.md)") }
 if flag("--greedy") { config.asr.beamSize = 1; config.asr.temperatureFallback = false }
 if let b = opt("--beam"), let n = Int(b) { config.asr.beamSize = n }
 if flag("--pii-scrub") { config.piiScrub = true }
@@ -183,14 +182,14 @@ var notes: [String] = []
 let t0 = Date()
 if ext != "json" {
     #if canImport(EarshotWhisper)
-    let model = config.asr.model ?? ProcessInfo.processInfo.environment["EARSHOT_ASR_MODEL"] ?? "models/ggml-small.en.bin"
+    let model = config.asr.model ?? ProcessInfo.processInfo.environment["EARSHOT_ASR_MODEL"] ?? "models/\(ASRModel.fineTunedFile).bin"
     do {
-        let w = try WhisperTranscriber(modelPath: model, name: config.asr.model == nil ? nil : config.asr.name, threads: config.asr.threads,
+        let w = try WhisperTranscriber(modelPath: model, name: ASRModel.name(forModelFile: model), threads: config.asr.threads,
                                        beamSize: config.asr.beamSize, temperatureFallback: config.asr.temperatureFallback, useGPU: config.asr.gpu)
         if config.asr.bias { w.setBias(phrases: dict.biasPhrases(), firstBonus: config.asr.biasFirst, nextBonus: config.asr.biasNext) }
         transcriber = w
     }
-    catch { fail("\(error.localizedDescription). Download: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin and pass --asr-model") }
+    catch { fail("\(error.localizedDescription). Get the fine-tuned model with core/scripts/fetch_model.sh (needs HF_TOKEN), or pass --asr-model") }
     #else
     fail("this build has no whisper.cpp; pass a transcript .json instead")
     #endif

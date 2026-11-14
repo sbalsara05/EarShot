@@ -12,6 +12,9 @@ a model (or prompt) is not shipped if its prompt-copy count is above the limit.
 --run may hold <id>.hyp.txt files (eval/run_pipeline.py) or earshot-eval output folders
 (<id>/transcript.raw.json, which also records the prompt actually used).
 --gt holds <id>.transcript.txt. Exit code 1 if the total exceeds --max.
+
+Whisper now runs with no initial prompt, so this is a guard: with no prompt given or recorded it
+checks against RETIRED_PROMPT, the last prompt shipped, and should always report 0.
 """
 import argparse, json, pathlib, re, sys
 from collections import Counter
@@ -20,6 +23,12 @@ ONES = {"zero": 0, "oh": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5
 TEENS = {"ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
          "seventeen": 17, "eighteen": 18, "nineteen": 19}
 TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90}
+# The format-only prompt used until it was removed (docs/pipeline/DECISIONS.md). Its numbers are
+# physically impossible, so any of them in a transcript is a copy from a stale build or model.
+RETIRED_PROMPT = ("EMS call. Patient A&O, GCS. BP 61/127, HR 913, resps 113, sats 113%, BGL 913, ETCO2 213. "
+                  "Aspirin mg PO, nitro mg SL, Narcan mg IN, D10, glucagon, albuterol, DuoNeb, epi mg IM, "
+                  "Benadryl, Solu-Medrol, Zofran mg IV, fentanyl mcg, Versed, Ativan, amiodarone, adenosine, TXA. "
+                  "12-lead, STEMI, IV, IO, CPAP, BVM, c-collar.")
 UNITS = r"(?:mg|mcg|g|ml|cc|units?|meq|l|lpm|%|milligrams?|micrograms?|mics|migs|grams?|liters?)"
 
 
@@ -115,8 +124,7 @@ def main():
     for uid in ids:
         hyp, used = load_hyp(run, uid)
         if hyp is None: continue
-        pr = used or prompt
-        if not pr: sys.exit("no prompt: pass --prompt/--prompt-json or use earshot-eval outputs (they record it)")
+        pr = used or prompt or RETIRED_PROMPT
         ref = (gt / f"{uid}.transcript.txt").read_text()
         n = 0
         for (kind, value), _ in prompt_items(pr).items():

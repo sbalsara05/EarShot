@@ -427,9 +427,8 @@ public final class LiveSession {
         let audio = ring.read(from: c.startSample, to: c.endSample).map { Float($0) / 32768 }
         ring.discard(before: c.endSample)            // free audio as soon as it is handed to ASR
         guard let tr = transcriber else { return }
-        let prompt = config.asr.useInitialPrompt ? (config.asr.prompt ?? dict.initialPrompt()) : nil
         asrQueue.async {
-            let pieces = ASRPiece.joinUnfinished((try? tr.transcribe(audio, prompt: prompt)) ?? [])
+            let pieces = ASRPiece.joinUnfinished((try? tr.transcribe(audio)) ?? [])
             self.work.async {
                 for p in pieces {
                     guard let seg = p.rawSegment(id: "s\(self.segCounter + 1)", chunkStartMs: startMs, chunkEndMs: endMs) else { continue }

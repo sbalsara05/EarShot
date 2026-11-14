@@ -10,7 +10,7 @@ EMS edge scribe (working name). A clip on the medic records the call; the iPad w
 | `shared/` | The EMS dictionary and formulary the pipeline reads |
 | `eval/` | Scoring the pipeline on the data team's test calls (see `eval/README.md`) |
 | `docs/` | `HYBRID.md` (how the recognisers fit together), `BIASING.md` (biasing: results, research, plan), `pipeline/` (design notes from earshot-data) |
-| `models/` | Whisper model files (not in git) |
+| `models/` | The fine-tuned Whisper model (`ggml-ems-small.en-ft-q5_0.bin`, in git via LFS); other model files are not in git |
 
 ## Set up on a Mac (Apple silicon)
 
@@ -18,18 +18,24 @@ EMS edge scribe (working name). A clip on the medic records the call; the iPad w
 brew install whisper-cpp opus
 ```
 
+The Whisper model is in git through LFS (`git lfs pull`). Without LFS, fetch it from the private
+Hugging Face repo; the script checks its sha256:
+
 ```bash
-mkdir -p models && curl -L -o models/ggml-small.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
+HF_TOKEN=... core/scripts/fetch_model.sh
 ```
 
 ```bash
 cd core && swift build -c release && swift test
 ```
 
+If Homebrew's whisper.cpp cannot find `ggml.h` (newer Homebrew ships ggml as its own formula), add
+`-Xcc -I/opt/homebrew/opt/ggml/include -Xlinker -L/opt/homebrew/opt/ggml/lib` to both commands.
+
 Run the pipeline on a WAV, on the GPU (Metal):
 
 ```bash
-core/.build/release/earshot-eval run call.wav --asr-model models/ggml-small.en.bin --gpu --out out/call
+core/.build/release/earshot-eval run call.wav --gpu --out out/call
 ```
 
 `--gpu` is much faster than the CPU. Its results can differ slightly from CPU runs, so compare runs

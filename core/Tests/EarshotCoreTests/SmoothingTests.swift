@@ -100,5 +100,5 @@ final class SplitTranscriber: Transcriber {
     var pieces: [ASRPiece]?
     let modelName = "split"
     init(_ p: [ASRPiece]) { pieces = p }
-    func transcribe(_ pcm: [Float], prompt: String?) throws -> [ASRPiece] { defer { pieces = nil }; return pieces ?? [] }
+    func transcribe(_ pcm: [Float]) throws -> [ASRPiece] { defer { pieces = nil }; return pieces ?? [] }
 }

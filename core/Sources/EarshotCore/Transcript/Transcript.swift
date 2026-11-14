@@ -22,12 +22,11 @@ public struct RawSegment: Codable, Equatable, Sendable {
 public struct RawTranscript: Codable, Sendable {
     public var callId: String
     public var asrModel: String
-    public var initialPrompt: String?
     public var segments: [RawSegment]
-    public init(callId: String, asrModel: String, initialPrompt: String? = nil, segments: [RawSegment]) {
-        self.callId = callId; self.asrModel = asrModel; self.initialPrompt = initialPrompt; self.segments = segments
+    public init(callId: String, asrModel: String, segments: [RawSegment]) {
+        self.callId = callId; self.asrModel = asrModel; self.segments = segments
     }
-    enum CodingKeys: String, CodingKey { case callId = "call_id", asrModel = "asr_model", initialPrompt = "initial_prompt", segments }
+    enum CodingKeys: String, CodingKey { case callId = "call_id", asrModel = "asr_model", segments }
 }
 
 /// A single cleanup edit, linked back to the raw span (and exact character

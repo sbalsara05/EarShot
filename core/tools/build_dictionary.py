@@ -395,7 +395,8 @@ TERMS = [
     ("bolus", "fluid bolus", "med_admin"), ("amp", "ampule", "med_admin"),
 ]
 
-# Base initial-prompt (Whisper is primed with these words most).
+# Core EMS words: vocabulary for Apple's live recogniser (contextualStrings). Not a Whisper prompt:
+# Whisper runs with no initial prompt (docs/pipeline/PROMPT_PRIMING.md). The JSON key keeps its old name.
 PROMPT_CORE = [
     "BP", "heart rate", "SpO2", "sats", "resps", "GCS", "A and O", "PERRL", "BGL", "EtCO2", "12-lead",
     "STEMI", "compensating", "aspirin", "nitro sublingual", "Narcan", "Zofran", "fentanyl", "Versed",
@@ -414,15 +415,7 @@ CONTEXT_REQUIRED = sorted({
     "valley um", "at a van", "card is em", "low presser", "leave a fed", "by carb", "bi carb", "kepra", "play vix",
 })
 
-# FORMAT-ONLY prompt: vocabulary and abbreviation style, no realistic values.
-# Every number is physically impossible (diastolic > systolic, SpO2 > 100, HR 913…), never appears
-# in any test/dev call (digits or words), and falls outside the extractor's plausibility ranges, so
-# a value Whisper copies from the prompt can never become a field. Doses carry units, not amounts.
-# Check copies with core/tools/prompt_copy_check.py.
-INITIAL_PROMPT = ("EMS call. Patient A&O, GCS. BP 61/127, HR 913, resps 113, sats 113%, BGL 913, ETCO2 213. "
-                  "Aspirin mg PO, nitro mg SL, Narcan mg IN, D10, glucagon, albuterol, DuoNeb, epi mg IM, "
-                  "Benadryl, Solu-Medrol, Zofran mg IV, fentanyl mcg, Versed, Ativan, amiodarone, adenosine, TXA. "
-                  "12-lead, STEMI, IV, IO, CPAP, BVM, c-collar.")
+# No INITIAL_PROMPT: removed (docs/pipeline/DECISIONS.md, "Initial prompt removed").
 
 HTTP_HEADERS = {"User-Agent": "earshot-dictionary-builder/1.0"}
 
@@ -647,10 +640,6 @@ def main():
         "generated_by": "core/tools/build_dictionary.py",
         "terms": terms,
         "initial_prompt_core": PROMPT_CORE,
-        # Format-only sentence-style prompt (see INITIAL_PROMPT). Sentence style came from the data agent's
-        # seed prompt (drug-name WER 26.9% vs 38.5% for a bare comma list); "sats"/"resps" keep the spoken
-        # words (review R4-1). Its realistic values were replaced to rule out priming; re-measure WER.
-        "initial_prompt": INITIAL_PROMPT,
     }
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "formulary.json"), "w") as f:

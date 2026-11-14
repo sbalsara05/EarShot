@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		12BED601B5A2FBAA83CEE7C9 /* ClipLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1C4DF6D9C6C2838DCE2131 /* ClipLink.swift */; };
+		15602396A89FC1B3BEF828C1 /* ggml-ems-small.en-ft-q5_0.bin in Resources */ = {isa = PBXBuildFile; fileRef = 599CFEE9FB190A8AD1714373 /* ggml-ems-small.en-ft-q5_0.bin */; };
 		2B776581A3212DEB28068FB6 /* Signature.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18D9A4B70409523880ADDFC /* Signature.swift */; };
 		2E556F79F578B919FF9E53D5 /* Geist.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7A685C4A23F84CC7A60156D5 /* Geist.ttf */; };
 		30CEFA5FD86855E6A4D334D0 /* EarshotCore in Frameworks */ = {isa = PBXBuildFile; productRef = 27F5E23D81A2B043B6809958 /* EarshotCore */; };
@@ -23,7 +24,6 @@
 		91D68ED5076A08DB6AC74871 /* CallEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9AD7B5C61508F17748297B0 /* CallEngine.swift */; };
 		9313EBB3EFB368A23C5432F2 /* WhisperTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4458FABC4535762089E889 /* WhisperTranscriber.swift */; };
 		98D9917AA5FEBB8DCBF2E47D /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6044FC5A766E4F76FE91669 /* Settings.swift */; };
-		9A36B0534058DD8C918AB0BB /* Models in Resources */ = {isa = PBXBuildFile; fileRef = 8B7EEB1F6E044A6EE116E165 /* Models */; };
 		A2633585A6B0408C6CA39B89 /* whisper.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 8828B7871645A563BC6F5AC5 /* whisper.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		D4CAEFADF2070B5754D7B127 /* Location.swift in Sources */ = {isa = PBXBuildFile; fileRef = F949E326EC948B2E81BC2143 /* Location.swift */; };
 		E9F0CF810639F26A3F9BC761 /* AppleTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = B58D12CE5B2253A74D49BE37 /* AppleTranscriber.swift */; };
@@ -51,10 +51,10 @@
 		2CDF5E2D65D68EE31D1F4D88 /* core */ = {isa = PBXFileReference; lastKnownFileType = folder; name = core; path = ../core; sourceTree = SOURCE_ROOT; };
 		3B54A6FD7A9CDD5B33581F98 /* Doto.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Doto.ttf; sourceTree = "<group>"; };
 		49877C5566DBC8D8D8440C52 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		599CFEE9FB190A8AD1714373 /* ggml-ems-small.en-ft-q5_0.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-ems-small.en-ft-q5_0.bin"; sourceTree = "<group>"; };
 		65190926CE10F1D5F4E2A146 /* EarshotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarshotApp.swift; sourceTree = "<group>"; };
 		7A685C4A23F84CC7A60156D5 /* Geist.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Geist.ttf; sourceTree = "<group>"; };
 		8828B7871645A563BC6F5AC5 /* whisper.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = whisper.xcframework; path = Frameworks/whisper.xcframework; sourceTree = "<group>"; };
-		8B7EEB1F6E044A6EE116E165 /* Models */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Models; sourceTree = SOURCE_ROOT; };
 		A18D9A4B70409523880ADDFC /* Signature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Signature.swift; sourceTree = "<group>"; };
 		A400159EC9128FC9A85FE160 /* NoteWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteWriter.swift; sourceTree = "<group>"; };
 		A5BD629C14912300EF0D102B /* ems_terms.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ems_terms.json; sourceTree = "<group>"; };
@@ -122,6 +122,15 @@
 			path = Earshot;
 			sourceTree = "<group>";
 		};
+		4CF59C0D6638F72160B9CE4D /* models */ = {
+			isa = PBXGroup;
+			children = (
+				599CFEE9FB190A8AD1714373 /* ggml-ems-small.en-ft-q5_0.bin */,
+			);
+			name = models;
+			path = ../models;
+			sourceTree = "<group>";
+		};
 		625549ADE10661222DA18E2E /* Fonts */ = {
 			isa = PBXGroup;
 			children = (
@@ -142,8 +151,8 @@
 		993B8D204E4E7B3167DF2E35 = {
 			isa = PBXGroup;
 			children = (
-				8B7EEB1F6E044A6EE116E165 /* Models */,
 				4274C0A85F145B1D7BDC10FD /* Earshot */,
+				4CF59C0D6638F72160B9CE4D /* models */,
 				88D37AC54B0D51722EF4C16F /* Packages */,
 				C99B68C9205FFACEF5C1AB83 /* shared */,
 				DC3C47148B045237317A35C2 /* Frameworks */,
@@ -176,6 +185,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 7F90677C9B9E9DC75FEA96C9 /* Build configuration list for PBXNativeTarget "Earshot" */;
 			buildPhases = (
+				C719622D60695E5212CED975 /* Verify Whisper model */,
 				5D13E956E409F7051DBFD895 /* Sources */,
 				7CFCE4E4E5D99BE35181A59E /* Resources */,
 				ABD18C9466C9307CA598348F /* Frameworks */,
@@ -239,13 +249,37 @@
 			files = (
 				878D9EE1C03D34879ABDA544 /* Doto.ttf in Resources */,
 				2E556F79F578B919FF9E53D5 /* Geist.ttf in Resources */,
-				9A36B0534058DD8C918AB0BB /* Models in Resources */,
 				436DE914EAF343ECD605901E /* ems_terms.json in Resources */,
 				4BF908B7ADF35B8139D9CD0D /* formulary.json in Resources */,
+				15602396A89FC1B3BEF828C1 /* ggml-ems-small.en-ft-q5_0.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		C719622D60695E5212CED975 /* Verify Whisper model */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../core/scripts/fetch_model.sh",
+				"$(SRCROOT)/../models/ggml-ems-small.en-ft-q5_0.bin",
+			);
+			name = "Verify Whisper model";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/../core/scripts/fetch_model.sh\" --verify \"$SRCROOT/../models/ggml-ems-small.en-ft-q5_0.bin\"";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		5D13E956E409F7051DBFD895 /* Sources */ = {

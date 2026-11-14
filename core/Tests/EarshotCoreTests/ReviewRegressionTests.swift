@@ -257,17 +257,6 @@ final class Round3Tests: XCTestCase {
         XCTAssertTrue(e.contains { $0.isUnlabeledTap })
     }
 
-    /// Format-only prompt: if Whisper copied the prompt verbatim, no vital or dose could come out of it.
-    func testPromptValuesCannotBecomeFields() {
-        let f = extract(TestEnv.dict.initialPrompt())
-        XCTAssertTrue(f.filter { $0.type == .vitals }.allSatisfy { v in !v.fields.keys.contains { ["bp_systolic", "heart_rate", "resp_rate", "spo2", "glucose", "etco2", "gcs"].contains($0) } },
-                      "\(f.filter { $0.type == .vitals }.map(\.fields))")
-        XCTAssertTrue(f.filter { $0.type == .medication }.allSatisfy { $0.fields["dose"] == nil })
-    }
-
-    func test_R3_5_sentencePromptIsDefault() {
-        XCTAssertTrue(TestEnv.dict.initialPrompt().hasPrefix("EMS call."))
-    }
 }
 
 /// Round 4 (data agent re-ran on audio @ 5f434ae).
@@ -281,7 +270,6 @@ final class Round4Tests: XCTestCase {
         XCTAssertEqual(spo2("Pulse 104, set 95 when we're in air."), ["95"])
         XCTAssertEqual(spo2("We need to set 30 minutes aside."), [], "'set' only reads as sats where a sat reading belongs")
         XCTAssertEqual(spo2("I set 90 of them out."), [])
-        XCTAssertTrue(TestEnv.dict.initialPrompt().contains("sats "))
     }
 
     func test_R4_2_musicNotesAreNotSpeech() {
@@ -300,10 +288,42 @@ final class Round4Tests: XCTestCase {
     }
 }
 
-/// The Kaggle fine-tune trains with this exact prompt (read from shared/ems_terms.json on
-/// this branch). Changing it breaks the train/inference match: coordinate with the data agent first.
-final class PromptFreezeTests: XCTestCase {
-    func testPromptIsFrozen() {
-        XCTAssertEqual(TestEnv.dict.initialPrompt(), "EMS call. Patient A&O, GCS. BP 61/127, HR 913, resps 113, sats 113%, BGL 913, ETCO2 213. Aspirin mg PO, nitro mg SL, Narcan mg IN, D10, glucagon, albuterol, DuoNeb, epi mg IM, Benadryl, Solu-Medrol, Zofran mg IV, fentanyl mcg, Versed, Ativan, amiodarone, adenosine, TXA. 12-lead, STEMI, IV, IO, CPAP, BVM, c-collar.")
+/// Whisper runs with no initial prompt, for every model (docs/pipeline/PROMPT_PRIMING.md).
+/// The decoder side (whisper_full_params has no prompt) is tested in EarshotWhisperTests.
+final class NoInitialPromptTests: XCTestCase {
+    /// Records each call, so the test sees exactly what reached the recogniser.
+    final class RecordingTranscriber: Transcriber {
+        let modelName = "recording"
+        var calls = 0
+        func transcribe(_ pcm: [Float]) throws -> [ASRPiece] { calls += 1; return [ASRPiece(startMs: 0, endMs: 500, text: "pulse 88")] }
+    }
+
+    func testDictionaryHasNoPrompt() throws {
+        let j = try JSONSerialization.jsonObject(with: Data(contentsOf: TestEnv.repoRoot.appendingPathComponent("shared/ems_terms.json"))) as! [String: Any]
+        XCTAssertNil(j["initial_prompt"], "shared/ems_terms.json must not carry an initial prompt")
+    }
+
+    func testOldPromptConfigKeysAreIgnored() throws {
+        let old = #"{"asr": {"use_initial_prompt": true, "prompt": "aspirin 324 mg"}}"#
+        let cfg = try JSONDecoder().decode(PipelineConfig.self, from: Data(old.utf8))
+        let back = String(data: try JSONEncoder().encode(cfg), encoding: .utf8)!
+        XCTAssertFalse(back.contains("prompt"), back)
+        XCTAssertEqual(cfg.asr.name, ASRModel.fineTunedName)
+    }
+
+    func testRawTranscriptRecordsNoPrompt() throws {
+        let asr = RecordingTranscriber()
+        var cfg = PipelineConfig(); cfg.startTime = "2026-11-15T14:00:00-05:00"
+        let r = try EarshotPipeline(dict: TestEnv.dict, config: cfg, transcriber: asr)
+            .run(.pcm(burstPCM(seconds: 6, bursts: [(1, 3)]), taps: []))
+        XCTAssertGreaterThan(asr.calls, 0)
+        let json = String(data: try JSONEncoder().encode(r.raw), encoding: .utf8)!
+        XCTAssertFalse(json.contains("initial_prompt"), json)
+    }
+
+    func testModelNames() {
+        XCTAssertEqual(ASRModel.name(forModelFile: "models/ggml-ems-small.en-ft-q5_0.bin"), "whisper-small.en-ems-ft-q5_0")
+        XCTAssertEqual(ASRModel.name(forModelFile: "/x/ggml-small.en.bin"), "whisper-small.en")
+        XCTAssertEqual(ASRModel.name(forModelFile: "ggml-base.en.bin"), "whisper.cpp base.en")
     }
 }

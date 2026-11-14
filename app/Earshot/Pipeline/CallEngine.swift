@@ -64,7 +64,7 @@ final class CallEngine {
     private(set) var recordProblem: String?
     /// Which recogniser writes the record, once chosen (see RecognizerSelector).
     private(set) var recordKind: RecognizerKind?
-    /// Its name, for the Clip tab: "ggml-small.en", "apple-speech". Nil until a call has begun.
+    /// Its name, for the Clip tab: "whisper-small.en-ems-ft-q5_0", "apple-speech". Nil until a call has begun.
     private(set) var recordName: String?
     /// Whether Whisper may write the record. Off, the iPad's own recogniser does, so the two can be
     /// compared on the same build. Takes effect on the next call; a call in progress keeps its recogniser.
@@ -319,11 +319,12 @@ final class CallEngine {
     private static func chooseRecognizer(_ problem: inout String?, dict: EMSDictionary, whisper: Bool) -> RecognizerChoice? {
         let asr = PipelineConfig().asr
         let threads = ProcessInfo.processInfo.activeProcessorCount > 4 ? 4 : 2
-        func model(_ file: String, _ kind: RecognizerKind) -> RecognizerOption {
-            RecognizerOption(kind: kind, name: file,
-                             unavailableReason: { ModelFiles.find(file, ext: "bin") == nil ? "no \(file).bin installed" : nil },
+        // The fine-tuned EMS model is the only Whisper the app has: no stock fallback.
+        func model(_ file: String, name: String, _ kind: RecognizerKind) -> RecognizerOption {
+            RecognizerOption(kind: kind, name: name,
+                             unavailableReason: { ModelFiles.find(file, ext: "bin") == nil ? "\(file).bin is not in the app" : nil },
                              make: {
-                let t = try WhisperTranscriber(modelPath: ModelFiles.find(file, ext: "bin")!.path, threads: threads)
+                let t = try WhisperTranscriber(modelPath: ModelFiles.find(file, ext: "bin")!.path, name: name, threads: threads)
                 // lean toward the formulary's drug names while decoding (BiasTrie)
                 if asr.bias { t.setBias(phrases: dict.biasPhrases(), firstBonus: asr.biasFirst, nextBonus: asr.biasNext) }
                 return t
@@ -337,10 +338,7 @@ final class CallEngine {
                 t.vocabulary = dict.liveVocabulary()
                 return t
             }),
-            model("whisper-ems-small.en-q5", .whisperFineTuned),
-            model("ggml-small.en", .whisperStock),
-            model("ggml-base.en", .whisperStock),
-            model("ggml-tiny.en", .whisperStock),
+            model(ASRModel.fineTunedFile, name: ASRModel.fineTunedName, .whisperFineTuned),
         ]
         do {
             let choice = try RecognizerSelector.choose(from: options, whisper: whisper)
@@ -348,7 +346,7 @@ final class CallEngine {
             return choice
         } catch {
             problem = "No speech recogniser can run, so nothing said is written to the record (\(error.localizedDescription)). "
-                + "Allow speech recognition, run app/scripts/fetch_deps.sh, or copy ggml-small.en.bin into the app's Documents folder."
+                + "This build has no \(ASRModel.fineTunedFile).bin: rebuild after core/scripts/fetch_model.sh (or git lfs pull)."
             return nil
         }
     }
@@ -421,15 +419,11 @@ enum RecordStore {
     }
 }
 
-/// Model files: Documents/ (copied in through Finder or Files), then the app bundle.
+/// Model files come only from the app bundle, where the build put them after checking the
+/// checksum. Never downloaded, never read from Documents (an unchecked copy could be swapped in).
 enum ModelFiles {
     static func find(_ name: String, ext: String) -> URL? {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        for base in [docs, docs.appendingPathComponent("models"), Bundle.main.resourceURL?.appendingPathComponent("Models")].compactMap({ $0 }) {
-            let u = base.appendingPathComponent("\(name).\(ext)")
-            if FileManager.default.fileExists(atPath: u.path) { return u }
-        }
-        return Bundle.main.url(forResource: name, withExtension: ext)
+        Bundle.main.url(forResource: name, withExtension: ext)
     }
 }
 
@@ -452,7 +446,7 @@ private final class SerialTranscriber: Transcriber {
     private let lock = NSLock()
     init(_ inner: Transcriber) { self.inner = inner }
     var modelName: String { inner.modelName }
-    func transcribe(_ pcm: [Float], prompt: String?) throws -> [ASRPiece] {
-        try lock.withLock { try inner.transcribe(pcm, prompt: prompt) }
+    func transcribe(_ pcm: [Float]) throws -> [ASRPiece] {
+        try lock.withLock { try inner.transcribe(pcm) }
     }
 }

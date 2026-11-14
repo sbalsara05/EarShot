@@ -79,7 +79,7 @@ No screen is needed. VoiceS3R: short distinct tones on the speaker (rising two-t
    `python3 core/tools/capture_clip.py 192.168.4.1 7070 capture.replay --seconds 120`
    while you do: press (ASKING) → press (yes) → talk, press a few times → long press (stop).
 4. `earshot-eval check-stream capture.replay` → every line PASS, `audio_kbps ≈ 68`, `loss_pct < 1`.
-5. `earshot-eval run capture.replay --asr-model models/ggml-small.en.bin` → your speech appears in `transcript.raw.json`, taps in `events.json` with the right `tap_source`.
+5. `earshot-eval run capture.replay` (fine-tuned model by default) → your speech appears in `transcript.raw.json`, taps in `events.json` with the right `tap_source`.
 6. BLE: app → *BLE throughput test* for 2 minutes: ≥ 80 kbps, < 1 % loss.
 
 Use test speech for captures (they contain audio). Never capture a patient.

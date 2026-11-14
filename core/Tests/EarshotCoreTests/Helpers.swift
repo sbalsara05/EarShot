@@ -24,7 +24,7 @@ final class ScriptedTranscriber: Transcriber {
     var lines: [String]
     let modelName = "scripted"
     init(_ lines: [String]) { self.lines = lines }
-    func transcribe(_ pcm: [Float], prompt: String?) throws -> [ASRPiece] {
+    func transcribe(_ pcm: [Float]) throws -> [ASRPiece] {
         guard !lines.isEmpty else { return [] }
         return [ASRPiece(startMs: 0, endMs: Int64(pcm.count / 16), text: lines.removeFirst())]
     }
