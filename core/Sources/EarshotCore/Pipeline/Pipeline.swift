@@ -286,7 +286,7 @@ public final class EarshotPipeline {
         let merger = TapMerger(cfg: config.merge, callId: config.callId, clock: clock, models: models)
         var segTimes: [String: (Int64, Int64)] = [:]
         for s in raw.segments { segTimes[s.id] = (s.startMs, s.endMs) }
-        var events = timed("merge") { merger.merge(findings: findings, segments: segTimes, taps: taps, gaps: gaps) }
+        var events = timed("merge") { SaidTime.apply(merger.merge(findings: findings, segments: segTimes, taps: taps, gaps: gaps), clock: clock) }
         // PII scrub (quotes and field values; raw transcript stays raw)
         if config.piiScrub {
             timed("pii") {

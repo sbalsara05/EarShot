@@ -138,7 +138,66 @@ public final class RulesExtractor {
         out += assessmentFindings(tt)
         out += dispatch(tt)
         out += transport(tt)
+        attachSaidTimes(tt, &out)
         return out.sorted { ($0.tMs, $0.type.rawValue) < ($1.tMs, $1.type.rawValue) }
+    }
+
+    // MARK: a time said aloud ("aspirin given at 1410")
+
+    /// Cleanup turns a clock time after "at" into one "HH:MM" token. Here it is given to the
+    /// medication, vital signs or procedure it was said about, as `time_said` with its own receipt:
+    /// the one just before it in the same clause ("aspirin 324 at 1410"), or failing that the one
+    /// just after it in the same sentence ("at 1410, BP 150 over 90"). Vital signs read out together
+    /// share the time. A time that is part of another finding ("last known well at 1410") is left to it.
+    func attachSaidTimes(_ tt: TokText, _ out: inout [Finding]) {
+        let toks = tt.seg.tokens
+        func isTime(_ k: Int) -> Bool {
+            let t = toks[k].text
+            guard k > 0, ["at", "@"].contains(toks[k - 1].text), t.count == 5, Cleanup.clock4(t.replacingOccurrences(of: ":", with: "")) == t else { return false }
+            return true
+        }
+        guard toks.indices.contains(where: isTime) else { return }
+        // each finding's first and last token, from the raw ranges of its receipts
+        let spans: [(lo: Int, hi: Int)?] = out.map { f in
+            let r = f.receipts.values.compactMap(\.rawRange).filter { $0.count == 2 }
+            guard let a = r.map({ $0[0] }).min(), let b = r.map({ $0[1] }).max(),
+                  let lo = toks.firstIndex(where: { $0.rawStart >= a }), let hi = toks.lastIndex(where: { $0.rawEnd <= b }), lo <= hi else { return nil }
+            return (lo, hi)
+        }
+        let timed: Set<EventType> = [.medication, .vitals, .procedure]
+        func ends(_ k: Int) -> Bool { toks[k].punct.map { ".?!".contains($0) } ?? false }   // a sentence ends after token k
+        let reach = 6   // tokens between the thing and its time ("... milligrams chewed IV at")
+        for k in toks.indices where isTime(k) {
+            if zip(out, spans).contains(where: { f, s in !timed.contains(f.type) && s.map { $0.lo <= k && k <= $0.hi } == true }) { continue }
+            var pick: Int? = nil
+            // said after the thing, nothing but words in between
+            let before = out.indices.filter { i in
+                guard timed.contains(out[i].type), out[i].fields[SaidTime.field] == nil, let s = spans[i], s.hi < k, k - s.hi <= reach else { return false }
+                return (s.hi..<k).allSatisfy { toks[$0].punct == nil }
+            }
+            pick = before.max { spans[$0]!.hi < spans[$1]!.hi }
+            if pick == nil {
+                // said before the thing, in the same sentence
+                let after = out.indices.filter { i in
+                    guard timed.contains(out[i].type), out[i].fields[SaidTime.field] == nil, let s = spans[i], s.lo > k, s.lo - k <= reach else { return false }
+                    return (k..<s.lo).allSatisfy { !ends($0) }
+                }
+                pick = after.min { spans[$0]!.lo < spans[$1]!.lo }
+            }
+            guard let i = pick, let mine = spans[i] else { continue }
+            var share = [i]
+            if out[i].type == .vitals {
+                // the other vital signs of the same sentence were taken at the same time
+                share += out.indices.filter { j in
+                    guard j != i, out[j].type == .vitals, out[j].fields[SaidTime.field] == nil, let s = spans[j] else { return false }
+                    return (min(s.lo, mine.lo)..<max(s.lo, mine.lo)).allSatisfy { !ends($0) }
+                }
+            }
+            for j in share {
+                out[j].fields[SaidTime.field] = toks[k].text
+                out[j].receipts[SaidTime.field] = tt.receipt(k...k)
+            }
+        }
     }
 
     // MARK: vitals

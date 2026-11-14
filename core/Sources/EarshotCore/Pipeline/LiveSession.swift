@@ -482,6 +482,7 @@ public final class LiveSession {
         }
         ev += aiEvents
         if !liveLines.isEmpty { ev = crossCheck.apply(ev, live: Array(liveLines.values)) }
+        ev = SaidTime.apply(ev, clock: clock)   // after the cross-check, which pairs words by when they were spoken
         ev.sort { ($0.tMs, $0.id) < ($1.tMs, $1.id) }
         for k in ev.indices where ev[k].source == .tablet && ev[k].enteredBy != nil { ev[k].id = "m\(k + 1)" }
         events = ev
