@@ -9,9 +9,12 @@ struct Problem: LocalizedError {
 
 // MARK: Microphone to text
 
-/// Turns the iPad microphone into text. Speech is cut into segments at pauses. Each segment reports
-/// its words under one id as they firm up, so the caller can show a line growing and then settling.
+/// Turns audio into text: the device's own microphone, or audio pushed in from the clip. Speech is cut into
+/// segments at pauses. Each segment reports its words under one id as they firm up, so the caller can show
+/// a line growing and then settling.
 final class Transcriber {
+    enum Source { case mic, clip }
+
     var onText: (UUID, String) -> Void = { _, _ in }
     var onCut: () -> Void = {}                  // the current segment closed; the next words start a new line
     var onLevel: (Int) -> Void = { _ in }       // loudness, 0...6, about twelve times a second
@@ -24,6 +27,7 @@ final class Transcriber {
     private let lock = NSLock()   // the audio thread reads `request` while the main thread swaps it
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var running = false
+    private var source = Source.mic
     private var heard = false, lastHeard = Date(), segmentStart = Date(), quickFailures = 0
     private var pauseTimer: Timer?
 
@@ -36,55 +40,96 @@ final class Transcriber {
     private static let mayUseServers = false
     #endif
 
-    /// Asks for speech and microphone access. Returns what to tell the user if either is refused.
-    static func authorize() async -> String? {
+    init() {
+        // A phone call or Siri takes the microphone away for a while. When it is given back, carry on in a new line.
+        NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, self.running, self.source == .mic,
+                  let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  AVAudioSession.InterruptionType(rawValue: raw) == .ended else { return }
+            do {
+                try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+                try self.engine.start()
+                self.newSegment()
+            } catch {
+                self.onProblem("The microphone could not be taken back after an interruption. \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Asks for speech access, and for the microphone unless the audio comes from the clip.
+    /// Returns what to tell the user if either is refused.
+    static func authorize(microphone: Bool = true) async -> String? {
         let speech = await withCheckedContinuation { done in SFSpeechRecognizer.requestAuthorization { done.resume(returning: $0) } }
         guard speech == .authorized else { return "Speech recognition is off for Earshot. Turn it on in Settings." }
-        guard await AVAudioApplication.requestRecordPermission() else { return "The microphone is off for Earshot. Turn it on in Settings." }
+        guard !microphone else {
+            return await AVAudioApplication.requestRecordPermission() ? nil : "The microphone is off for Earshot. Turn it on in Settings."
+        }
         return nil
     }
 
-    func start() throws {
+    /// Starts listening. From the clip, the audio arrives through `push`; the device's own microphone stays off.
+    func start(from source: Source = .mic) throws {
         guard let recognizer, recognizer.isAvailable else { throw Problem("Speech recognition is not available right now.") }
         guard staysOnDevice || Self.mayUseServers else {
             throw Problem("This \(deviceName) cannot transcribe English on the device yet, so Earshot will not record. Call audio is never sent off the \(deviceName).")
         }
-        let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.record, mode: .measurement)
-        try session.setActive(true, options: .notifyOthersOnDeactivation)
-        let format = engine.inputNode.outputFormat(forBus: 0)
-        guard format.sampleRate > 0 else { throw Problem("No microphone was found.") }
+        if source == .mic {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.record, mode: .measurement)
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            let format = engine.inputNode.outputFormat(forBus: 0)
+            guard format.sampleRate > 0 else { throw Problem("No microphone was found.") }
 
-        engine.inputNode.removeTap(onBus: 0)
-        engine.inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
-            guard let self else { return }
-            self.lock.withLock { self.request }?.append(buffer)
-            let level = Self.level(of: buffer)
-            DispatchQueue.main.async { self.onLevel(level) }
+            engine.inputNode.removeTap(onBus: 0)
+            engine.inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
+                guard let self else { return }
+                self.lock.withLock { self.request }?.append(buffer)
+                let level = Self.level(of: buffer)
+                DispatchQueue.main.async { self.onLevel(level) }
+            }
         }
+        self.source = source
         running = true
         quickFailures = 0
         newSegment()
-        engine.prepare()
-        try engine.start()
+        if source == .mic {
+            engine.prepare()
+            try engine.start()
+        }
         pauseTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             guard let self, self.heard, Date().timeIntervalSince(self.lastHeard) > 1.5 else { return }
             self.newSegment()   // a pause ends the line
         }
     }
 
+    /// Audio from the clip, in the order it was captured. Ignored unless listening to the clip.
+    func push(_ buffer: AVAudioPCMBuffer) {
+        guard running, source == .clip else { return }
+        lock.withLock { request }?.append(buffer)
+        levelFrames += Int(buffer.frameLength)
+        levelPeak = max(levelPeak, Self.level(of: buffer))
+        if levelFrames >= 1280 {   // the clip sends 20 ms at a time; report loudness about twelve times a second, as the mic does
+            onLevel(levelPeak)
+            levelFrames = 0
+            levelPeak = 0
+        }
+    }
+    private var levelFrames = 0, levelPeak = 0
+
     func stop() {
         guard running else { return }
         running = false
         pauseTimer?.invalidate()
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
+        if source == .mic {
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+        }
         lock.withLock { () -> SFSpeechAudioBufferRecognitionRequest? in
             defer { request = nil }
             return request
         }?.endAudio()   // the last words still arrive, under the segment's id
         onCut()
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        if source == .mic { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
     }
 
     /// Closes the line being spoken, so that what comes next (a mark, say) lands after it.
@@ -147,9 +192,25 @@ final class Transcriber {
 
 // MARK: Transcript to paperwork
 
-/// What the on-device model fills in. Anything it leaves empty shows in the app as "not heard".
-@Generable
+/// The paperwork for one call. Anything left empty shows in the app as "not heard".
 struct Draft: Codable {
+    var patient: String
+    var latestVitals: String
+    var given: String
+    var allergies: String
+    var dispatchAndScene: String
+    var vitalsByTime: [String]
+    var narrative: String
+    var treatmentByTime: [String]
+
+    static let blank = Draft(patient: "", latestVitals: "", given: "", allergies: "", dispatchAndScene: "", vitalsByTime: [], narrative: "", treatmentByTime: [])
+}
+
+/// What the on-device model is asked to fill in: the same fields as `Draft`, each with its instruction.
+/// Kept apart from `Draft` because the model only exists from iOS 26, and calls must still load on older systems.
+@available(iOS 26.0, *)
+@Generable
+struct ModelDraft {
     @Guide(description: "Patient age, sex and main complaint in one short line. Empty if not said.")
     var patient: String
     @Guide(description: "The most recent vital signs said aloud, like 'BP 142/88, HR 98'. Empty if none were said.")
@@ -167,7 +228,10 @@ struct Draft: Codable {
     @Guide(description: "One entry per treatment, each starting with its clock time, like '14:08 Aspirin 324 mg, chewed'.")
     var treatmentByTime: [String]
 
-    static let blank = Draft(patient: "", latestVitals: "", given: "", allergies: "", dispatchAndScene: "", vitalsByTime: [], narrative: "", treatmentByTime: [])
+    var draft: Draft {
+        Draft(patient: patient, latestVitals: latestVitals, given: given, allergies: allergies, dispatchAndScene: dispatchAndScene,
+              vitalsByTime: vitalsByTime, narrative: narrative, treatmentByTime: treatmentByTime)
+    }
 }
 
 /// Drafts the nurse handoff and PCR on the iPad itself, so the transcript never leaves the device.
@@ -175,6 +239,7 @@ struct Draft: Codable {
 /// rather than being cut silently. Summarise in chunks, or move to a server model, when calls outgrow it.
 func writeDraft(from transcript: String) async throws -> Draft {
     guard !transcript.isEmpty else { throw Problem("Nothing was heard on this call.") }
+    guard #available(iOS 26.0, *) else { throw Problem("AI drafts need iOS 26 or later. Update this \(deviceName) to get them.") }
     switch SystemLanguageModel.default.availability {
     case .available: break
     case .unavailable(.appleIntelligenceNotEnabled): throw Problem("Apple Intelligence is turned off. Turn it on in Settings to get drafts.")
@@ -188,5 +253,5 @@ func writeDraft(from transcript: String) async throws -> Draft {
         Leave a field empty when the transcript does not contain it. \
         Write spoken numbers as digits: "one forty-two over eighty-eight" becomes 142/88. Keep every field short.
         """)
-    return try await session.respond(to: transcript, generating: Draft.self).content
+    return try await session.respond(to: transcript, generating: ModelDraft.self).content.draft
 }

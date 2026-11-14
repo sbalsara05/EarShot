@@ -2,11 +2,18 @@ name: Earshot
 options:
   deploymentTarget:
     iOS: "26.0"
+packages:
+  # Decodes the clip's Opus audio. libopus wrapped for Swift, BSD-3-Clause.
+  Opus:
+    url: https://github.com/alta/swift-opus
+    exactVersion: 0.0.2
 targets:
   Earshot:
     type: application
     platform: iOS
     sources: [Earshot]
+    dependencies:
+      - package: Opus
     info:
       path: Earshot/Info.plist
       properties:
@@ -15,6 +22,9 @@ targets:
         UILaunchScreen: {}
         NSMicrophoneUsageDescription: Earshot listens to the call so it can write the transcript.
         NSSpeechRecognitionUsageDescription: Earshot turns what is said on the call into text.
+        NSBluetoothAlwaysUsageDescription: Earshot uses Bluetooth to connect to your clip.
+        # audio: a recording carries on when the app is not on screen. bluetooth-central: so does the link to the clip.
+        UIBackgroundModes: [audio, bluetooth-central]
         UIStatusBarHidden: true
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]

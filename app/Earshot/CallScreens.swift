@@ -5,6 +5,8 @@ import SwiftUI
 struct LiveScreen: View {
     @Environment(Model.self) private var model
 
+    @State private var completing = false
+
     private var number: Int { model.call.recordings.count }
     private var current: Recording { model.call.recordings.last ?? Recording() }
 
@@ -88,7 +90,7 @@ struct LiveScreen: View {
 
     private var ready: some View {
         column {
-            counter("Recording \(number + 1)", "00:00", valueColor: .mid)
+            counter("Recording", "00:00", valueColor: .mid)
         } middle: {
             Dots.meter(cols: 30, rows: 6, lit: .ink) { _ in 0 }
         } bottom: {
@@ -101,17 +103,20 @@ struct LiveScreen: View {
 
     private var listening: some View {
         column {
-            counter("Recording \(number)", stopwatch(current.seconds))
+            counter("Recording", stopwatch(current.seconds))
         } middle: {
             meter(lit: .ink)
         } bottom: {
             HStack(spacing: 20) {
                 Button { model.stop() } label: {
-                    RoundedRectangle(cornerRadius: 7).fill(Color.bg).frame(width: 30, height: 30)
-                        .frame(width: 96, height: 96).background(Color.red, in: Circle())
+                    // Two bars: this pauses. The same recording carries on when it is resumed.
+                    HStack(spacing: 9) {
+                        ForEach(0..<2, id: \.self) { _ in RoundedRectangle(cornerRadius: 3).fill(Color.bg).frame(width: 10, height: 30) }
+                    }
+                    .frame(width: 96, height: 96).background(Color.red, in: Circle())
                 }
                 .buttonStyle(Press())
-                .accessibilityLabel("Stop recording")
+                .accessibilityLabel("Pause recording")
                 Button { model.mark() } label: {
                     Flag(color: .bg, size: 22)
                     Text("Mark")
@@ -123,20 +128,26 @@ struct LiveScreen: View {
 
     private var between: some View {
         column {
-            counter("\(plural(number, "recording")) so far", span(model.call.recordings.reduce(0) { $0 + $1.seconds }))
+            counter("Paused at", stopwatch(model.call.recordings.reduce(0) { $0 + $1.seconds }), valueColor: .mid)
         } middle: {
             meter(lit: .mid)
         } bottom: {
             HStack(spacing: 20) {
-                recordButton("Record again")
-                Button("Analyze") { model.analyze() }.buttonStyle(Pill(height: 96, size: 26, grow: true))
+                recordButton("Resume recording")
+                Button("Complete") { completing = true }.buttonStyle(Pill(height: 96, size: 26, grow: true))
+                    .confirmationDialog("Complete this call?", isPresented: $completing, titleVisibility: .visible) {
+                        Button("Complete and write reports", role: .destructive) { model.complete() }
+                        Button("Keep recording", role: .cancel) {}
+                    } message: {
+                        Text("This cannot be undone. The recording ends for good and the nurse handoff and PCR are written from it. The reports wait on the AI Drafts tab for you to check and sign, and you can start a new call straight away.")
+                    }
             }
         }
     }
 
     private var cutShort: some View {
         column {
-            counter("Recording \(number) stopped at", stopwatch(current.seconds), labelColor: .red, valueColor: .mid)
+            counter("Recording stopped at", stopwatch(current.seconds), labelColor: .red, valueColor: .mid)
         } middle: {
             if !phone { ClipModel(ghost: true, scale: 0.55).frame(width: 145, height: 185) }
         } bottom: {
@@ -173,7 +184,7 @@ struct LiveScreen: View {
                 }
                 if let problem = model.problem { alert("Problem", problem) }
                 if model.live == .cutShort {
-                    alert("Clip disconnected at \(clock(current.end ?? Date()))", "Recording \(number) is saved up to that point, with its marks.")
+                    alert("Clip disconnected at \(clock(current.end ?? Date()))", "The recording is saved up to that point, with its marks.")
                 }
             }
         }
@@ -212,150 +223,176 @@ struct LiveScreen: View {
 
 // MARK: AI Drafts
 
+/// Every completed call: the ones still waiting for a person to check and sign them, then the signed ones.
 struct DraftsScreen: View {
     @Environment(Model.self) private var model
-    @State private var showPCR = false
-    @State private var copied = false
-    @State private var settled = false
+    @State private var reviewing: Call?   // a call waiting for sign-off, open in its sheet
+    @State private var opened: Call?      // a signed call being read
+
+    var body: some View {
+        Split {
+            VStack(alignment: .leading, spacing: 28) {
+                Text(headline).font(doto(fit(112, 60)))
+                Text(summary).font(geist(22)).lineSpacing(6).foregroundStyle(Color.dim).frame(maxWidth: 440, alignment: .leading)
+            }
+            .padding(.leading, fit(24, 4))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            if model.review.isEmpty && model.past.isEmpty {
+                Dots(pageArt, pitch: 16, r: 5.76, palette: ["b": .outline, ".": .off])
+                    .side().frame(maxHeight: phone ? 280 : .infinity).panel()
+                    .accessibilityHidden(true)
+            } else {
+                calls
+                    .padding(.horizontal, fit(32, 20)).padding(.vertical, fit(20, 12))
+                    .side().frame(minHeight: phone ? 320 : nil, maxHeight: phone ? nil : .infinity).panel()
+            }
+        }
+        .sheet(item: $reviewing) { ReviewSheet(id: $0.id).presentationSizing(.page).presentationDragIndicator(.visible) }
+        .sheet(item: $opened) { call in
+            PastCallView(call: call) { model.reopen(call.id) }.presentationSizing(.page).presentationDragIndicator(.visible)
+        }
+    }
+
+    private var headline: String {
+        !model.review.isEmpty ? "To sign" : model.past.isEmpty ? "No drafts yet" : "All signed"
+    }
+
+    private var summary: String {
+        if model.review.isEmpty && model.past.isEmpty { return "Record a call, then tap Complete." }
+        if model.review.isEmpty { return "\(plural(model.past.count, "signed call")). Tap one to read its reports." }
+        return "\(plural(model.review.count, "call")) waiting for you to check and sign. Nothing is final until you do."
+    }
+
+    private var calls: some View {
+        List {
+            if !model.review.isEmpty {
+                Section {
+                    ForEach(model.review) { call in row(call, waiting: true) { reviewing = call } }
+                } header: {
+                    Text("Needs sign-off").font(geist(15, 600)).foregroundStyle(Color.yellow).textCase(nil)
+                }
+                .listSectionSeparator(.hidden)
+            }
+            if !model.past.isEmpty {
+                Section {
+                    ForEach(model.past) { call in row(call, waiting: false) { opened = call } }
+                        .onDelete { model.delete(at: $0) }
+                } header: {
+                    Text("Signed").font(geist(15, 600)).foregroundStyle(Color.dim).textCase(nil)
+                }
+                .listSectionSeparator(.hidden)
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .scrollIndicators(.hidden)
+    }
+
+    /// One call. A waiting one carries a yellow dot and says what it needs; a signed one says when it was signed.
+    private func row(_ call: Call, waiting: Bool, open: @escaping () -> Void) -> some View {
+        Button(action: open) {
+            HStack(spacing: 12) {
+                if waiting { Circle().fill(Color.yellow).frame(width: 10, height: 10) }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(!call.draft.patient.isEmpty ? call.draft.patient : call.drafted ? "Patient not recorded" : "Call at \(clock(call.start))")
+                        .font(geist(19, 500)).foregroundStyle(Color.ink).lineLimit(1)
+                    Text("\(day(call.start)), \(span(call.seconds))").font(geist(15)).foregroundStyle(Color.dim).lineLimit(1)
+                }
+                Spacer()
+                if waiting {
+                    Text(call.drafted ? "Check and sign" : "Writing reports").font(geist(15, 600)).foregroundStyle(Color.yellow)
+                } else {
+                    Text("Signed \(clock(call.signedAt ?? call.start))").font(geist(15, 500).monospacedDigit()).foregroundStyle(Color.green)
+                }
+            }
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
+        .listRowSeparatorTint(Color.line)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A completed call waiting for sign-off, opened from AI Drafts. It shows everything a signed call shows, and
+/// here the handoff lines can still be corrected and the call signed.
+struct ReviewSheet: View {
+    let id: Call.ID
+    @Environment(Model.self) private var model
+    @Environment(\.dismiss) private var dismiss
     @State private var signing = false
 
     var body: some View {
-        switch model.drafts {
-        case .none: none
-        case .analyzing: analyzing
-        case .ready, .signed: drafts
-        }
-    }
-
-    private var none: some View {
-        Split {
-            VStack(alignment: .leading, spacing: 28) {
-                Text("No drafts yet").font(doto(fit(112, 60)))
-                Text("Record a call, then tap Analyze.").font(geist(22)).foregroundStyle(Color.dim)
-            }
-            .padding(.leading, fit(24, 4))
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            Dots(pageArt, pitch: 16, r: 5.76, palette: ["b": .outline, ".": .off])
-                .side().frame(maxHeight: phone ? 280 : .infinity).panel()
-                .accessibilityHidden(true)
-        }
-    }
-
-    private var analyzing: some View {
-        Split {
-            VStack(alignment: .leading, spacing: 28) {
-                Text("Writing your drafts").font(doto(fit(88, 50)))
-                VStack(alignment: .leading, spacing: 18) {
-                    step("Transcript", done: true)
-                    step("\(plural(model.call.markCount, "mark")) placed", done: true)
-                    step("Nurse handoff and PCR", done: false)
-                }
-            }
-            .padding(.leading, fit(24, 4))
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            VStack(spacing: 24) {
-                Ticker(fps: 10) { t in
-                    let lit = Int(t.truncatingRemainder(dividingBy: 3.2) / 3.2 * 24)
-                    Dots(cols: 24, rows: 6, pitch: 12, r: 3.6) { x, _ in x < lit ? .yellow : .off }
-                }
-                Text("Drafting on this \(deviceName)").font(geist(17, 500)).foregroundStyle(Color.dim)
-            }
-            .side().frame(maxHeight: phone ? 200 : .infinity).panel()
-        }
-    }
-
-    private func step(_ text: String, done: Bool) -> some View {
-        HStack(spacing: 16) {
-            if done {
-                Check()
-            } else {
-                HStack(spacing: 4) { ForEach(0..<3, id: \.self) { BlinkDot(size: 6, color: .yellow, delay: Double($0) * 0.25) } }.frame(width: 26, height: 26)
-            }
-            Text(text).font(geist(fit(24, 20), 500)).foregroundStyle(done ? Color.dim : .ink)
-        }
-    }
-
-    private var signed: Bool { model.drafts == .signed }
-
-    private var drafts: some View {
-        VStack(spacing: 20) {
+        @Bindable var model = model
+        // Looked up afresh on every draw: the list shifts when another call is completed or this one is signed.
+        if let i = model.review.firstIndex(where: { $0.id == id }) {
+            let call = model.review[i]
             VStack(alignment: .leading, spacing: 20) {
-                // The draft picker and its note sit on one row on iPad, and stack on iPhone.
-                let top = phone ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(spacing: 24))
-                top {
-                    Choice(first: "Nurse handoff", second: "PCR", isSecond: $showPCR)
-                    if !phone { Spacer() }
-                    if signed {
-                        HStack(spacing: 10) {
-                            Check()
-                            Text("Signed \(clock(model.call.signedAt ?? Date()))").font(doto(fit(24, 20))).foregroundStyle(Color.green).fixedSize()
-                            SignatureView(signature: model.call.signature).frame(width: fit(130, 100), height: 40)
-                        }
-                        .scaleEffect(settled ? 1 : 1.25).opacity(settled ? 1 : 0)
-                        .onAppear { withAnimation(.easeOut(duration: 0.4).delay(0.25)) { settled = true } }
-                        .onDisappear { settled = false }
-                    } else {
-                        Text(model.call.draftNote ?? "AI draft. Tap any line to edit. Yellow lines need you.")
-                            .font(geist(16)).foregroundStyle(model.call.draftNote == nil ? Color.dim : .yellow)
-                            .multilineTextAlignment(phone ? .leading : .trailing).lineLimit(3)
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(day(call.start)).font(doto(fit(40, 28))).lineLimit(1).minimumScaleFactor(0.6)
+                        Text(call.drafted ? call.draftNote ?? "AI draft, not signed. Tap any line to correct it. Yellow lines need you." : "Writing the reports on this \(deviceName).")
+                            .font(geist(15, 500)).foregroundStyle(call.drafted && call.draftNote == nil ? Color.dim : .yellow)
                     }
+                    Spacer()
+                    Button("Close") { dismiss() }.buttonStyle(Pill(fill: nil, height: 44, size: 16))
                 }
                 ScrollView {
-                    if showPCR { PCRView(call: model.call) } else { nurseHandoff }
+                    VStack(alignment: .leading, spacing: 36) {
+                        if call.drafted {
+                            part("Nurse handoff") {
+                                field("Patient", $model.review[i].draft.patient)
+                                field("Latest vitals", $model.review[i].draft.latestVitals)
+                                field("Given", $model.review[i].draft.given)
+                                field("Allergies", $model.review[i].draft.allergies)
+                                ForEach(call.silentMarks) { mark in
+                                    let n = mark.mark ?? 0
+                                    field("\(clock(mark.time)), nothing heard", Binding { call.markNotes[n] ?? "" } set: { model.review[i].markNotes[n] = $0 },
+                                          mark: "Mark \(n)", prompt: "What happened here?")
+                                }
+                            }
+                            part("PCR") { PCRView(call: call) }
+                        }
+                        part("Transcript") {
+                            if call.transcript.isEmpty { Text("Nothing was heard on this call.").font(geist(fit(22, 19))).foregroundStyle(Color.dim) }
+                            ForEach(Array(call.recordings.enumerated()), id: \.offset) { n, recording in
+                                RecordingHeading(number: n + 1, recording: recording)
+                                TranscriptRows(recording: recording, color: .ink)
+                            }
+                        }
+                    }
                 }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
+                Button(call.drafted ? "Sign off" : "Writing reports") { signing = true }
+                    .buttonStyle(Pill(grow: true))
+                    .disabled(!call.drafted)
             }
-            .padding(.horizontal, fit(40, 20)).padding(.vertical, fit(28, 20))
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .panel()
-
-            HStack(spacing: fit(16, 8)) {
-                if !phone { Spacer() }
-                if signed {
-                    Button("Edit") {
-                        model.reopen()
-                        showPCR = false
-                    }
-                    .buttonStyle(Pill(fill: nil, grow: phone))
-                    Button(copied ? "Copied" : "Copy PCR") {
-                        UIPasteboard.general.string = model.call.pcrText
-                        copied = true
-                        Task {
-                            try? await Task.sleep(for: .seconds(1.8))
-                            copied = false
-                        }
-                    }
-                    .buttonStyle(Pill(fill: nil, minWidth: fit(170, nil), grow: phone))
-                    Button("Close call") { model.closeCall() }.buttonStyle(Pill(minWidth: fit(220, nil), grow: phone))
-                } else {
-                    Button("Sign off") { signing = true }.buttonStyle(Pill(minWidth: fit(240, nil), grow: phone))
+            .padding(.horizontal, fit(40, 20)).padding(.top, fit(36, 28)).padding(.bottom, fit(32, 12))
+            .font(geist(17))
+            .foregroundStyle(Color.ink)
+            .background(Color.bg.ignoresSafeArea())
+            .preferredColorScheme(.dark)
+            .sheet(isPresented: $signing) {
+                SignatureSheet { signature in
+                    model.signOff(id, signature)
+                    dismiss()
                 }
+                .presentationSizing(.form).presentationDragIndicator(.visible)
             }
-        }
-        .sheet(isPresented: $signing) {
-            SignatureSheet { signature in
-                model.signOff(signature)
-                showPCR = true
-            }
-            .presentationSizing(.form).presentationDragIndicator(.visible)
+        } else {
+            // The call was signed or removed while this was open, so there is nothing left to review.
+            Color.bg.ignoresSafeArea().onAppear { dismiss() }
         }
     }
 
-    private var nurseHandoff: some View {
-        @Bindable var model = model
-        return VStack(spacing: 20) {
-            field("Patient", $model.call.draft.patient)
-            field("Latest vitals", $model.call.draft.latestVitals)
-            field("Given", $model.call.draft.given)
-            field("Allergies", $model.call.draft.allergies)
-            ForEach(model.call.silentMarks) { mark in
-                let n = mark.mark ?? 0
-                field("\(clock(mark.time)), nothing heard", Binding { model.call.markNotes[n] ?? "" } set: { model.call.markNotes[n] = $0 },
-                      mark: "Mark \(n)", prompt: "What happened here?")
-            }
+    private func part(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text(title).font(doto(fit(26, 22)))
+            content()
         }
-        .disabled(signed)
     }
 
     /// A handoff line. While it is empty it is drawn in yellow: the AI could not fill it, so it needs the medic.
@@ -484,6 +521,7 @@ struct PCRView: View {
 /// A signed call, opened from Home, read only: transcript, PCR, nurse handoff, then the signature.
 struct PastCallView: View {
     var call: Call
+    var edit: (() -> Void)? = nil   // when given, an Edit button sends the call back to be corrected and signed again
     @Environment(\.dismiss) private var dismiss
     @State private var copied = false
 
@@ -496,6 +534,13 @@ struct PastCallView: View {
                         .font(geist(15, 500)).foregroundStyle(Color.dim)
                 }
                 Spacer()
+                if let edit {
+                    Button("Edit") {
+                        edit()
+                        dismiss()
+                    }
+                    .buttonStyle(Pill(fill: nil, height: 44, size: 16))
+                }
                 Button("Done") { dismiss() }.buttonStyle(Pill(fill: nil, height: 44, size: 16))
             }
             ScrollView {

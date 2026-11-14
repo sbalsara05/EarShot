@@ -1,9 +1,33 @@
 # Earshot app
 
-The iPhone and iPad app. It records a call from the device microphone, shows a live transcript with
-marks, then drafts a nurse handoff and a PCR for the medic to edit and sign.
+The iPhone and iPad app. It records a call, shows a live transcript with marks, then drafts a nurse
+handoff and a PCR for the medic to edit and sign.
 
-The clip is simulated in the app for now. Every recording comes from the phone or tablet microphone.
+It connects to the clip over Bluetooth, following [`firmware/BLUETOOTH.md`](../firmware/BLUETOOTH.md).
+The link lives in `Earshot/ClipLink.swift`. It has been run against the ESP32-S3 Feather stand-in on an
+iPad, not yet against the Atom VoiceS3R.
+
+## Using a clip
+
+1. Power the clip. On the Clip tab, tap **Find my clip** and allow Bluetooth. Clips in range are
+   listed with their signal strength; tap yours to connect. The app remembers it and reconnects by
+   itself from then on. **Find clip** makes a connected clip blink.
+2. The clip's button then drives the call:
+
+| On the clip | In the app |
+|---|---|
+| Click | Drops a mark |
+| Double click | Pauses the recording, or resumes it |
+| Click and hold | Completes the open call. With no call open, starts one and begins recording |
+
+**Audio from** on the Clip tab chooses the microphone. It is set to this device's microphone for now,
+because the stand-in board has none and plays a stored voice. Switch it to **Clip** once a clip with a
+microphone is in use. The Live Call header always names the microphone in use.
+
+The app only shows a clip as connected once the clip has confirmed every step, and names the step if
+one fails. If the link drops during a recording made from the clip's audio, the recording is held open
+for 30 seconds while the clip reconnects, then ends as "cut short". Bluetooth needs a real iPhone or
+iPad; the simulator has none.
 
 ## What you need
 
@@ -45,20 +69,24 @@ To keep your team and bundle identifier between regenerations, set `DEVELOPMENT_
 ## Using it
 
 1. **New call**, then **Start recording**. Speak; each pause starts a new line with its clock time.
-2. **Mark** drops a numbered mark at that moment. The red button stops the recording.
-3. Record again for another segment, or tap **Analyze** to draft the handoff and PCR.
-4. Fix any line. Yellow lines are ones the AI did not hear.
-5. **Sign off** by drawing a signature or typing your name. The call moves to Past calls on Home.
+2. **Mark** drops a numbered mark at that moment. The red button pauses; **Resume recording** carries
+   on in the same recording. A recording keeps going when the app is not on screen.
+3. **Complete**, and confirm, closes the recording for good. The call moves to the AI Drafts tab under
+   **Needs sign-off**, where its handoff and PCR are drafted, and a new call can start straight away.
+4. Open a waiting call to fix any line. Yellow lines are ones the AI did not hear.
+5. **Sign off** by drawing a signature or typing your name. The call moves to **Signed**.
 
-A call that is not signed stays open, even if the app is closed. To throw one away, use
-**Discard call** on Home. Past calls open with a tap and delete with a swipe.
+The AI Drafts tab shows how many calls are waiting for sign-off, and lists every signed call below
+them. Home lists the three most recent. Signed calls open with a tap and delete with a swipe; **Edit**
+on one sends it back to be signed again. To throw away the call being recorded, use **Discard call**
+on Home.
 
 ## Messages you may see
 
 | Message | What it means |
 |---|---|
 | "This iPhone cannot transcribe English on the device yet" | The device has no on-device speech model, so the app will not record. It never sends call audio to a server |
-| "Nothing was drafted. Apple Intelligence is turned off" | Turn Apple Intelligence on in Settings, then Analyze again |
+| "Nothing was drafted. Apple Intelligence is turned off" | Turn Apple Intelligence on in Settings. A completed call is not drafted again, so fill its lines in by hand |
 | "The on-device model is still downloading" | Apple Intelligence was just turned on. Wait a few minutes |
 | "Transcription stopped" | The recogniser failed. In the simulator this is expected |
 
@@ -90,14 +118,20 @@ xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS
 |---|---|
 | `Earshot/EarshotApp.swift` | App state, saving to disk, the header and tabs, Home, Clip |
 | `Earshot/CallScreens.swift` | Live Call, AI Drafts, and the past-call screen |
-| `Earshot/Recorder.swift` | Microphone to text, and transcript to drafts |
+| `Earshot/Recorder.swift` | Audio to text (microphone or clip), and transcript to drafts |
+| `Earshot/ClipLink.swift` | The Bluetooth link to the clip: find, connect, receive, send |
 | `Earshot/Signature.swift` | The sign-off sheet and signature drawing |
 | `Earshot/Components.swift` | Colours, fonts, dot-matrix drawing, shared controls |
 | `Earshot/Fonts/` | Doto and Geist, both under the Open Font License |
 
 ## Not built yet
 
-- **The clip.** The Clip tab is a stand-in. Nothing talks to the hardware.
+- **The clip.** It reports no battery level, and the link has no pairing or encryption. Audio spoken
+  while the link is down is lost: the clip does not store it.
+- **Older systems.** The app also builds for iOS 18 (set `IPHONEOS_DEPLOYMENT_TARGET=18.0`), where
+  everything works except the AI drafts, which need iOS 26.
+- **Background transcription.** Recording carries on in the background; whether on-device
+  transcription keeps up there has not been confirmed.
 - **Sign-in and audit trail.** Anyone holding the device can open the app and read past calls.
 - **Audio.** Only the transcript is kept. No audio file is saved.
 - **Long calls.** The on-device model reads about 4,000 tokens. Longer calls fail to draft with a
