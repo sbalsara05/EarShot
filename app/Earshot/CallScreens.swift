@@ -186,7 +186,7 @@ struct LiveScreen: View {
             if current.items.isEmpty {
                 empty("What is said will appear here as you record.")
             } else {
-                feed { TranscriptRows(recording: current, liveLine: model.liveLine) }.smooth(current.items.count)
+                feed { TranscriptRows(recording: current, liveLine: model.liveLine, listening: true) }.smooth(current.items.count)
             }
         case .between, .cutShort:
             feed {
@@ -489,6 +489,7 @@ struct TranscriptRows: View {
     var recording: Recording
     var color: Color = .dim
     var liveLine: UUID? = nil   // the line still being spoken, if any
+    var listening = false       // a recording is running: live words are lighter until Whisper's line takes their place
     var deleteMark: ((Item.ID) -> Void)? = nil   // when given, a mark row slides left to be deleted
 
     var body: some View {
@@ -526,7 +527,8 @@ struct TranscriptRows: View {
                         + Text(" ●").font(geist(14)).foregroundColor(.red.opacity(blink(t))), size: fit(26, 21))
                 }
             } else if !item.text.isEmpty {
-                said(item.time, Text(item.text).foregroundColor(color))
+                said(item.time, Text(item.text).foregroundColor(tone(of: item)))
+                    .accessibilityHint(item.unsure ? "Read with care: this line may not be right." : "")
             }
             }
             // A new line or mark rises into place; a deleted mark slides away and fades.
@@ -536,6 +538,14 @@ struct TranscriptRows: View {
 
     private func stamp(_ time: Date) -> some View {
         Text(clock(time)).font(geist(fit(17, 15), 500).monospacedDigit()).foregroundStyle(Color.dim).frame(width: fit(64, 50), alignment: .leading)
+    }
+
+    /// How strongly a spoken line is drawn. A line to read with care (only the live recogniser heard it, or Whisper
+    /// was not sure of it) is a step lighter than the rest. During a recording, a line Whisper is sure of stands out
+    /// at full strength from the live words still waiting for it.
+    private func tone(of item: Item) -> Color {
+        if item.unsure { return color == .ink ? .dim : .mid }
+        return listening && item.source == .whisper ? .ink : color
     }
 
     private func said(_ time: Date, _ text: Text, size: CGFloat = fit(22, 18)) -> some View {

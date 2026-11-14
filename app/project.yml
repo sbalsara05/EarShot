@@ -3,6 +3,9 @@ options:
   deploymentTarget:
     iOS: "26.0"
 packages:
+  # Audio to transcript lines with Whisper. Run transcribe/fetch.sh once before building.
+  Transcribe:
+    path: ../transcribe
   # Decodes the clip's Opus audio. libopus wrapped for Swift, BSD-3-Clause.
   Opus:
     url: https://github.com/alta/swift-opus
@@ -11,9 +14,28 @@ targets:
   Earshot:
     type: application
     platform: iOS
-    sources: [Earshot]
+    sources:
+      - path: Earshot
+      # The Whisper model, 465 MB, fetched by transcribe/fetch.sh. Without it the app builds and uses live words only.
+      - path: ../transcribe/Models/ggml-small.en.bin
+        buildPhase: resources
+        optional: true
     dependencies:
       - package: Opus
+      - package: Transcribe
+    postBuildScripts:
+      # Settings shows which branch and commit a build came from.
+      - name: Stamp the branch
+        basedOnDependencyAnalysis: false
+        script: |
+          plist="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
+          branch=$(git -C "$SRCROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
+          commit=$(git -C "$SRCROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)
+          [ -n "$(git -C "$SRCROOT" status --porcelain 2>/dev/null)" ] && commit="$commit, with changes not yet committed"
+          /usr/libexec/PlistBuddy -c "Delete :GitBranch" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :GitBranch string $branch" "$plist"
+          /usr/libexec/PlistBuddy -c "Delete :GitCommit" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :GitCommit string $commit" "$plist"
     info:
       path: Earshot/Info.plist
       properties:
@@ -29,6 +51,7 @@ targets:
         # location: so does the once-a-minute place check.
         UIBackgroundModes: [audio, bluetooth-central, location]
         UIStatusBarHidden: true
+        UIFileSharingEnabled: true   # a Whisper model can be copied into the app's Documents folder from Finder
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
@@ -39,5 +62,6 @@ targets:
         CODE_SIGN_STYLE: Automatic
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
+        ENABLE_USER_SCRIPT_SANDBOXING: "NO"   # the branch stamp reads git
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"

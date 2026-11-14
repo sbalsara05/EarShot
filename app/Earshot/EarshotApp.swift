@@ -16,6 +16,19 @@ struct Item: Identifiable, Codable {
     var text = ""
     var mark: Int? = nil     // set on a mark row, which has no text
     var place: Place? = nil  // set on a location row, which has no text either
+
+    // What follows is on spoken lines only, and is left out of calls recorded before Whisper wrote the record.
+    var end: Date? = nil              // when its last word was said. `time` is when its first was
+    /// Who wrote the line. Nil: the live recogniser's words, not yet looked at by Whisper.
+    /// `whisper`: Whisper's line, which took the live words' place. `apple`: the live recogniser heard it and Whisper
+    /// wrote nothing for that stretch, so it is kept, with a confidence of 0.
+    var source: Source? = nil
+    var confidence: Double? = nil     // 0 to 1: the average of the words' confidences
+    var words: [Word]? = nil          // Whisper's lines only
+
+    enum Source: String, Codable { case whisper, apple }
+    /// One word of a line: where it starts in the text, when it was said, and how sure Whisper was of it.
+    struct Word: Codable { var offset: Int; var time: Date; var confidence: Double }
 }
 
 /// One stretch of a call's audio as text. Pausing and resuming carries on in the same recording.
@@ -41,6 +54,7 @@ struct Call: Identifiable, Codable {
     var signature: Signature?
     var format: NarrativeFormat?        // how the narrative is laid out. Nil on calls saved before formats existed: plain
     var narratives: [String: String]?   // the narrative as written in each format so far, by format, so going back to one is instant
+    var whisper: Bool?                  // Whisper wrote this call's record. Nil on calls with live words only
 
     var narrativeFormat: NarrativeFormat { format ?? .plain }
 
@@ -129,7 +143,10 @@ struct Call: Identifiable, Codable {
     var rewriting: [Call.ID: NarrativeFormat] = [:]   // calls whose narrative is being written in a newly chosen format
     var narrativeTrouble: [Call.ID: String] = [:]     // why a call's narrative could not be written in the format last chosen
 
+    var recordBy: String?                          // the Whisper model writing the record, like "small.en". Nil: live words only
     @ObservationIgnored private let transcriber = Transcriber()
+    @ObservationIgnored private let scribe = Record()
+    @ObservationIgnored private var retired = Set<UUID>()             // live lines Whisper's have replaced; late words for them are dropped
     @ObservationIgnored private let link = ClipLink()
     @ObservationIgnored private var source = Transcriber.Source.mic   // where the current recording's audio comes from
     @ObservationIgnored private var viaClip = false                   // the current recording runs on the clip too, so stop and marks go to it
@@ -159,6 +176,13 @@ struct Call: Identifiable, Codable {
             self?.liveLine = nil
             self?.save()   // each finished line is on disk before the next one starts
         }
+        transcriber.onAudio = { [scribe] pcm in scribe.feed(pcm) }
+        scribe.onLines = { [weak self] id, lines, heard in self?.recorded(id, lines, upTo: heard) }
+        scribe.load { [weak self] in
+            guard let self else { return }
+            self.recordBy = self.scribe.name
+            self.transcriber.liveOptional = self.scribe.name != nil
+        }
         transcriber.onProblem = { [weak self] message in
             self?.problem = "Transcription stopped. \(message)"
             self?.stop()
@@ -172,14 +196,94 @@ struct Call: Identifiable, Codable {
     }
 
     private func heard(_ id: UUID, _ text: String) {
+        guard !retired.contains(id) else { return }   // Whisper has already written this stretch
         if id == transcriber.segment { liveLine = id }
         for r in call.recordings.indices {
             if let i = call.recordings[r].items.firstIndex(where: { $0.id == id }) {
                 call.recordings[r].items[i].text = text
+                call.recordings[r].items[i].end = Date()
                 return
             }
         }
-        if !call.recordings.isEmpty { call.recordings[call.recordings.count - 1].items.append(Item(id: id, text: text)) }
+        if !call.recordings.isEmpty { call.recordings[call.recordings.count - 1].items.append(Item(id: id, text: text, end: Date())) }
+    }
+
+    /// Whisper has read more of a call: the open one, or one waiting for sign-off that it is still catching up on.
+    private func recorded(_ id: Call.ID, _ lines: [Item], upTo heard: Date) {
+        if id == call.id, live != .none {
+            var open = call
+            if Self.place(lines, upTo: heard, in: &open, speaking: live == .listening ? liveLine : nil, retiring: &retired) { call = open }
+        } else if let i = review.firstIndex(where: { $0.id == id }) {
+            var waiting = review[i]
+            if Self.place(lines, upTo: heard, in: &waiting, speaking: nil, retiring: &retired) { review[i] = waiting }
+        }
+        if !lines.isEmpty { save() }
+    }
+
+    /// How long after a word is said the live recogniser shows it. A live line's times run that much late, so it is
+    /// matched against Whisper's lines that much earlier.
+    static let liveLag: TimeInterval = 1.5
+
+    /// Puts Whisper's new lines into a call, and settles the live lines Whisper has now got past.
+    ///
+    /// A live line is left alone until Whisper has read the audio up to its end. Then, if Whisper wrote something
+    /// for that stretch of time, the live line goes and Whisper's stands. If Whisper wrote nothing there, the live
+    /// line stays, marked as heard by the live recogniser only, with a confidence of 0: nothing heard is dropped.
+    /// One of Whisper's lines is cut in two where a mark or a place was logged in the middle of it, so those stay
+    /// between the words they came between. Returns whether the call changed.
+    static func place(_ lines: [Item], upTo heard: Date, in call: inout Call, speaking: UUID?, retiring retired: inout Set<UUID>) -> Bool {
+        guard let r = call.recordings.lastIndex(where: { $0.start <= (lines.first?.time ?? heard) }) ?? call.recordings.indices.last else { return false }
+        var items = call.recordings[r].items, changed = !lines.isEmpty
+        let cuts = items.filter { $0.mark != nil || $0.place != nil }.map(\.time)
+        items += lines.flatMap { cut($0, at: cuts) }
+        let written = items.filter { $0.source == .whisper }
+        items.removeAll { item in
+            guard item.mark == nil, item.place == nil, item.source != .whisper, !item.text.isEmpty, item.id != speaking else { return false }
+            let end = item.end ?? item.time
+            guard item.source == .apple || end.addingTimeInterval(-liveLag) <= heard else { return false }   // not reached yet
+            guard written.contains(where: { $0.time <= end && ($0.end ?? $0.time) >= item.time.addingTimeInterval(-liveLag) }) else { return false }
+            retired.insert(item.id)
+            changed = true
+            return true
+        }
+        for i in items.indices where items[i].source == nil && items[i].mark == nil && items[i].place == nil && !items[i].text.isEmpty && items[i].id != speaking {
+            guard (items[i].end ?? items[i].time).addingTimeInterval(-liveLag) <= heard else { continue }
+            items[i].source = .apple
+            items[i].confidence = 0
+            changed = true
+        }
+        guard changed else { return false }
+        call.recordings[r].items = items.enumerated().sorted { ($0.element.time, $0.offset) < ($1.element.time, $1.offset) }.map(\.element)
+        return true
+    }
+
+    /// One of Whisper's lines, cut wherever one of `times` falls between two of its words.
+    static func cut(_ line: Item, at times: [Date]) -> [Item] {
+        guard let words = line.words, words.count > 1 else { return [line] }
+        let starts = [0] + words.indices.dropFirst().filter { i in times.contains { $0 > words[i - 1].time && $0 <= words[i].time } }
+        guard starts.count > 1 else { return [line] }
+        let text = Array(line.text)
+        return starts.enumerated().map { n, from in
+            let to = n + 1 < starts.count ? starts[n + 1] : words.count
+            let part = words[from..<to], offset = words[from].offset
+            let until = to < words.count ? words[to].offset : text.count
+            return Item(time: words[from].time, text: String(text[offset..<until]).trimmingCharacters(in: .whitespaces),
+                        end: to < words.count ? words[to].time : line.end, source: .whisper,
+                        confidence: (part.map(\.confidence).reduce(0, +) / Double(part.count) * 1000).rounded() / 1000,
+                        words: part.map { Item.Word(offset: $0.offset - offset, time: $0.time, confidence: $0.confidence) })
+        }
+    }
+
+    /// Whisper has read the whole call: any live line it never took up is marked as heard by the live recogniser only.
+    static func settle(_ call: inout Call) {
+        guard call.whisper == true else { return }
+        for r in call.recordings.indices {
+            for i in call.recordings[r].items.indices where call.recordings[r].items[i].source == nil
+                && call.recordings[r].items[i].mark == nil && call.recordings[r].items[i].place == nil && !call.recordings[r].items[i].text.isEmpty {
+                call.recordings[r].items[i].source = .apple
+                call.recordings[r].items[i].confidence = 0
+            }
+        }
     }
 
     // MARK: The call
@@ -195,7 +299,7 @@ struct Call: Identifiable, Codable {
 
     func record() {
         Task { @MainActor in
-            problem = await Transcriber.authorize(microphone: audioSource == .mic)
+            problem = await Transcriber.authorize(microphone: audioSource == .mic, liveOptional: recordBy != nil)
             guard problem == nil, live != .listening else { return }
             if clip {
                 // Nothing is shown as recording until the clip confirms, in clipSaid. If it never does, say so.
@@ -236,6 +340,8 @@ struct Call: Identifiable, Codable {
         guard live != .listening, live != .none else { return }
         do {
             try transcriber.start(from: source)
+            scribe.begin(for: call.id)
+            if recordBy != nil { call.whisper = true }
             self.source = source
             self.viaClip = viaClip
             if let last = call.recordings.indices.last, let pausedAt = call.recordings[last].end {
@@ -264,6 +370,7 @@ struct Call: Identifiable, Codable {
     private func finish(as next: Live) {
         guard live == .listening else { return }
         transcriber.stop()
+        scribe.end()
         locator.stop()
         // A recording that ends while the clip is away ended when the clip was last heard, not now.
         call.recordings[call.recordings.count - 1].end = clipReconnecting ? droppedAt : Date()
@@ -367,6 +474,7 @@ struct Call: Identifiable, Codable {
     /// header says the clip is reconnecting. If the clip is not back within the grace period, it ends as cut short.
     private func holdForReconnect() {
         transcriber.stop()   // the line being spoken closes; the next words start a new one
+        scribe.end()
         silenceTimer?.invalidate()
         clipSilent = false
         droppedAt = Date()
@@ -382,6 +490,7 @@ struct Call: Identifiable, Codable {
     private func resumeAfterDrop() {
         do {
             try transcriber.start(from: .clip)
+            scribe.begin(for: call.id)
             clipReconnecting = false
             dropTimer?.invalidate()
             watchForSilence()
@@ -482,9 +591,14 @@ struct Call: Identifiable, Codable {
     /// Writes the reports for a call waiting for sign-off. Until it finishes, the call shows as "Writing reports".
     private func draft(_ id: Call.ID) {
         guard let waiting = review.first(where: { $0.id == id }) else { return }
-        let transcript = waiting.spoken
         let wanted = waiting.format ?? NarrativeFormat.preferred   // the format the crew last chose
         Task { @MainActor in
+            // The reports are written from the finished record, so Whisper reads the call to its end first.
+            await scribe.finished(id)
+            guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // removed meanwhile
+            Self.settle(&review[i])
+            save()
+            let transcript = review[i].spoken
             var written = Draft.blank, note: String?
             var format = NarrativeFormat.plain, narratives: [String: String] = [:]
             do {
@@ -699,6 +813,38 @@ struct Call: Identifiable, Codable {
         var located = Call()
         located.recordings = [Recording(items: [Item(place: Place(latitude: 42.3398, longitude: -71.0892, accuracy: 8, street: "360 Huntington Ave", city: "Boston", state: "MA", zip: "02115"))])]
         assert(located.transcript.contains("LOCATION 360 Huntington Ave, Boston, MA 02115 (42.33980, -71.08920)") && located.spoken.isEmpty)
+        // Whisper's lines take the place of live words once it has read past them. Live words it wrote nothing for stay,
+        // marked; the line being spoken and lines it has not reached are left alone; a mark stays between its words.
+        func line(_ from: Double, _ to: Double, _ text: String) -> Item {
+            var at = 0
+            let words = text.split(separator: " ").enumerated().map { n, w -> Item.Word in
+                defer { at += w.count + 1 }
+                return Item.Word(offset: at, time: t.addingTimeInterval(from + Double(n)), confidence: n == 0 ? 0.4 : 0.8)
+            }
+            return Item(time: t.addingTimeInterval(from), text: text, end: t.addingTimeInterval(to), source: .whisper, confidence: 0.7, words: words)
+        }
+        let early = Item(time: t.addingTimeInterval(1), text: "bp one twenty", end: t.addingTimeInterval(3))
+        let missed = Item(time: t.addingTimeInterval(8), text: "no allergies", end: t.addingTimeInterval(9))
+        let ahead = Item(time: t.addingTimeInterval(20), text: "not yet read", end: t.addingTimeInterval(22))
+        let speaking = Item(time: t.addingTimeInterval(5), text: "still talking", end: t.addingTimeInterval(6))
+        var talk = Call()
+        talk.whisper = true
+        talk.recordings = [Recording(start: t, items: [early, Item(time: t.addingTimeInterval(1.5), mark: 1), speaking, missed, ahead])]
+        var gone = Set<UUID>()
+        assert(place([line(0, 3, "BP 120 over 80.")], upTo: t.addingTimeInterval(12), in: &talk, speaking: speaking.id, retiring: &gone))
+        let rows = talk.recordings[0].items
+        assert(rows.map(\.text) == ["BP 120", "", "over 80.", "still talking", "no allergies", "not yet read"], "the record was placed wrongly: \(rows.map(\.text))")
+        assert(gone == [early.id] && rows[0].words?.count == 2 && rows[2].words?.first?.offset == 0 && rows[0].confidence == 0.6)
+        assert(rows[4].source == .apple && rows[4].confidence == 0 && rows[4].unsure && rows[5].source == nil && rows[3].source == nil)
+        assert(!rows[2].unsure && line(0, 1, "x").unsure == false && Item(text: "old call").unsure == false)
+        // A line Whisper writes later for a stretch first thought missed takes the live line's place after all.
+        assert(place([line(7.5, 9, "No known allergies.")], upTo: t.addingTimeInterval(13), in: &talk, speaking: nil, retiring: &gone))
+        assert(talk.recordings[0].items.map(\.text) == ["BP 120", "", "over 80.", "still talking", "No known allergies.", "not yet read"] && gone.contains(missed.id))
+        assert(!place([], upTo: t.addingTimeInterval(13), in: &talk, speaking: nil, retiring: &gone))   // nothing new: the call is not touched
+        settle(&talk)
+        assert(talk.recordings[0].items.filter { $0.source == .apple }.map(\.text) == ["still talking", "not yet read"])
+        let kept = try? JSONDecoder().decode(Call.self, from: JSONEncoder().encode(talk))
+        assert(kept?.recordings[0].items[0].source == .whisper && kept?.recordings[0].items[0].words?.count == 2 && kept?.whisper == true)
         let toggle = { (target: String) in
             (try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"toggle","target":"\#(target)","source":"button","t_ms":204759}"#.utf8))).flatMap(ClipIntent.init)
         }

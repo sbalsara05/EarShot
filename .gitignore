@@ -15,3 +15,9 @@ firmware/evidence/**/*.mov
 
 # compression test audio samples (large); the results table is kept
 firmware/codec_test/results/samples/
+
+# transcription (transcribe/): the whisper.cpp framework and the model are fetched by transcribe/fetch.sh
+.build/
+transcribe/Frameworks/
+transcribe/Models/
+xcuserdata/

@@ -1,0 +1,321 @@
+0.9 saline
+2-pam
+abstral
+acephen
+acetaminophen
+actidose
+actiq
+activated charcoal
+acular
+acuvail
+addaprin
+adenocard
+adenoscan
+adenosine
+adrenalin
+adrenaline
+afrezza
+akten
+albuterol
+albuterol neb
+alcaine
+aller-tec
+alleroff
+alocane
+amidate
+amiodarone
+amp of d50
+anacin af
+anecream
+anectine
+apap
+apresoline
+aspergum
+aspi-cor
+aspirin
+ativan
+atropen
+atropine
+atropine and pralidoxime
+atropine sulfate
+atrovent
+baby aspirin
+bactimicina
+banophen
+baqsimi
+bayer aspirin
+bicarb
+bicarb amp
+bio-kool
+biorphen
+bondlido
+brethine
+brilinta
+bruselix
+bufferin
+burn jel plus
+cacl
+calcium chloride
+calcium gluc
+calcium gluconate
+caldolor
+calgonate
+calmicid
+cardene
+cardiac epi
+cardizem
+cartia
+cetafen
+cetirizine
+charcocaps
+chewable aspirin
+clopidogrel
+comfortcaine
+compazine
+compoz
+compro
+cordarone
+counteract ib
+counteract pain
+cutiecaine
+cyanokit
+cyklokapron
+decadron
+depo-medrol
+derma numb
+dermamycin
+desempacho
+dex4
+dexamethasone
+dexasone
+dexium
+dexlyt
+dextenza
+dextrose
+dextrose 10
+dextrose 50
+dexycu
+diastat
+diazepam
+dilaudid
+diltiazem
+diltzac
+diphedryl
+diphenhist
+diphenhydramine
+dopamine
+dormin
+droperidol
+duo neb
+duodote
+duoneb
+duramorph
+durlaza
+ecotrin
+elepsia
+enfamil glucose
+epi pen
+epinephrine
+epipen
+etomidate
+famotidine
+fentanyl
+fentora
+feverall
+furosemide
+genahist
+genpril
+glucagen
+glucagon
+glucoburst
+glucose gel
+glutose
+gonitro
+gvoke
+haldol
+haloperidol
+hemady
+heparin
+high flow oxygen
+humalog
+humulin r
+hybrisil
+hydralazine
+hydromorphone
+hydroxocobalamin
+ibuprofen
+ibuprohm
+immphentiv
+inapsine
+infumorph
+insta glucose
+insta-char
+insta-glucose
+intropin
+ionsys
+ipratropium
+isopto atropine
+kadian
+kapspargo
+keppra
+ketalar
+ketamine
+ketaset
+ketorolac
+kids-eeze allergy
+kloxxado
+labetalol
+lactated ringer's
+lactated ringers
+lantus
+lasix
+laughing gas
+levetiracetam
+levophed
+libervant
+lidocaine
+little fevers
+lopressor
+lorazepam
+loreev
+lysteda
+mag sulfate
+magnesium sulfate
+mapap
+mark 1 kit
+mark one kit
+matzim
+maxidex
+medrol
+methylprednisolone
+metoprolol
+mgso4
+midazolam
+miniprin
+mitigo
+morphine
+morphine sulfate
+ms contin
+mso4
+mydfrin
+myxredlin
+nalox
+naloxone
+narcan
+nasop
+nayzilam
+neo-synephrine
+neoprofen
+neosynephrine
+nexterone
+nicardipine
+nitro
+nitro paste
+nitro spray
+nitro tab
+nitro-bid
+nitro-dur
+nitrobid
+nitroglycerin
+nitroglycerin paste
+nitrolingual
+nitromist
+nitronox
+nitrostat
+nitrous oxide
+norcuron
+norepi
+norepinephrine
+normal saline
+nortemp
+norwich aspirin
+novolin r
+novolog
+nytol
+ofirmev
+olanzapine
+ondansetron
+one milligram epi
+oral glucose
+oral glucose gel
+oxygen
+oxytocin
+ozurdex
+pacerone
+panadol
+paracetamol
+phenadoz
+phenergan
+phenylephrine
+pitocin
+pitressin
+plavix
+proair
+prochlorperazine
+promethazine
+promethegan
+proparacaine
+proprinal
+proventil
+push dose epi
+push dose neo
+quelicin
+quzyttir
+racemic epi
+racemic epinephrine
+racepinephrine
+rectiv
+rextovy
+rezenopy
+rhinall
+ringer's lactate
+rocuronium
+roweepra
+sodium bicarb
+sodium bicarbonate
+sodium chloride
+solu medrol
+solu-medrol
+solumedrol
+spritam
+sprix
+st. joseph aspirin
+sublimaze
+subsys
+succinylcholine
+sudafed pe
+sudo-tab
+sugar gel
+supplemental oxygen
+symjepi
+taztia
+terbutaline
+tetracaine
+thiamine
+tiadylt
+tiazac
+ticagrelor
+toprol
+toradol
+trandate
+tranexamic acid
+valium
+valtoco
+vasopressin
+vasostrict
+vazalore
+vazculep
+vecuronium
+ventolin
+versed
+vitamin b1
+wal-four
+wal-zyr
+xylocaine
+zemuron
+zerviate
+zetamine
+zimhi
+zofran
+zofran odt
+zyprexa

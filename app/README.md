@@ -3,6 +3,9 @@
 The iPhone and iPad app. It records a call, shows a live transcript with marks, then drafts a nurse
 handoff and a PCR for the medic to edit and sign.
 
+Before the first build, run `../transcribe/fetch.sh` once. It fetches Whisper, which writes the transcript
+(see [`transcribe/README.md`](../transcribe/README.md)).
+
 It connects to the clip over Bluetooth, following [`firmware/BLUETOOTH.md`](../firmware/BLUETOOTH.md).
 The link lives in `Earshot/ClipLink.swift`. It has been run against the ESP32-S3 Feather stand-in on an
 iPad, not yet against the Atom VoiceS3R.
@@ -37,6 +40,14 @@ places are still logged with the app off screen or the device locked. During a r
 device's place once a minute and adds a location row to the transcript when it has moved 50 metres or more,
 so a call at one address logs it once. The row carries the address when one can be looked up (that needs a
 network) and the coordinates either way. Settings shows whether location is allowed.
+
+**Transcript.** Two recognisers hear the same audio. This device's own shows words at once. Whisper reads the
+audio again a pause at a time, and its line takes the place of the live words a few seconds later. Each of
+Whisper's lines carries a confidence from 0 to 1 and a time for every word. A line the live recogniser heard
+and Whisper wrote nothing for is kept, marked as such, with a confidence of 0. Lighter lines in a transcript are
+the ones to read with care: those, and Whisper's lines under 0.6. Settings names the model in use, and the branch
+and commit the build came from. Where a device cannot recognise speech itself, recording still works and text
+arrives a pause at a time. Without the Whisper model the app uses live words only, as before.
 
 The app only shows a clip as connected once the clip has confirmed every step, and names the step if
 one fails. If the link drops during a recording made from the clip's audio, the recording is held open
@@ -140,7 +151,8 @@ xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS
 |---|---|
 | `Earshot/EarshotApp.swift` | App state, saving to disk, the header and tabs, Home, Clip |
 | `Earshot/CallScreens.swift` | Live Call, AI Drafts, and the past-call screen |
-| `Earshot/Recorder.swift` | Audio to text (microphone or clip), and transcript to drafts |
+| `Earshot/Recorder.swift` | Audio to live words (microphone or clip), and transcript to drafts |
+| `Earshot/Record.swift` | Whisper's side of a call: the same audio, read into the lines that replace the live words |
 | `Earshot/ClipLink.swift` | The Bluetooth link to the clip: find, connect, receive, send |
 | `Earshot/Settings.swift` | Settings: the audio source, and the values stamped on every report |
 | `Earshot/Location.swift` | The once-a-minute place check during a recording |

@@ -149,6 +149,12 @@ struct SettingsScreen: View {
             Text(note).font(geist(17)).lineSpacing(4).foregroundStyle(noteColor).padding(.top, 18)
             Text("Either way the audio is transcribed and drafted the same. The clip's button and marks work with both.")
                 .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 10)
+            Text("Transcript by").font(geist(17, 500)).foregroundStyle(Color.dim).padding(.top, 28).padding(.bottom, 8)
+            Text(model.recordBy.map { "Whisper \($0)" } ?? "This \(deviceName) only").font(geist(19, 600))
+            Text(model.recordBy != nil
+                 ? "Words show at once as this \(deviceName) hears them, then Whisper's more careful reading takes their place. Lighter lines are ones to read with care."
+                 : "No Whisper model is installed, so the transcript is this \(deviceName)'s own. Run transcribe/fetch.sh and build again.")
+                .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 8)
             Text("Location").font(geist(17, 500)).foregroundStyle(Color.dim).padding(.top, 28).padding(.bottom, 8)
             HStack(spacing: 10) {
                 Circle().fill(model.location == .always ? Color.green : .yellow).frame(width: 10, height: 10)
@@ -162,6 +168,10 @@ struct SettingsScreen: View {
                 }
                 .buttonStyle(Pill(fill: nil, height: 56, size: 17, grow: true)).padding(.top, 14)
             }
+            Text("This build").font(geist(17, 500)).foregroundStyle(Color.dim).padding(.top, 28).padding(.bottom, 8)
+            Text(Bundle.main.object(forInfoDictionaryKey: "GitBranch") as? String ?? "Unknown branch").font(geist(19, 600))
+            Text("Commit \(Bundle.main.object(forInfoDictionaryKey: "GitCommit") as? String ?? "unknown")")
+                .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 8)
             Spacer(minLength: 0)
         }
         .padding(fit(36, 24))
