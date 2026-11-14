@@ -548,10 +548,10 @@ struct Call: Identifiable, Codable {
         let marker = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"marker","id":1,"source":"button","t_ms":47781,"audio_seq":327}"#.utf8))
         assert(marker?.type == "marker" && marker?.source == "button")
         assert(hello.flatMap(ClipIntent.init) == .hello(codec: "opus") && marker.flatMap(ClipIntent.init) == .mark)
-        let toggle = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"toggle"}"#.utf8))
-        assert(toggle.flatMap(ClipIntent.init) == .toggleRecording)   // the stub payloads; change them together with ClipIntent
-        let named = { (type: String) in (try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"\#(type)"}"#.utf8))).flatMap(ClipIntent.init) }
-        assert(named("toggle-rec") == .toggleRecording && named("toggle_call") == .toggleCall && named("something-else") == nil)
+        let toggle = { (target: String) in
+            (try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"toggle","target":"\#(target)","source":"button","t_ms":204759}"#.utf8))).flatMap(ClipIntent.init)
+        }
+        assert(toggle("recording") == .toggleRecording && toggle("call") == .toggleCall)   // as firmware 0.11.0 sends them
         assert(ClipLink.frameNumber(of: Data([0x47, 0x01, 0, 0, 9, 9, 9, 9])) == 327)   // 0x0147, least significant byte first
     }
     #endif

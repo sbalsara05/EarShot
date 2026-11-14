@@ -4,7 +4,8 @@ import Opus
 
 /// One message from the clip's events channel. A message only carries the fields that belong to its type.
 struct ClipEvent: Decodable {
-    var type: String        // hello | state | consent | marker
+    var type: String        // hello | state | consent | marker | toggle
+    var target: String?     // toggle: recording | call
     var device: String?     // hello: the clip's name, like "Earshot-A3F2"
     var fw: String?         // hello: firmware version
     var listening: Bool?    // state
@@ -32,14 +33,11 @@ enum ClipIntent: Equatable {
         case ("consent", "stopped"): self = .stopped
         case ("state", _): self = .listening(event.listening == true)
         case ("marker", _) where event.source == "button": self = .mark   // one the app asked for is already in the transcript
-        default:
-            // STUB: the exact payloads for the two toggles are not settled with the firmware. Until they are, the
-            // event's name is taken from "type", and a hyphen or an underscore in it is read the same way.
-            switch event.type.replacingOccurrences(of: "_", with: "-") {
-            case "toggle-rec", "toggle": self = .toggleRecording
-            case "toggle-call": self = .toggleCall
-            default: return nil
-            }
+        // The clip's button, as firmware 0.11.0 sends it: {"type":"toggle","target":"recording"} for a double click,
+        // {"type":"toggle","target":"call"} for a click and hold.
+        case ("toggle", _) where event.target == "call": self = .toggleCall
+        case ("toggle", _): self = .toggleRecording
+        default: return nil
         }
     }
 }
