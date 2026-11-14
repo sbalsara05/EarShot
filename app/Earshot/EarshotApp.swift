@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 enum Tab: String, CaseIterable { case home = "Home", live = "Live Call", drafts = "AI Drafts", clip = "Clip" }
@@ -638,6 +639,15 @@ struct Call: Identifiable, Codable {
         let formatted = try? JSONDecoder().decode(Call.self, from: JSONEncoder().encode(call))
         assert(formatted?.narrativeFormat == .draatt && formatted?.pcr[2].title == "Narrative, DRAATT")
         // The clip's messages must be readable exactly as firmware/BLUETOOTH.md gives them.
+        // The level meter: silence and a quiet room show nothing, quiet speech still moves it, and louder never reads lower.
+        func tone(_ amplitude: Float) -> AVAudioPCMBuffer {
+            let buffer = AVAudioPCMBuffer(pcmFormat: AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!, frameCapacity: 4096)!
+            buffer.frameLength = 4096
+            for i in 0..<4096 { buffer.floatChannelData![0][i] = amplitude * sin(Float(i) * 0.3) }
+            return buffer
+        }
+        let heard = [0, 0.0005, 0.002, 0.01, 0.03, 0.1, 0.4].map { Transcriber.level(of: tone($0)) }
+        assert(heard[2] == 0 && heard[3] >= 3 && heard[5] == 6 && heard == heard.sorted(), "the level meter is off: \(heard)")
         // A mark dropped by accident can be deleted: the ones after it move up, and their notes with them.
         var marked = Call()
         marked.recordings = [Recording(items: [Item(mark: 1), Item(text: "x"), Item(mark: 2)]), Recording(items: [Item(mark: 3)])]
