@@ -13,7 +13,8 @@ physical button and light.
 
 ## What the clip does
 
-Press to start, hold to stop.
+Double click to pause or resume the recording (the tablet decides which), single click to drop
+a mark, hold to end the call.
 
 | Ring | State | What is happening |
 |---|---|---|
@@ -34,16 +35,20 @@ range, battery dead) is a loss: flashing red.
 
 | Gesture | When | Effect |
 |---|---|---|
-| Press | Not listening | Start: consent is logged and capture begins (red) |
-| Hold 1.5 s | Listening | Stop the capture |
-| Double tap | Listening | Timestamp marker sent to the tablet |
+| Double click | Any time a tablet is connected | Pause or resume. The clip sends the tablet a `toggle` message, the same one every time. The tablet decides: it answers `stop` to pause the recording in progress, or `start` to begin the next one |
+| Single click | Listening | A mark: a timestamp marker sent to the tablet, stamped with the moment of the click |
+| Hold 1.5 s | Any time | End the call. If the clip is listening the microphone goes off at once, tablet or no tablet. Then the clip sends the tablet an `end` message so it can close the call |
 
-The medic asks the patient for consent out loud, as they already do. Pressing the button is the
-medic's confirmation that the patient agreed: the clip logs it as a consent event and only then
-starts the microphone. If the patient says no, the medic does not press.
+The tablet owns the recording and the call. The clip never starts a recording by itself: a
+double click only asks, and the microphone turns on when the tablet answers `start`. `toggle`
+and `end` are only sent while a tablet is connected and are never stored, so a double click or
+a hold made out of range has no effect later (a hold still turns the microphone off).
 
-The tablet can drive the same flow with commands (`start`, `stop`, `marker`), so the PCR app can
-start and stop a recording.
+The medic asks the patient for consent out loud, as they already do. Starting is the medic's
+confirmation that the patient agreed: the clip logs it as a consent event and only then starts
+the microphone. If the patient says no, the medic does not start.
+
+The tablet's other commands are `marker` (drop a mark) and `find`, below.
 
 **Find clip.** The tablet's `find` command makes the clip blink white and beep for 3.2 seconds
 so it can be found, then stop by itself. It works whether or not the clip is listening and never
@@ -57,9 +62,10 @@ changes that. While listening the clip only blinks, so the beep cannot land in a
 
 Details worth knowing:
 
-- The microphone is only on while the ring is red. Nothing is captured before the press, so there is nothing to wipe or withhold.
+- The microphone is only on while the ring is red. Nothing is captured before the start, so there is nothing to wipe or withhold.
 - The consent message is sent before the first audio frame, and every start and stop is logged with a timestamp.
-- A press while already listening is ignored, so a bumped button cannot cut the capture. A double tap or a hold never starts one.
+- A single click never starts or stops anything, so a bumped button cannot begin or cut a capture; at worst it adds a mark.
+- A single click is only recognised once the double-click window (0.35 s) has passed, so the mark is sent about 0.4 s after the click. Its time and audio position are those of the click itself.
 - Each capture restarts the audio frame counter at 0, which gives the tablet a clean boundary between patients.
 - If the link drops while listening, audio is dropped (not stored); consent events and markers are queued and sent on reconnect.
 - The board has no battery or power switch: plugging in USB powers it, and it starts in "not listening", blinking blue until a tablet connects and green once one has.
@@ -134,8 +140,9 @@ make e2e
 make run
 ```
 
-`make run` serves the UI at http://localhost:8765. The left panel is the clip: click to press,
-hold for a long press, double-click for a marker (the space bar works too). The right panel is
+`make run` serves the UI at http://localhost:8765. The left panel is the clip: double-click
+to pause or resume, click for a mark, hold to end the call (the space bar works too). The mock tablet
+answers a double click the way the app should: `stop` if a recording is running, `start` if not. The right panel is
 the mock tablet and shows exactly what arrived, including an "audio without consent" counter
 that must stay at 0, how many times consent was logged, and the data rate against the 8,000
 bytes-per-second Bluetooth budget.
@@ -147,7 +154,7 @@ and allow microphone access: the laptop's microphone then stands in for the clip
 Open the page in Chrome or Safari for this (http://localhost:8765).
 
 - Speak while the ring is green (connected, not listening): the tablet stays at 0 bytes.
-- Press the button (ring red), speak, hold to stop, then press **Play received audio** to hear exactly what the tablet was sent.
+- Double-click the button (ring red), speak, double-click again to stop, then press **Play received audio** to hear exactly what the tablet was sent.
 
 The laptop mic tests the whole path with real speech. It does not tell you how the clip's own
 microphone sounds; for that, run the real device against `sim/tablet.py --no-sim --lan` and use
@@ -192,7 +199,7 @@ too slow to run the Opus encoder in real time. Microphone testing stays with the
 4. Open the `firmware/` folder in VS Code, then F1 → "Wokwi: Start Simulator".
 
 Click the blue button (or hold the **B** key) for the clip button. The ring is green once the
-virtual clip has connected, red after a press and green again after a hold; http://localhost:8765 shows what the virtual clip sent. The
+virtual clip has connected, red after a double click and green again after another; http://localhost:8765 shows what the virtual clip sent. The
 virtual board reaches the laptop as `host.wokwi.internal` through the gateway built into the
 extension.
 
@@ -237,8 +244,10 @@ and the onboard NeoPixel is the light. No `config.h` is needed for Bluetooth.
 4. Receive on the Mac, from Terminal (macOS asks once to let Terminal use Bluetooth):
    `build/codec-test-venv/bin/python tools/ble_receiver.py --start --seconds 13 --transcribe`
    It should print the events, about 50 packets a second, 0 lost, and the recording's words.
-5. Or press BOOT to start, hold it 1.5 s to stop, double tap for a marker, and watch with the
-   iPad app, nRF Connect or LightBlue.
+5. Or use the BOOT button: double click sends `toggle` (something must answer `start` for the
+   clip to begin: the iPad app, `tools/ble_receiver.py --app`, or a `{"cmd":"start"}` written
+   from nRF Connect or LightBlue), single click while it is red drops a mark, and a 1.5 s hold
+   turns the microphone off and sends `end`.
 
 The status line every 5 seconds shows the slowest Opus encode so far, which must stay under
 20 ms. The first run measured 16.5 ms at worst: it kept up with nothing dropped, but with

@@ -67,6 +67,9 @@ class MockTablet:
         self.sim = None           # simulated clip process
         self.sim_status = {}
         self.sim_led = "off"
+        self.toggles = 0          # double clicks the clip has reported
+        self.ends = 0             # holds the clip has reported ("end the call")
+        self.answer_toggles = True  # answer them the way the app would (start, or stop if listening)
         self.sim_beeps = 0        # beeps the simulated clip has made ("find")
         self.server = None
         self._tasks = []
@@ -328,6 +331,14 @@ class MockTablet:
                 self.last_seq = None  # each capture restarts the clip's frame counter
             elif what == "stopped":
                 self.listening = False
+        elif kind == "toggle":
+            # The clip only reports the double click; the tablet decides what it means. Like the
+            # app, end the recording in progress or begin a new one.
+            self.toggles += 1
+            if self.answer_toggles:
+                asyncio.ensure_future(self.send_command("stop" if self.listening else "start"))
+        elif kind == "end":
+            self.ends += 1  # the medic held the button: the app would close the call here
         elif kind == "marker":
             self.markers.append({"id": ev.get("id"), "t_ms": ev.get("t_ms"),
                                  "audio_seq": ev.get("audio_seq"), "source": ev.get("source"),

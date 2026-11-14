@@ -8,6 +8,7 @@ Button::Button(ButtonTiming timing)
       raw_changed_at_(0),
       pressed_(false),
       down_at_(0),
+      gesture_at_(0),
       long_fired_(false),
       second_tap_(false),
       tap_pending_(false),
@@ -30,6 +31,7 @@ ButtonEvent Button::update(bool raw, uint32_t now) {
     long_fired_ = false;
     second_tap_ = tap_pending_;  // pressed again inside the double-tap window
     tap_pending_ = false;
+    if (!second_tap_) gesture_at_ = now;  // a second tap belongs to the gesture already begun
     return ButtonEvent::None;
   }
 

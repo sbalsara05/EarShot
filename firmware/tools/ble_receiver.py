@@ -11,6 +11,9 @@ reconnects by itself when the clip goes away and comes back, so it doubles as a 
                    the clip's button)
     --seconds N    stop the capture and quit after N seconds of audio
     --find         ask the clip to blink and beep ("Find clip"), wait for it to finish, and quit
+    --app          stand in for the app's button handling: answer each double click ("toggle")
+                   with start, or stop if a recording is running; print each mark and each
+                   hold ("end the call")
     --wav FILE     where to save the decoded audio (default: build/ble_received.wav)
     --transcribe   transcribe the saved audio with Whisper at the end
 
@@ -57,6 +60,7 @@ class Receiver:
         self.listening = False
         self.hello = asyncio.Event()
         self.window_frames = self.window_bytes = 0
+        self.answer = None  # set by --app: called with "start" or "stop" to answer a toggle
 
     # ---- events channel
     def on_event(self, _sender, data: bytearray):
@@ -79,6 +83,14 @@ class Receiver:
             self.next_seq = 0  # the frame counter restarts with every capture
         elif ev.get("type") == "state":
             self.listening = bool(ev.get("listening"))
+        elif ev.get("type") == "toggle" and self.answer:
+            # The clip only reports the double click. Decide as the app would.
+            self.answer("stop" if self.listening else "start")
+        elif ev.get("type") == "end":
+            print(f"{stamp()}  END CALL: the medic held the button; the app would close the call here")
+        elif ev.get("type") == "marker":
+            print(f"{stamp()}  MARK {ev.get('id')} at audio packet {ev.get('audio_seq')} "
+                  f"({ev.get('audio_seq', 0) * 0.02:.1f} s into the recording)")
 
     # ---- audio channel
     def on_audio(self, _sender, data: bytearray):
@@ -137,6 +149,14 @@ async def run(args):
                 await client.start_notify(AUDIO, rx.on_audio)
                 await client.start_notify(EVENTS, rx.on_event)
                 await asyncio.wait_for(rx.hello.wait(), 5.0)
+                if args.app:
+                    def answer(cmd, client=client):
+                        print(f"{stamp()}  double click: answering {cmd}")
+                        asyncio.ensure_future(
+                            client.write_gatt_char(COMMANDS, json.dumps({"cmd": cmd}).encode(), response=True))
+                    rx.answer = answer
+                    print(f"{stamp()}  standing in for the app: double-click the clip to start or stop, "
+                          "single-click while it is red for a mark. Ctrl-C to quit.")
                 if args.find:
                     await client.write_gatt_char(COMMANDS, b'{"cmd":"find"}', response=True)
                     print(f"{stamp()}  sent find: the clip should blink (and beep, if it has a speaker) for about 3 seconds")
@@ -184,6 +204,8 @@ def main():
     ap.add_argument("--start", action="store_true", help="start a capture as soon as connected")
     ap.add_argument("--seconds", type=float, default=0, help="quit after this much audio")
     ap.add_argument("--find", action="store_true", help="make the clip blink and beep, then quit")
+    ap.add_argument("--app", action="store_true",
+                    help="answer double clicks like the app (start, or stop if recording) and print marks")
     ap.add_argument("--wav", default=str(ROOT / "build" / "ble_received.wav"))
     ap.add_argument("--transcribe", action="store_true")
     args = ap.parse_args()

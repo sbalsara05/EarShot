@@ -47,13 +47,26 @@ the app never has to join packets together.
 **Events** (UTF-8 JSON, clip to app):
 
 ```json
-{"type":"hello","device":"ESP-CLIP-A3F2","fw":"0.8.0","audio":{"codec":"opus","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}
+{"type":"hello","device":"ESP-CLIP-A3F2","fw":"0.10.0","audio":{"codec":"opus","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}
 {"type":"state","state":"listening","listening":true,"t_ms":41234}
 {"type":"consent","event":"granted","source":"button","t_ms":41230}
 {"type":"consent","event":"stopped","source":"tablet","t_ms":63010}
 {"type":"marker","id":1,"source":"button","t_ms":47781,"audio_seq":327}
+{"type":"toggle","source":"button","t_ms":52310}
+{"type":"end","source":"button","t_ms":91500}
 ```
 
+- **`toggle` is a double click on the clip's button: pause or resume.** It is the same message
+  whether or not the clip is recording, and the clip does nothing else: the app decides. Answer
+  `{"cmd":"stop"}` to pause a recording in progress, or `{"cmd":"start"}` to begin the next one.
+- **`end` is a 1.5 second hold: end the call.** If the clip was recording it has already
+  stopped by itself, and a `consent` `stopped` and a `state` arrive just before `end`. It is
+  sent whether or not the clip was recording.
+- `toggle` and `end` are only sent while the app is connected, and are never replayed after a
+  reconnect.
+- **`marker` is a mark** (a single click while recording, or the app's own `marker` command).
+  `t_ms` and `audio_seq` are those of the click itself; `audio_seq` is the audio packet being
+  captured at that moment. `id` counts up from 1 since the clip was powered on.
 - `consent` `granted` arrives before the first audio packet of a capture; `stopped` after the last.
 - `source` says whether the clip's button or the app caused it.
 - `t_ms` counts from when the clip powered on. Stamp the real time when the message arrives.
@@ -67,7 +80,8 @@ the app never has to join packets together.
 {"cmd":"find"}
 ```
 
-`start` begins a capture exactly as a button press does. Either write type works.
+`start` begins a capture and `stop` ends one; these are how the app answers a `toggle`. The
+clip replies with `consent` and `state` events. Either write type works.
 
 `find` is for the Clip tab's **Find clip** button. The clip blinks its light white and beeps for
 3.2 seconds, the same time the button shows "Blinking and buzzing", then stops by itself.
@@ -129,8 +143,9 @@ For decoding, iOS has an Opus decoder in AudioToolbox (`kAudioFormatOpus`, throu
 ## Testing without the app
 
 - **On a phone:** install nRF Connect or LightBlue. Scan, connect to `ESP-CLIP-XXXX`, turn on
-  notifications for the two notify characteristics, then press the clip's button. Events show as
-  text and audio as 88-byte packets.
+  notifications for the two notify characteristics, then double-click the clip's button: a
+  `toggle` event shows as text. Write `{"cmd":"start"}` to the commands characteristic and audio
+  arrives as 88-byte packets.
 - **On a Mac:** `tools/ble_receiver.py` does all five steps, decodes the audio to a WAV file,
   reconnects on its own and can transcribe what it received. See the top of that file.
 

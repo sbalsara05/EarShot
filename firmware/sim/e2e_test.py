@@ -64,16 +64,24 @@ async def main():
               f"{t.sim_beeps} beeps, ring {t.sim_led}")
 
         print("gestures that must not start a capture")
-        await t.sim_input("double")
+        await t.sim_input("short")
         await asyncio.sleep(0.9)
         await t.sim_input("long")
         await asyncio.sleep(2.2)
-        check("double tap and hold do nothing while not listening",
-              t.device_state == "not_listening" and t.audio_bytes == 0 and not consent_events(t))
+        check("a single click and a hold never start a capture",
+              t.device_state == "not_listening" and t.audio_bytes == 0 and not consent_events(t)
+              and not t.markers and t.toggles == 0)
 
-        print("press = start (consent logged)")
-        await t.sim_input("short")
-        check("clip reports listening", await wait_for(lambda: t.device_state == "listening" and t.listening))
+        print("double click = toggle; the tablet decides (here: start)")
+        t.answer_toggles = False
+        await t.sim_input("double")
+        check("clip reports the double click", await wait_for(lambda: t.toggles == 1))
+        await asyncio.sleep(0.6)
+        check("and does nothing by itself", t.device_state == "not_listening" and t.audio_bytes == 0)
+        t.answer_toggles = True
+        await t.sim_input("double")
+        check("tablet answers start; clip reports listening",
+              await wait_for(lambda: t.device_state == "listening" and t.listening))
         await asyncio.sleep(1.0)
         check("audio now arrives", t.audio_frames > 30, f"{t.audio_frames} frames, {t.audio_bytes} bytes")
         check("clip says it is sending Opus at 32 kbit/s", t.codec == "opus" and t.bitrate == 32000,
@@ -84,27 +92,44 @@ async def main():
         check("data rate with headers is under 8,000 bytes per second", rate <= 8000, f"{rate:.0f} bytes/s")
         check("no frames lost", t.lost_frames == 0, f"{t.lost_frames} lost")
         check("ring is red: listening", t.sim_led == "red", t.sim_led)
-        check("the press was logged as consent", consent_events(t) == ["granted"], str(consent_events(t)))
+        check("the start was logged as consent", consent_events(t) == ["granted"], str(consent_events(t)))
 
-        print("double tap = marker")
-        await t.sim_input("double")
-        check("marker 1 received", await wait_for(lambda: len(t.markers) == 1))
-        check("still listening after the marker", t.device_state == "listening")
-
-        print("a stray press while listening")
+        print("single click = mark")
+        frames_at_click = t.audio_frames
         await t.sim_input("short")
-        await asyncio.sleep(0.8)
-        check("is ignored", t.device_state == "listening" and consent_events(t) == ["granted"])
+        check("mark 1 received", await wait_for(lambda: len(t.markers) == 1))
+        check("still listening after the mark", t.device_state == "listening" and consent_events(t) == ["granted"])
+        if t.markers:
+            seq = t.markers[0]["audio_seq"]
+            check("the mark points at the audio frame of the click, not of its recognition",
+                  frames_at_click - 3 <= seq <= frames_at_click + 12, f"frame {seq}, click at about {frames_at_click}")
 
-        print("hold = stop")
-        await t.sim_input("long")
+        print("double click while listening = the same toggle; the tablet answers stop")
+        await t.sim_input("double")
         check("clip reports not listening", await wait_for(lambda: t.device_state == "not_listening", 4.0))
+        check("it was the same message as before", t.toggles == 3, f"{t.toggles} toggles")
         await asyncio.sleep(0.3)
         n = t.audio_frames
         await asyncio.sleep(0.8)
         check("audio stops", t.audio_frames == n)
         check("ring is green: connected, not listening", t.sim_led == "green", t.sim_led)
         check("the stop was logged", consent_events(t) == ["granted", "stopped"], str(consent_events(t)))
+
+        print("hold = end the call")
+        await t.send_command("start")
+        check("capture running again", await wait_for(lambda: t.device_state == "listening"))
+        ends = t.ends
+        await t.sim_input("long")
+        check("a hold stops the capture at once", await wait_for(lambda: t.device_state == "not_listening", 4.0))
+        check("and tells the tablet to end the call", await wait_for(lambda: t.ends == ends + 1), f"{t.ends - ends}")
+        kinds = [e["event"].get("type") for e in t.events if e["dir"].startswith("clip")]
+        check("in order: stopped, state, end", kinds[-3:] == ["consent", "state", "end"], str(kinds[-3:]))
+        await asyncio.sleep(0.3)
+        n = t.audio_frames
+        consents = len(consent_events(t))
+        await t.sim_input("long")
+        check("a hold while paused sends end alone", await wait_for(lambda: t.ends == ends + 2, 4.0), f"{t.ends - ends}")
+        check("with no change to the capture", len(consent_events(t)) == consents and t.device_state == "not_listening")
 
         print("tablet commands")
         await t.send_command("start")
@@ -113,7 +138,7 @@ async def main():
         check("audio flows again", t.audio_frames > n)
         check("a new capture restarts the frame counter without a false loss", t.lost_frames == 0)
         await t.send_command("marker")
-        check("tablet-requested marker received",
+        check("tablet-requested mark received",
               await wait_for(lambda: len(t.markers) == 2 and t.markers[1]["source"] == "tablet"))
         await t.send_command("stop")
         check("tablet can stop the capture", await wait_for(lambda: t.device_state == "not_listening"))
@@ -162,7 +187,7 @@ async def main():
         print("ledger")
         check("no audio frame ever arrived while the clip was not listening", t.violations == 0,
               f"{t.violations}")
-        check("consent was logged once per capture", t.captures == 3, f"{t.captures}")
+        check("consent was logged once per capture", t.captures == 4, f"{t.captures}")
     finally:
         await t.stop()
 

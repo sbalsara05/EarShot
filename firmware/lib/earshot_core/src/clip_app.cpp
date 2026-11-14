@@ -48,7 +48,10 @@ void ClipApp::begin() {
 void ClipApp::tick() {
   uint32_t now = hal_.millis();
 
-  if (cfg_.poll_button) onButtonEvent(button_.update(hal_.buttonPressed(), now));
+  if (cfg_.poll_button) {
+    ButtonEvent e = button_.update(hal_.buttonPressed(), now);
+    if (e != ButtonEvent::None) onButtonEvent(e, button_.gestureStartMs());
+  }
 
   serviceLink(now);
   serviceFind(hal_.millis());
@@ -56,16 +59,46 @@ void ClipApp::tick() {
   refreshLed(hal_.millis(), false);
 }
 
-void ClipApp::onButtonEvent(ButtonEvent event) {
+void ClipApp::onButtonEvent(ButtonEvent event) { onButtonEvent(event, hal_.millis()); }
+
+void ClipApp::onButtonEvent(ButtonEvent event, uint32_t began_ms) {
   switch (event) {
-    case ButtonEvent::ShortPress: apply(Input::ShortPress, "button"); break;
-    case ButtonEvent::LongPress: apply(Input::LongPress, "button"); break;
-    case ButtonEvent::DoubleTap: apply(Input::DoubleTap, "button"); break;
+    case ButtonEvent::ShortPress: apply(Input::ShortPress, "button", began_ms); break;
+    case ButtonEvent::LongPress: {
+      // A hold ends the call. The microphone goes off here and now if it was on, tablet or
+      // no tablet. Then the tablet is told, so it can close the call; like a toggle, that is
+      // sent directly and never queued.
+      apply(Input::LongPress, "button", began_ms);
+      if (!cfg_.gateway_enabled) break;  // standalone: there is no call to end
+      if (!linkOpen()) {
+        hal_.log("hold: no tablet connected, so the call was not ended");
+        break;
+      }
+      uint32_t now = hal_.millis();
+      ++stats_.ends;
+      link_->sendText(endJson("button", now));
+      flashing_ = true;  // one white flash: the hold was taken
+      flash_start_ = now;
+      break;
+    }
+    case ButtonEvent::DoubleTap:
+      if (!cfg_.gateway_enabled) {
+        apply(Input::DoubleTap, "button", began_ms);  // standalone: no tablet to ask, toggle here
+      } else if (!linkOpen()) {
+        hal_.log("double click ignored: no tablet connected");
+      } else {
+        // The tablet owns the recording. Tell it about the double click, with the same message
+        // whatever state the clip is in, and let it answer "start" or "stop". Sent directly,
+        // never queued: a double click must not take effect minutes later after a reconnect.
+        ++stats_.toggles;
+        link_->sendText(toggleJson("button", began_ms));
+      }
+      break;
     case ButtonEvent::None: break;
   }
 }
 
-void ClipApp::apply(Input input, const char* source) {
+void ClipApp::apply(Input input, const char* source, uint32_t began_ms) {
   uint32_t now = hal_.millis();
   Transition tr = step(state_, input);
   state_ = tr.next;
@@ -74,8 +107,8 @@ void ClipApp::apply(Input input, const char* source) {
     case Effect::None:
       return;
     case Effect::Started:
-      // Pressing start is the medic's confirmation of consent. It is logged first; only then
-      // does the microphone start.
+      // Starting is the medic's confirmation of consent. It is logged first; only then does
+      // the microphone start.
       emit(consentJson("granted", source, now));
       if (finding_) {  // a find in progress goes quiet, and frees the speaker, before the mic turns on
         setBeep(false);
@@ -92,12 +125,20 @@ void ClipApp::apply(Input input, const char* source) {
       memset(packet_, 0, sizeof packet_);
       emit(consentJson("stopped", source, now));
       break;
-    case Effect::Marker:
+    case Effect::Marker: {
+      // A mark belongs to the moment the button went down, not to now: a single click is only
+      // recognised once the double-click window has passed. Step the time and the audio
+      // position back by that delay (ignoring anything implausibly old).
+      uint32_t age = (uint32_t)(now - began_ms);
+      if (age > 3000) age = 0;
+      uint32_t frames_ago = age / kFrameMs;
+      uint32_t seq = audio_seq_ > frames_ago ? audio_seq_ - frames_ago : 0;
       ++stats_.markers;
       flashing_ = true;
       flash_start_ = now;
-      emit(markerJson(stats_.markers, source, now, audio_seq_));
+      emit(markerJson(stats_.markers, source, now - age, seq));
       return;  // state did not change
+    }
     case Effect::Find:
       ++stats_.finds;
       finding_ = true;
@@ -142,7 +183,7 @@ void ClipApp::serviceLink(uint32_t now) {
     if (link_->isOpen() && !announced_) announce(now);
     if (!got) break;
     Input in;
-    if (parseCommand(msg, in)) apply(in, "tablet");
+    if (parseCommand(msg, in)) apply(in, "tablet", now);
   }
   flushPending();
   if (!link_->isOpen() && announced_) {

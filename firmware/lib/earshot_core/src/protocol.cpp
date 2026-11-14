@@ -38,6 +38,20 @@ std::string markerJson(uint32_t id, const char* source, uint32_t t_ms, uint32_t 
   return buf;
 }
 
+std::string toggleJson(const char* source, uint32_t t_ms) {
+  char buf[96];
+  snprintf(buf, sizeof buf, "{\"type\":\"toggle\",\"source\":\"%s\",\"t_ms\":%lu}", source,
+           (unsigned long)t_ms);
+  return buf;
+}
+
+std::string endJson(const char* source, uint32_t t_ms) {
+  char buf[96];
+  snprintf(buf, sizeof buf, "{\"type\":\"end\",\"source\":\"%s\",\"t_ms\":%lu}", source,
+           (unsigned long)t_ms);
+  return buf;
+}
+
 bool parseCommand(const std::string& json, Input& out) {
   // Tiny extractor for {"cmd":"..."}; avoids pulling a JSON library onto the device.
   size_t k = json.find("\"cmd\"");
