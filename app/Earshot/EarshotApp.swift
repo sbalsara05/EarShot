@@ -69,6 +69,7 @@ struct Call: Identifiable, Codable {
     var clipState = ClipLink.State.idle
     var clipsNearby: [ClipLink.Found] = []   // clips heard while searching, for the medic to pick from
     var clipSignal: ClipLink.Signal?       // how strongly the connected clip is heard, refreshed every two seconds
+    var clipReconnecting = false           // the link dropped mid-recording; the recording is held open while the clip comes back
     var clipSilent = false                 // recording from the clip, but no audio has arrived for a few seconds
     var live = Live.none
     var drafts = Drafts.none
@@ -84,6 +85,9 @@ struct Call: Identifiable, Codable {
     @ObservationIgnored private var source = Transcriber.Source.mic   // where the current recording's audio comes from
     @ObservationIgnored private var lastClipAudio = Date()
     @ObservationIgnored private var silenceTimer: Timer?
+    @ObservationIgnored private var droppedAt = Date()                // when the link was lost, while clipReconnecting
+    @ObservationIgnored private var dropTimer: Timer?
+    @ObservationIgnored private var stopOwed = false                  // a stop could not reach the clip; send it when the clip is back
     @ObservationIgnored private var startAsked: Date?                 // when the clip was last told to start, until it answers
 
     init() {
@@ -176,14 +180,17 @@ struct Call: Identifiable, Codable {
 
     func stop(as next: Live = .between) {
         guard live == .listening else { return }
-        if source == .clip { link.send("stop") }
+        if source == .clip && !link.send("stop") { stopOwed = true }   // the clip is away and may still be capturing
         finish(as: next)
     }
 
     private func finish(as next: Live) {
         guard live == .listening else { return }
         transcriber.stop()
-        call.recordings[call.recordings.count - 1].end = Date()
+        // A recording that ends while the clip is away ended when the clip was last heard, not now.
+        call.recordings[call.recordings.count - 1].end = clipReconnecting ? droppedAt : Date()
+        clipReconnecting = false
+        dropTimer?.invalidate()
         live = next
         silenceTimer?.invalidate()
         clipSilent = false
@@ -260,7 +267,38 @@ struct Call: Identifiable, Codable {
             if live == .cutShort { live = .between }
         } else {
             clip = false
-            if live == .listening && source == .clip { finish(as: .cutShort) }   // the link dropped mid-recording
+            if live == .listening && source == .clip && !clipReconnecting { holdForReconnect() }   // the link dropped mid-recording
+        }
+    }
+
+    /// How long a recording waits for a dropped clip before it is ended as cut short.
+    private static let grace: TimeInterval = 30
+
+    /// The link dropped mid-recording. Most drops last a second or two, so the recording stays open and the
+    /// header says the clip is reconnecting. If the clip is not back within the grace period, it ends as cut short.
+    private func holdForReconnect() {
+        transcriber.stop()   // the line being spoken closes; the next words start a new one
+        silenceTimer?.invalidate()
+        clipSilent = false
+        droppedAt = Date()
+        clipReconnecting = true
+        dropTimer?.invalidate()
+        dropTimer = Timer.scheduledTimer(withTimeInterval: Self.grace, repeats: false) { [weak self] _ in
+            guard let self, self.clipReconnecting else { return }
+            self.finish(as: .cutShort)
+        }
+    }
+
+    /// The clip is back and still capturing: carry on in the same recording.
+    private func resumeAfterDrop() {
+        do {
+            try transcriber.start(from: .clip)
+            clipReconnecting = false
+            dropTimer?.invalidate()
+            watchForSilence()
+        } catch {
+            problem = error.localizedDescription
+            finish(as: .cutShort)
         }
     }
 
@@ -273,7 +311,17 @@ struct Call: Identifiable, Codable {
         case ("consent", "granted"):
             clipStarted()
         case ("state", _) where event.listening == true:
-            clipStarted()   // said after every connect: the clip was already listening, so pick it up
+            // Said after every connect. The clip kept capturing through a drop: carry on, or pick it up afresh.
+            if stopOwed {
+                stopOwed = false
+                link.send("stop")   // the medic stopped this recording while the clip was away
+            } else if clipReconnecting {
+                resumeAfterDrop()
+            } else {
+                clipStarted()
+            }
+        case ("state", _) where event.listening == false && stopOwed:
+            stopOwed = false   // the clip had stopped by itself
         case ("consent", "stopped"):
             if source == .clip { finish(as: .between) }
         case ("state", _) where event.listening == false:
@@ -522,6 +570,8 @@ struct Header: View {
     @ViewBuilder private var status: some View {
         if model.tab != .live || model.live == .none {
             Color.clear.frame(height: 1)
+        } else if model.live == .listening && model.clipReconnecting {
+            Text("Reconnecting to the clip").font(geist(15, 600)).foregroundStyle(Color.yellow)
         } else if model.live == .listening && model.clipSilent {
             Text("No audio from the clip").font(geist(15, 600)).foregroundStyle(Color.yellow)
         } else if model.live == .listening {

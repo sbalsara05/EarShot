@@ -137,6 +137,8 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     func forget() {
         wanted = false
         attempt += 1
+        retries = 0
+        retryIn = nil
         UserDefaults.standard.removeObject(forKey: Self.saved)
         central?.stopScan()
         if let clip { central?.cancelPeripheralConnection(clip) }
@@ -198,14 +200,27 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     /// The link is ready only when all of it is confirmed: the commands channel, both subscriptions, and hello.
     private func settle() {
         guard commands != nil, audioOn, eventsOn, let hello else { return }
+        retries = 0
         state = .ready(hello)
     }
 
-    /// Stops short of ready, and says why. The radio link stays up so the reason can be read from the clip's log too.
+    /// Setting up did not finish. Most causes pass by themselves, so the link is dropped and tried again after
+    /// 2, 5 and then 10 seconds, still showing "connecting". Only after that does it stop and say why.
     private func fail(_ why: String) {
         attempt += 1   // the setup timeout has nothing left to add
-        state = .trouble(why)
+        guard retries < Self.waits.count, let central, let clip else {
+            log("giving up: \(why)")
+            state = .trouble(why)
+            return
+        }
+        retryIn = Self.waits[retries]
+        retries += 1
+        log("setup failed (\(why)); try \(retries) of \(Self.waits.count) in \(Int(retryIn ?? 0)) s")
+        central.cancelPeripheralConnection(clip)   // didDisconnectPeripheral picks it up from here
     }
+    private static let waits: [TimeInterval] = [2, 5, 10]
+    private var retries = 0
+    private var retryIn: TimeInterval?   // set when the next connect should wait instead of starting at once
 
     // MARK: Finding and keeping the clip
 
@@ -275,7 +290,16 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         reset()
         guard wanted else { return }
         state = .connecting
-        central.connect(peripheral)   // the clip advertises again at once, so this returns by itself
+        guard let wait = retryIn else {
+            central.connect(peripheral)   // the clip advertises again at once, so this returns by itself
+            return
+        }
+        retryIn = nil
+        let this = attempt
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
+            guard let self, self.wanted, self.attempt == this else { return }
+            central.connect(peripheral)
+        }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
