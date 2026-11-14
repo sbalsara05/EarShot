@@ -6,6 +6,7 @@ import Opus
 struct ClipEvent: Decodable {
     var type: String        // hello | state | consent | marker
     var device: String?     // hello: the clip's name, like "Earshot-A3F2"
+    var fw: String?         // hello: firmware version
     var listening: Bool?    // state
     var event: String?      // consent: granted | stopped
     var source: String?     // consent, marker: button | tablet
@@ -19,18 +20,34 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     enum State: Equatable {
         case off(String)     // Bluetooth cannot be used; the text says why
         case idle            // not looking for a clip
-        case searching       // scanning for any clip
-        case connecting      // a clip is known; waiting for it to answer
+        case searching       // scanning; clips in range are reported through onFound until one is chosen
+        case connecting      // a clip is chosen or remembered; waiting for it to answer
         case ready(String)   // connected, subscribed, and the clip has said hello; the text is its name
     }
 
+    /// A clip heard while searching.
+    struct Found: Identifiable, Equatable {
+        let id: UUID
+        var name: String
+        var bars: Int   // signal strength, 1 (far) to 4 (close)
+    }
+
     var onState: (State) -> Void = { _ in }
+    var onFound: ([Found]) -> Void = { _ in }            // every clip in range, in the order first heard
     var onEvent: (ClipEvent) -> Void = { _ in }
     var onAudio: (AVAudioPCMBuffer) -> Void = { _ in }   // 16 kHz mono, in the order it was captured
 
     private(set) var state = State.idle {
-        didSet { if state != oldValue { onState(state) } }
+        didSet {
+            guard state != oldValue else { return }
+            log("\(state)")
+            onState(state)
+        }
     }
+    private var found: [Found] = [] {
+        didSet { if found != oldValue { onFound(found) } }
+    }
+    private var nearby: [UUID: CBPeripheral] = [:]   // the peripherals behind `found`; iOS drops any that nothing holds
 
     private static let service = CBUUID(string: "E5A70001-7C1B-4F0E-9D52-3A6B8C4D2E10")
     private static let audio = CBUUID(string: "E5A70002-7C1B-4F0E-9D52-3A6B8C4D2E10")
@@ -67,6 +84,18 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         }
     }
 
+    /// Connects to one of the clips reported through onFound.
+    func connect(to id: UUID) {
+        guard state == .searching, let central, let peripheral = nearby[id] else { return }
+        central.stopScan()
+        clip = peripheral
+        nearby = [:]
+        found = []
+        peripheral.delegate = self
+        state = .connecting
+        central.connect(peripheral)   // does not time out: it completes whenever the clip is in range and powered
+    }
+
     /// Lets go of the clip and stops looking for it.
     func forget() {
         wanted = false
@@ -75,6 +104,8 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         if let clip { central?.cancelPeripheralConnection(clip) }
         clip = nil
         commands = nil
+        nearby = [:]
+        found = []
         if case .off = state { return }
         state = .idle
     }
@@ -82,7 +113,14 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     /// Sends start, stop or marker. Ignored unless the clip is ready.
     func send(_ command: String) {
         guard case .ready = state, let clip, let commands else { return }
+        log("sending \(command)")
         clip.writeValue(Data(#"{"cmd":"\#(command)"}"#.utf8), for: commands, type: .withResponse)
+    }
+
+    private func log(_ message: @autoclosure () -> String) {
+        #if DEBUG
+        print("clip link: \(message())")
+        #endif
     }
 
     private func begin() {
@@ -95,8 +133,11 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             clip.delegate = self
             central.connect(clip)   // does not time out: it completes whenever the clip is in range and powered
         } else {
+            nearby = [:]
+            found = []
             state = .searching
-            central.scanForPeripherals(withServices: [Self.service])
+            // Repeats are allowed so a clip's signal strength keeps up as it moves.
+            central.scanForPeripherals(withServices: [Self.service], options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
         }
     }
 
@@ -120,14 +161,23 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
-        central.stopScan()
-        clip = peripheral
-        peripheral.delegate = self
-        state = .connecting
-        central.connect(peripheral)
+        // The clip is only listed here. It is connected when the medic picks it, in connect(to:).
+        let id = peripheral.identifier
+        let heard = advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? peripheral.name
+        let strength = RSSI.intValue   // dBm: about -50 beside the device, -90 at the edge of range
+        let bars = strength > -55 ? 4 : strength > -68 ? 3 : strength > -80 ? 2 : 1
+        if nearby[id] == nil { log("found \(heard ?? "a clip with no name yet") at \(strength) dBm") }
+        nearby[id] = peripheral
+        if let i = found.firstIndex(where: { $0.id == id }) {
+            found[i].bars = bars
+            if let heard { found[i].name = heard }   // the name arrives in a second packet, after the service ID
+        } else {
+            found.append(Found(id: id, name: heard ?? "Earshot clip", bars: bars))
+        }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        log("connected; up to \(peripheral.maximumWriteValueLength(for: .withoutResponse)) bytes per packet (the clip needs 160)")
         UserDefaults.standard.set(peripheral.identifier.uuidString, forKey: Self.saved)
         // Nothing carries over from the last connection, so the channels are looked up and subscribed every time.
         peripheral.discoverServices([Self.service])
@@ -139,24 +189,32 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         commands = nil
+        log("disconnected\(error.map { ": \($0.localizedDescription)" } ?? "")")
         guard wanted else { return }
         state = .connecting
         central.connect(peripheral)   // the clip advertises again at once, so this returns by itself
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        log("services: \(peripheral.services?.count ?? 0)\(error.map { ", error: \($0.localizedDescription)" } ?? "")")
         for service in peripheral.services ?? [] where service.uuid == Self.service {
             peripheral.discoverCharacteristics([Self.audio, Self.events, Self.commands], for: service)
         }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        let found = service.characteristics ?? []
-        commands = found.first { $0.uuid == Self.commands }
+        let channels = service.characteristics ?? []
+        log("channels: \(channels.count) of 3\(error.map { ", error: \($0.localizedDescription)" } ?? "")")
+        commands = channels.first { $0.uuid == Self.commands }
         // Audio first: the clip starts talking the moment events is subscribed.
         for id in [Self.audio, Self.events] {
-            if let channel = found.first(where: { $0.uuid == id }) { peripheral.setNotifyValue(true, for: channel) }
+            if let channel = channels.first(where: { $0.uuid == id }) { peripheral.setNotifyValue(true, for: channel) }
         }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+        let name = characteristic.uuid == Self.audio ? "audio" : "events"
+        log("subscribed to \(name): \(characteristic.isNotifying)\(error.map { ", error: \($0.localizedDescription)" } ?? "")")
     }
 
     // MARK: Receiving
@@ -166,6 +224,7 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         if characteristic.uuid == Self.audio {
             hear(data)
         } else if characteristic.uuid == Self.events, let event = try? JSONDecoder().decode(ClipEvent.self, from: data) {
+            log("event: \(String(decoding: data, as: UTF8.self))")
             if event.type == "hello" { state = .ready(event.device ?? peripheral.name ?? "Earshot clip") }
             if event.type == "consent", event.event == "granted" { nextSeq = 0 }   // the frame counter restarts with every capture
             onEvent(event)

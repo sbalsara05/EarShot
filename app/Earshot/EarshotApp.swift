@@ -67,6 +67,7 @@ struct Call: Identifiable, Codable {
     var clip = false                       // a clip is connected and ready; recordings then use its audio, not the microphone
     var clipName: String?                  // the last clip that said hello, like "Earshot-A3F2"
     var clipState = ClipLink.State.idle
+    var clipsNearby: [ClipLink.Found] = []   // clips heard while searching, for the medic to pick from
     var live = Live.none
     var drafts = Drafts.none
 
@@ -82,6 +83,7 @@ struct Call: Identifiable, Codable {
 
     init() {
         link.onState = { [weak self] state in self?.clipChanged(to: state) }
+        link.onFound = { [weak self] clips in self?.clipsNearby = clips }
         link.onEvent = { [weak self] event in self?.clipSaid(event) }
         link.onAudio = { [weak self] buffer in self?.transcriber.push(buffer) }
         transcriber.onLevel = { [weak self] level in
@@ -191,8 +193,19 @@ struct Call: Identifiable, Codable {
         }
     }
 
+    /// Starts looking for clips. The ones in range show up in `clipsNearby`.
     func connect() {
         link.connect()
+    }
+
+    /// Connects to the clip the medic picked from `clipsNearby`.
+    func connect(to clip: ClipLink.Found) {
+        link.connect(to: clip.id)
+    }
+
+    /// Makes the clip blink (and beep, if it has a speaker) for about three seconds.
+    func findClip() {
+        link.send("find")
     }
 
     /// Lets go of the clip and stops looking for it. A recording in progress ends there.
@@ -717,7 +730,19 @@ struct ClipScreen: View {
             Text("Press the clip to start a recording once a call is open. Hold it to stop. Double tap to mark.")
                 .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 18)
             Spacer(minLength: 16)
-            Button("Disconnect") { model.disconnect() }.buttonStyle(Pill(fill: nil, grow: true))
+            VStack(spacing: 14) {
+                Button(finding ? "Blinking" : "Find clip") {
+                    model.findClip()
+                    finding = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(3.2))   // how long the clip blinks
+                        finding = false
+                    }
+                }
+                .buttonStyle(Pill(grow: true))
+                .disabled(finding)
+                Button("Disconnect") { model.disconnect() }.buttonStyle(Pill(fill: nil, grow: true))
+            }
         }
         .padding(.top, fit(36, 24)).padding(.horizontal, fit(32, 20)).padding(.bottom, fit(32, 20))
         .side()
@@ -771,6 +796,27 @@ struct ClipScreen: View {
             Text("No clip connected").font(doto(fit(46, 34)))
             Text(waiting)
                 .font(geist(19)).lineSpacing(5).foregroundStyle(Color.dim).padding(.top, 10).padding(.bottom, 22)
+            if model.clipState == .searching {
+                Text(model.clipsNearby.isEmpty ? "Nearby: none yet" : "Nearby: tap a clip to connect").font(geist(15, 600)).foregroundStyle(Color.dim)
+                ForEach(model.clipsNearby) { clip in
+                    Button { model.connect(to: clip) } label: {
+                        VStack(spacing: 0) {
+                            Color.line.frame(height: 1)
+                            HStack(spacing: 16) {
+                                Dots(clipArt, pitch: 3, r: 1.08, palette: ["w": .ink, "m": .mid, "g": .green])
+                                Text(clip.name).font(doto(24)).lineLimit(1)
+                                Spacer()
+                                LevelDots(lit: clip.bars, of: 4)
+                            }
+                            .frame(height: 86)
+                            .contentShape(Rectangle())
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Connect \(clip.name), signal \(clip.bars) of 4")
+                }
+                Color.line.frame(height: 1)
+            }
             Spacer(minLength: 16)
             switch model.clipState {
             case .idle: Button("Find my clip") { model.connect() }.buttonStyle(Pill(grow: true))

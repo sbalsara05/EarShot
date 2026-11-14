@@ -9,8 +9,9 @@ in `Earshot/ClipLink.swift`. It has not been run against a clip yet.
 
 ## Using a clip
 
-1. Power the clip. On the Clip tab, tap **Find my clip** and allow Bluetooth. The tab shows the clip's
-   name once it is connected. The app remembers it and reconnects by itself from then on.
+1. Power the clip. On the Clip tab, tap **Find my clip** and allow Bluetooth. Clips in range are
+   listed with their signal strength; tap yours to connect. The app remembers it and reconnects by
+   itself from then on. **Find clip** makes a connected clip blink.
 2. **New call**, then **Start recording** in the app, or press the clip's button. The clip's light
    turns green and its audio becomes the transcript.
 3. **Mark** in the app or a double tap on the clip drops a mark. The red button, or holding the clip's
