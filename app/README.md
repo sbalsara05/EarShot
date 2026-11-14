@@ -78,6 +78,8 @@ To keep your team and bundle identifier between regenerations, set `DEVELOPMENT_
 3. **Complete**, and confirm, closes the recording for good. The call moves to the AI Drafts tab under
    **Needs sign-off**, where its handoff and PCR are drafted, and a new call can start straight away.
 4. Open a waiting call to fix any line. Yellow lines are ones the AI did not hear.
+   A mark dropped by accident (a stray click on the clip) can be deleted here: swipe it left in the transcript
+   and tap **Delete**. The marks after it move up a number, and the note on a deleted mark goes with it.
 5. Choose the **Narrative format** under PCR: Plain, SOAP, CHART or DRAATT. The narrative is rewritten in
    that format from the transcript, on the device, in a few seconds; the rest of the report does not change.
    Going back to a format already written for the call is instant and brings back the same words. The

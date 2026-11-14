@@ -98,6 +98,39 @@ let clipArt = [
 
 // MARK: Small pieces
 
+/// A row that slides left to show a red Delete, like a list row does. For rows in a scrolling column, which has no
+/// swipe actions of its own. A mostly-vertical drag is left to the scrolling.
+struct SwipeToDelete<Content: View>: View {
+    var onDelete: () -> Void
+    @ViewBuilder var content: Content
+    @State private var shift: CGFloat = 0
+    @State private var open = false
+    private let reveal: CGFloat = 104
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            Button(role: .destructive, action: onDelete) {
+                Text("Delete").font(geist(16, 600)).foregroundStyle(Color.bg)
+                    .frame(width: reveal - 12, height: 40).background(Color.red, in: Capsule())
+            }
+            .buttonStyle(Press())
+            .opacity(shift < 0 ? 1 : 0).allowsHitTesting(open)
+            content.offset(x: shift)
+        }
+        .simultaneousGesture(DragGesture(minimumDistance: 14).onChanged { g in
+            guard abs(g.translation.width) > abs(g.translation.height) else { return }
+            shift = min(0, max(-reveal, g.translation.width + (open ? -reveal : 0)))
+        }.onEnded { g in
+            guard abs(g.translation.width) > abs(g.translation.height) else { return }
+            withAnimation(.easeOut(duration: 0.15)) {
+                open = shift < -reveal / 2
+                shift = open ? -reveal : 0
+            }
+        })
+        .accessibilityAction(named: "Delete mark", onDelete)
+    }
+}
+
 /// Seconds since the app launched, redrawn `fps` times a second.
 struct Ticker<Content: View>: View {
     var fps: Double = 30

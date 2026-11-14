@@ -376,9 +376,12 @@ struct ReviewSheet: View {
                         }
                         part("Transcript") {
                             if call.transcript.isEmpty { Text("Nothing was heard on this call.").font(geist(fit(22, 19))).foregroundStyle(Color.dim) }
+                            if call.markCount > 0 {
+                                Text("Dropped a mark by accident? Swipe it left to delete it.").font(geist(15, 500)).foregroundStyle(Color.dim)
+                            }
                             ForEach(Array(call.recordings.enumerated()), id: \.offset) { n, recording in
                                 RecordingHeading(number: n + 1, recording: recording)
-                                TranscriptRows(recording: recording, color: .ink)
+                                TranscriptRows(recording: recording, color: .ink) { model.deleteMark($0, in: call.id) }
                             }
                         }
                     }
@@ -479,11 +482,12 @@ struct TranscriptRows: View {
     var recording: Recording
     var color: Color = .dim
     var liveLine: UUID? = nil   // the line still being spoken, if any
+    var deleteMark: ((Item.ID) -> Void)? = nil   // when given, a mark row slides left to be deleted
 
     var body: some View {
         ForEach(recording.items) { item in
             if let mark = item.mark {
-                HStack(spacing: fit(16, 10)) {
+                let row = HStack(spacing: fit(16, 10)) {
                     stamp(item.time)
                     HStack(spacing: 8) {
                         Flag()
@@ -492,6 +496,7 @@ struct TranscriptRows: View {
                     DottedRule(color: .yellow.opacity(0.45))
                 }
                 .accessibilityElement(children: .combine)
+                if let deleteMark { SwipeToDelete { deleteMark(item.id) } content: { row } } else { row }
             } else if item.id == liveLine {
                 // The line being spoken: bright, with its newest word in red and a blinking dot.
                 let words = item.text.split(separator: " ")

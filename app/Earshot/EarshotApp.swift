@@ -61,6 +61,25 @@ struct Call: Identifiable, Codable {
 
     var pcrText: String { pcr.map { "\($0.title)\n\($0.body.isEmpty ? "Not heard" : $0.body)" }.joined(separator: "\n\n") }
 
+    /// Takes a mark off the call, for one dropped by accident. The marks after it move up a number, so the call
+    /// still reads Mark 1, Mark 2, Mark 3 with no gap, and the notes the medic wrote on later marks go with them.
+    /// The note on the deleted mark goes too. Returns false when there is no such mark.
+    @discardableResult mutating func removeMark(_ id: Item.ID) -> Bool {
+        guard let removed = recordings.flatMap(\.items).first(where: { $0.id == id && $0.mark != nil })?.mark else { return false }
+        var notes: [Int: String] = [:]
+        for r in recordings.indices {
+            recordings[r].items.removeAll { $0.id == id }
+            for i in recordings[r].items.indices {
+                guard let n = recordings[r].items[i].mark else { continue }
+                let now = n > removed ? n - 1 : n
+                if let note = markNotes[n] { notes[now] = note }
+                recordings[r].items[i].mark = now
+            }
+        }
+        markNotes = notes
+        return true
+    }
+
     /// Marks with nothing said within 20 seconds either side. The handoff asks the medic what happened there.
     var silentMarks: [Item] {
         recordings.flatMap { recording in
@@ -505,6 +524,13 @@ struct Call: Identifiable, Codable {
         save()
     }
 
+    /// Deletes a mark from a call waiting for sign-off. It was dropped by accident, for example by a click on the clip
+    /// that was not meant. The handoff line that asked what happened at that mark goes with it.
+    func deleteMark(_ id: Item.ID, in call: Call.ID) {
+        guard let i = review.firstIndex(where: { $0.id == call }), review[i].removeMark(id) else { return }
+        save()
+    }
+
     /// Edit, after signing: the call goes back to waiting until it is signed again.
     func reopen(_ id: Call.ID) {
         guard let i = past.firstIndex(where: { $0.id == id }) else { return }
@@ -612,6 +638,13 @@ struct Call: Identifiable, Codable {
         let formatted = try? JSONDecoder().decode(Call.self, from: JSONEncoder().encode(call))
         assert(formatted?.narrativeFormat == .draatt && formatted?.pcr[2].title == "Narrative, DRAATT")
         // The clip's messages must be readable exactly as firmware/BLUETOOTH.md gives them.
+        // A mark dropped by accident can be deleted: the ones after it move up, and their notes with them.
+        var marked = Call()
+        marked.recordings = [Recording(items: [Item(mark: 1), Item(text: "x"), Item(mark: 2)]), Recording(items: [Item(mark: 3)])]
+        marked.markNotes = [2: "two", 3: "three"]
+        let second = marked.recordings[0].items[2].id
+        assert(marked.removeMark(second) && marked.markCount == 2 && marked.markNotes == [2: "three"])
+        assert(marked.recordings.flatMap(\.items).compactMap(\.mark) == [1, 2] && !marked.removeMark(second) && !marked.removeMark(marked.recordings[0].items[1].id))
         let hello = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"hello","device":"Earshot-A3F2","fw":"0.6.0","audio":{"codec":"opus","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}"#.utf8))
         assert(hello?.device == "Earshot-A3F2" && hello?.audio?.codec == "opus")
         let marker = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"marker","id":1,"source":"button","t_ms":47781,"audio_seq":327}"#.utf8))
