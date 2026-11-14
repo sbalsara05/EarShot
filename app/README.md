@@ -74,7 +74,13 @@ To keep your team and bundle identifier between regenerations, set `DEVELOPMENT_
 3. **Complete**, and confirm, closes the recording for good. The call moves to the AI Drafts tab under
    **Needs sign-off**, where its handoff and PCR are drafted, and a new call can start straight away.
 4. Open a waiting call to fix any line. Yellow lines are ones the AI did not hear.
-5. **Sign off** by drawing a signature or typing your name. The call moves to **Signed**.
+5. Choose the **Narrative format** under PCR: Plain, SOAP, CHART or DRAATT. The narrative is rewritten in
+   that format from the transcript, on the device, in a few seconds; the rest of the report does not change.
+   Going back to a format already written for the call is instant and brings back the same words. The
+   format you choose is used for the first draft of your next calls. A section the call said nothing
+   about reads "Not heard."
+6. **Sign off** by drawing a signature or typing your name. The call moves to **Signed**, with its
+   narrative in the format it was signed in. **Copy PCR** copies it that way too.
 
 The AI Drafts tab shows how many calls are waiting for sign-off, and lists every signed call below
 them. Home lists three calls: those waiting for sign-off first, then the most recent signed ones. Signed calls open with a tap and delete with a swipe; **Edit**

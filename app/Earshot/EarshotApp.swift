@@ -32,6 +32,13 @@ struct Call: Identifiable, Codable {
     var markNotes: [Int: String] = [:]
     var signedAt: Date?
     var signature: Signature?
+    var format: NarrativeFormat?        // how the narrative is laid out. Nil on calls saved before formats existed: plain
+    var narratives: [String: String]?   // the narrative as written in each format so far, by format, so going back to one is instant
+
+    var narrativeFormat: NarrativeFormat { format ?? .plain }
+
+    /// What was said, for the drafting model. Empty when nothing but marks is on the call.
+    var spoken: String { recordings.flatMap(\.items).contains { $0.mark == nil && !$0.text.isEmpty } ? transcript : "" }
 
     var markCount: Int { recordings.reduce(0) { $0 + $1.marks } }
     var seconds: Int { recordings.reduce(0) { $0 + $1.seconds } }
@@ -47,7 +54,8 @@ struct Call: Identifiable, Codable {
     var pcr: [(title: String, body: String)] {
         [
             ("Dispatch and scene", draft.dispatchAndScene), ("Vitals by time", draft.vitalsByTime.joined(separator: "\n")),
-            ("Narrative", draft.narrative), ("Treatment by time", draft.treatmentByTime.joined(separator: "\n")),
+            (narrativeFormat == .plain ? "Narrative" : "Narrative, \(narrativeFormat.name)", draft.narrative),
+            ("Treatment by time", draft.treatmentByTime.joined(separator: "\n")),
         ]
     }
 
@@ -86,6 +94,8 @@ struct Call: Identifiable, Codable {
     var liveLine: UUID?                            // the line still being spoken
     var levels = [Int](repeating: 0, count: 30)    // recent loudness, oldest first
     var problem: String?
+    var rewriting: [Call.ID: NarrativeFormat] = [:]   // calls whose narrative is being written in a newly chosen format
+    var narrativeTrouble: [Call.ID: String] = [:]     // why a call's narrative could not be written in the format last chosen
 
     @ObservationIgnored private let transcriber = Transcriber()
     @ObservationIgnored private let link = ClipLink()
@@ -407,6 +417,8 @@ struct Call: Identifiable, Codable {
         done.draftNote = nil
         done.markNotes = [:]
         done.drafted = false
+        done.format = nil
+        done.narratives = nil
         review.insert(done, at: 0)
         call = Call()
         live = .none
@@ -419,21 +431,68 @@ struct Call: Identifiable, Codable {
     /// Writes the reports for a call waiting for sign-off. Until it finishes, the call shows as "Writing reports".
     private func draft(_ id: Call.ID) {
         guard let waiting = review.first(where: { $0.id == id }) else { return }
-        let said = waiting.recordings.flatMap(\.items).contains { $0.mark == nil && !$0.text.isEmpty }
-        let transcript = said ? waiting.transcript : ""
+        let transcript = waiting.spoken
+        let wanted = waiting.format ?? NarrativeFormat.preferred   // the format the crew last chose
         Task { @MainActor in
             var written = Draft.blank, note: String?
+            var format = NarrativeFormat.plain, narratives: [String: String] = [:]
             do {
                 written = try await writeDraft(from: transcript)
+                narratives[NarrativeFormat.plain.rawValue] = written.narrative
+                // The draft comes with a plain narrative. If the crew uses another format, write it in that one too.
+                // If that fails the plain one stands, and the format can still be chosen before signing.
+                if wanted != .plain, let laidOut = try? await writeNarrative(from: transcript, as: wanted) {
+                    narratives[wanted.rawValue] = laidOut
+                    written.narrative = laidOut
+                    format = wanted
+                }
             } catch {
                 note = "Nothing was drafted. \(error.localizedDescription) Fill in the lines yourself."
             }
             guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // signed or removed meanwhile
             review[i].draft = written
             review[i].draftNote = note
+            review[i].format = format
+            review[i].narratives = narratives
             review[i].drafted = true
             save()
         }
+    }
+
+    /// The medic chose a narrative format for a call waiting for sign-off. A format already written for this call is
+    /// shown at once; a new one is written from the transcript first. The choice becomes the crew's format for the
+    /// next calls. If it cannot be written, the call keeps the narrative it had and `narrativeTrouble` says why.
+    func setNarrativeFormat(_ format: NarrativeFormat, for id: Call.ID) {
+        guard let i = review.firstIndex(where: { $0.id == id }), review[i].drafted, rewriting[id] == nil else { return }
+        narrativeTrouble[id] = nil
+        guard format != review[i].narrativeFormat else { return }
+        // Keep the narrative being left, so coming back to its format brings back the same words.
+        var narratives = review[i].narratives ?? [:]
+        if !review[i].draft.narrative.isEmpty { narratives[review[i].narrativeFormat.rawValue] = review[i].draft.narrative }
+        review[i].narratives = narratives
+        if let written = narratives[format.rawValue] {
+            show(written, as: format, for: id)
+            return
+        }
+        rewriting[id] = format
+        let transcript = review[i].spoken
+        Task { @MainActor in
+            defer { rewriting[id] = nil }
+            do {
+                show(try await writeNarrative(from: transcript, as: format), as: format, for: id)
+            } catch {
+                narrativeTrouble[id] = "The narrative could not be written as \(format.name), so it is unchanged. \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func show(_ narrative: String, as format: NarrativeFormat, for id: Call.ID) {
+        guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // signed or removed meanwhile
+        review[i].narratives = (review[i].narratives ?? [:]).merging([format.rawValue: narrative]) { _, new in new }
+        review[i].draft.narrative = narrative
+        review[i].format = format
+        NarrativeFormat.preferred = format
+        save()
     }
 
     /// Signing off moves a call from the ones waiting to the signed ones.
@@ -542,6 +601,16 @@ struct Call: Identifiable, Codable {
         let copy = try? JSONDecoder().decode(Call.self, from: JSONEncoder().encode(call))
         assert(copy?.id == call.id && copy?.transcript == call.transcript && copy?.markNotes[2] == "Moved to stretcher")
         if case .typed("A. Medic")? = copy?.signature {} else { assertionFailure("the signature was lost on disk") }
+        // A narrative format lays its sections out under lettered headings, and says so when one was not heard.
+        let soap = NarrativeFormat.soap.layOut(["Chest pain for 30 minutes.", "BP 150/90.", "", "Aspirin given."])
+        assert(soap.hasPrefix("S - SUBJECTIVE:\nChest pain for 30 minutes.\n\nO - OBJECTIVE:") && soap.contains("A - ASSESSMENT:\nNot heard.\n\nP - PLAN:"))
+        assert(NarrativeFormat.isHeading("R - RX (TREATMENT):") && !NarrativeFormat.isHeading("BP 150/90.") && !NarrativeFormat.isHeading("Not heard."))
+        assert(NarrativeFormat.allCases.allSatisfy { $0 == .plain || $0.sections.map { $0.prefix(1) }.joined() == $0.name })
+        // A call saved before formats existed has none, and reads as plain. A chosen format survives being saved.
+        assert(copy?.narrativeFormat == .plain && call.pcr[2].title == "Narrative")
+        call.format = .draatt
+        let formatted = try? JSONDecoder().decode(Call.self, from: JSONEncoder().encode(call))
+        assert(formatted?.narrativeFormat == .draatt && formatted?.pcr[2].title == "Narrative, DRAATT")
         // The clip's messages must be readable exactly as firmware/BLUETOOTH.md gives them.
         let hello = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"hello","device":"Earshot-A3F2","fw":"0.6.0","audio":{"codec":"opus","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}"#.utf8))
         assert(hello?.device == "Earshot-A3F2" && hello?.audio?.codec == "opus")
