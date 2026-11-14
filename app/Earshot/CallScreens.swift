@@ -358,12 +358,14 @@ struct DraftsScreen: View {
         .disabled(signed)
     }
 
-    /// A handoff line. While it is empty it is drawn in yellow: the AI could not fill it, so it needs the medic.
+    /// A handoff line. While it is empty, or holds a value to confirm, it is drawn in yellow: it needs the medic.
     private func field(_ label: String, _ text: Binding<String>, mark: String? = nil, prompt: String = "Add it, or leave blank and ask") -> some View {
         let missing = text.wrappedValue.isEmpty
+        let unsure = text.wrappedValue.contains("please confirm")
         return VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 12) {
-                Text(missing && mark == nil ? "\(label): not heard" : label).font(geist(15, 600)).foregroundStyle(missing ? Color.yellow : .dim)
+                Text(missing && mark == nil ? "\(label): not heard" : unsure ? "\(label): please confirm" : label)
+                    .font(geist(15, 600)).foregroundStyle(missing || unsure ? Color.yellow : .dim)
                 if let mark {
                     HStack(spacing: 6) {
                         Flag(size: 14)

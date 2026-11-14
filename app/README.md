@@ -1,9 +1,21 @@
 # Earshot app
 
-The iPhone and iPad app. It records a call from the device microphone, shows a live transcript with
-marks, then drafts a nurse handoff and a PCR for the medic to edit and sign.
+The iPhone and iPad app. It records a call from the clip (or the device microphone when no clip is
+connected), shows a live transcript with marks, then drafts a nurse handoff and a PCR for the medic
+to edit and sign.
 
-The clip is simulated in the app for now. Every recording comes from the phone or tablet microphone.
+How it hears (see `docs/HYBRID.md`):
+
+- **The record** comes from Whisper (whisper.cpp) running in the app, through the pipeline in
+  `core/`: cleanup, rules that pick out vitals, drugs and treatments with the words they came from,
+  and the chart, SOAP, IMIST-AMBO and NEMSIS outputs.
+- **Live words** come from Apple's on-device speech recogniser while the medic talks. They are
+  replaced by Whisper's lines a few seconds later, and used as a second opinion: where the two
+  disagree on a drug, dose or vital sign, the draft says "please confirm". Optional: without it,
+  recording still works.
+- **The narrative** is written by a language model only if one is available (Apple Intelligence
+  today; any model can be added behind `NoteWriter`). Optional: without it, every other line is
+  still filled from the record.
 
 ## What you need
 
@@ -11,8 +23,19 @@ The clip is simulated in the app for now. Every recording comes from the phone o
 |---|---|
 | Mac | Xcode 26 or later |
 | Device or simulator | iOS or iPadOS 26 or later |
-| For live transcription | A real iPhone or iPad. It does not work in the simulator |
-| For AI drafts | Apple Intelligence turned on (iPhone 15 Pro or later, or an iPad with an M1 or A17 Pro chip or later) |
+| Whisper | `scripts/fetch_deps.sh` builds whisper.xcframework and downloads a model (once, on the Mac) |
+| For live words (optional) | A real iPhone or iPad with on-device speech recognition |
+| For a written narrative (optional) | Apple Intelligence turned on. Everything else works without it |
+
+## First time on a Mac
+
+```bash
+app/scripts/fetch_deps.sh
+```
+
+This builds whisper.cpp for iOS, downloads `ggml-small.en.bin` into `app/Models/`, and regenerates
+`Earshot.xcodeproj` from `project.yml` (the pipeline package and new files are only in the project
+after this step). A model can also be copied into the app's Documents folder from Finder.
 
 ## Run it in the simulator
 
@@ -23,8 +46,8 @@ The simulator is good for checking screens and the flow. Two things do not work 
 
 - **Recording.** The simulator has no speech model, so a recording stops straight away with
   "Failed to initialize recognizer". That is expected.
-- **Drafts.** They only run if Apple Intelligence is turned on in the Mac's System Settings. Without
-  it, the handoff opens blank with a yellow note.
+- **The narrative.** It is only written if Apple Intelligence is turned on in the Mac's System
+  Settings. Without it, the other lines are still filled from the record.
 
 ## Run it on a real iPhone or iPad
 
@@ -57,10 +80,10 @@ A call that is not signed stays open, even if the app is closed. To throw one aw
 
 | Message | What it means |
 |---|---|
-| "This iPhone cannot transcribe English on the device yet" | The device has no on-device speech model, so the app will not record. It never sends call audio to a server |
-| "Nothing was drafted. Apple Intelligence is turned off" | Turn Apple Intelligence on in Settings, then Analyze again |
-| "The on-device model is still downloading" | Apple Intelligence was just turned on. Wait a few minutes |
-| "Transcription stopped" | The recogniser failed. In the simulator this is expected |
+| "No Whisper model is installed" | Run `scripts/fetch_deps.sh`, or copy `ggml-small.en.bin` into the app's Documents folder |
+| "N item(s) need you to confirm them" | The two recognisers disagreed, or a value was suggested by the language model. Check the yellow lines |
+| "Left out of the narrative because the record does not support them" | The language model wrote a number or drug that was not heard. It was removed |
+| "This device cannot decode the clip's audio" | The system Opus decoder failed. See `Pipeline/OpusDecoder.swift` |
 
 ## Changing the project
 
@@ -90,14 +113,23 @@ xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS
 |---|---|
 | `Earshot/EarshotApp.swift` | App state, saving to disk, the header and tabs, Home, Clip |
 | `Earshot/CallScreens.swift` | Live Call, AI Drafts, and the past-call screen |
-| `Earshot/Recorder.swift` | Microphone to text, and transcript to drafts |
+| `Earshot/Recorder.swift` | The live recogniser (Apple, optional) and the microphone input |
+| `Earshot/Pipeline/CallEngine.swift` | One call through the pipeline: clip or mic in, record and draft out |
+| `Earshot/Pipeline/ClipLink.swift` | The interface the clip connection (Bluetooth) plugs into |
+| `Earshot/Pipeline/OpusDecoder.swift` | The clip's Opus audio to samples |
+| `Earshot/Pipeline/NoteWriter.swift`, `AppleNoteWriter.swift` | Optional narrative writer, any model |
+| `../core/` | The pipeline (Swift package EarshotCore), shared with the eval tool and its tests |
 | `Earshot/Signature.swift` | The sign-off sheet and signature drawing |
 | `Earshot/Components.swift` | Colours, fonts, dot-matrix drawing, shared controls |
 | `Earshot/Fonts/` | Doto and Geist, both under the Open Font License |
 
 ## Not built yet
 
-- **The clip.** The Clip tab is a stand-in. Nothing talks to the hardware.
+- **The clip's Bluetooth connection.** Being written separately. It only needs to implement
+  `ClipLink` (pass packets through untouched) and be set on `Model.link`; `CallEngine` does the
+  rest. Until then the Clip tab is a stand-in and recordings use the microphone.
+- **Not yet built or run on a device.** The app code for the pipeline was written without Xcode.
+  The pipeline itself is tested (`cd core && swift test`), including against the firmware simulator.
 - **Sign-in and audit trail.** Anyone holding the device can open the app and read past calls.
 - **Audio.** Only the transcript is kept. No audio file is saved.
 - **Long calls.** The on-device model reads about 4,000 tokens. Longer calls fail to draft with a

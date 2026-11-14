@@ -2,11 +2,32 @@ name: Earshot
 options:
   deploymentTarget:
     iOS: "26.0"
+packages:
+  EarshotCore:
+    path: ../core
 targets:
   Earshot:
     type: application
     platform: iOS
-    sources: [Earshot]
+    sources:
+      - path: Earshot
+      # whisper.cpp's Swift wrapper lives with the pipeline; it builds against whisper.xcframework here
+      - path: ../core/Sources/EarshotWhisper/WhisperTranscriber.swift
+        group: Earshot/Pipeline
+      - path: ../shared/formulary.json
+        buildPhase: resources
+      - path: ../shared/ems_terms.json
+        buildPhase: resources
+      # Whisper models (app/scripts/fetch_deps.sh); a model can also be copied into Documents
+      - path: Models
+        type: folder
+        buildPhase: resources
+        optional: true
+    dependencies:
+      - package: EarshotCore
+        product: EarshotCore
+      - framework: Frameworks/whisper.xcframework
+        embed: true
     info:
       path: Earshot/Info.plist
       properties:
@@ -16,6 +37,7 @@ targets:
         NSMicrophoneUsageDescription: Earshot listens to the call so it can write the transcript.
         NSSpeechRecognitionUsageDescription: Earshot turns what is said on the call into text.
         UIStatusBarHidden: true
+        UIFileSharingEnabled: true          # copy a Whisper model into Documents from Finder
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]

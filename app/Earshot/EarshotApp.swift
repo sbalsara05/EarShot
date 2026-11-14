@@ -10,6 +10,9 @@ struct Item: Identifiable, Codable {
     var time = Date()
     var text = ""
     var mark: Int? = nil   // set on a mark row, which has no text
+    /// true: a line of the record (Whisper). nil: live words, shown while the medic talks and
+    /// replaced by the record once Whisper catches up.
+    var record: Bool? = nil
 }
 
 struct Recording: Codable {
@@ -31,6 +34,8 @@ struct Call: Identifiable, Codable {
     var markNotes: [Int: String] = [:]
     var signedAt: Date?
     var signature: Signature?
+    var docs: [String: String]?       // chart.md, soap.md, imist_ambo.md, nemsis.xml, rendered from the record
+    var reviewNotes: [String]?        // items to confirm, sentences left out of the narrative
 
     var markCount: Int { recordings.reduce(0) { $0 + $1.marks } }
     var seconds: Int { recordings.reduce(0) { $0 + $1.seconds } }
@@ -64,7 +69,7 @@ struct Call: Identifiable, Codable {
 
 @Observable final class Model {
     var tab = Tab.home
-    var clip = false   // the clip is still simulated: every recording comes from the microphone
+    var clip = false   // a clip is connected (CallEngine.link); without one, recordings come from the microphone
     var live = Live.none
     var drafts = Drafts.none
 
@@ -74,27 +79,40 @@ struct Call: Identifiable, Codable {
     var levels = [Int](repeating: 0, count: 30)    // recent loudness, oldest first
     var problem: String?
 
-    @ObservationIgnored private let transcriber = Transcriber()
+    @ObservationIgnored private let engine = CallEngine()
+    @ObservationIgnored private var retired = Set<UUID>()   // live lines already replaced by the record
+
+    /// The clip connection. Set this once the Bluetooth module exists; until then the microphone is used.
+    var link: ClipLink? {
+        get { engine.link }
+        set { engine.link = newValue; clip = newValue?.isConnected ?? false }
+    }
 
     init() {
-        transcriber.onLevel = { [weak self] level in
+        engine.onLevel = { [weak self] level in
             self?.levels.removeFirst()
             self?.levels.append(level)
         }
-        transcriber.onText = { [weak self] id, text in self?.heard(id, text) }
-        transcriber.onCut = { [weak self] in
+        engine.onLiveText = { [weak self] id, text in self?.heard(id, text) }
+        engine.onCut = { [weak self] in
             self?.liveLine = nil
             self?.save()   // each finished line is on disk before the next one starts
         }
-        transcriber.onProblem = { [weak self] message in
-            self?.problem = "Transcription stopped. \(message)"
-            self?.stop()
+        engine.onRecord = { [weak self] lines in self?.recorded(lines) }
+        engine.onCapture = { [weak self] on in self?.captureChanged(on) }
+        engine.onMarker = { [weak self] in self?.marked() }
+        engine.onClipConnected = { [weak self] up in
+            self?.clip = up
+            if !up, self?.live == .listening { self?.live = .cutShort }
         }
+        engine.onProblem = { [weak self] message in self?.problem = message }
         load()
+        engine.beginCall(at: call.start)
     }
 
     private func heard(_ id: UUID, _ text: String) {
-        if id == transcriber.segment { liveLine = id }
+        guard !retired.contains(id) else { return }
+        liveLine = id
         for r in call.recordings.indices {
             if let i = call.recordings[r].items.firstIndex(where: { $0.id == id }) {
                 call.recordings[r].items[i].text = text
@@ -104,10 +122,51 @@ struct Call: Identifiable, Codable {
         if !call.recordings.isEmpty { call.recordings[call.recordings.count - 1].items.append(Item(id: id, text: text)) }
     }
 
+    /// Whisper caught up: its lines replace the live words they cover. Marks stay where they are.
+    private func recorded(_ lines: [RecordLine]) {
+        guard let lastEnd = lines.last?.end else { return }
+        for r in call.recordings.indices {
+            let rec = call.recordings[r]
+            let mine = lines.filter { $0.end >= rec.start && $0.start <= (rec.end ?? .distantFuture) }
+            guard !mine.isEmpty else { continue }
+            var items = rec.items.filter { item in
+                if item.mark != nil { return true }
+                if item.record == true { return false }               // rebuilt below
+                if item.time < lastEnd { retired.insert(item.id); return false }
+                return true                                           // still ahead of Whisper
+            }
+            items += mine.map { Item(time: $0.start, text: $0.text, record: true) }
+            call.recordings[r].items = items.sorted { $0.time < $1.time }
+        }
+        if let l = liveLine, retired.contains(l) { liveLine = nil }
+        save()
+    }
+
+    /// The clip's button (or the app) started or ended a capture.
+    private func captureChanged(_ on: Bool) {
+        if on {
+            guard live != .listening else { return }
+            if live == .none { newCall() }
+            call.recordings.append(Recording())
+            live = .listening
+        } else {
+            guard live == .listening, !call.recordings.isEmpty else { return }
+            call.recordings[call.recordings.count - 1].end = Date()
+            live = .between
+        }
+        save()
+    }
+
+    private func marked() {
+        guard live == .listening, !call.recordings.isEmpty else { return }
+        call.recordings[call.recordings.count - 1].items.append(Item(mark: call.markCount + 1))
+    }
+
     // MARK: The call
 
     func newCall() {
         call = Call()
+        engine.beginCall(at: call.start)
         problem = nil
         live = .ready
         drafts = .none
@@ -117,12 +176,11 @@ struct Call: Identifiable, Codable {
 
     func record() {
         Task { @MainActor in
-            problem = await Transcriber.authorize()
-            guard problem == nil, live != .listening else { return }
+            guard live != .listening else { return }
+            problem = nil
+            engine.ensureCall(at: call.start)
             do {
-                try transcriber.start()
-                call.recordings.append(Recording())
-                live = .listening
+                try await engine.startCapture()   // the clip answers with consent; the mic starts at once
             } catch {
                 problem = error.localizedDescription
             }
@@ -131,15 +189,14 @@ struct Call: Identifiable, Codable {
 
     func stop(as next: Live = .between) {
         guard live == .listening else { return }
-        transcriber.stop()
+        engine.stopCapture()
         call.recordings[call.recordings.count - 1].end = Date()
         live = next
         save()
     }
 
     func mark() {
-        transcriber.cut()
-        call.recordings[call.recordings.count - 1].items.append(Item(mark: call.markCount + 1))
+        engine.mark()   // the mark row appears when the clip (or the mic stand-in) confirms it
     }
 
     func connect() {
@@ -160,15 +217,12 @@ struct Call: Identifiable, Codable {
         tab = .drafts
         call.draftNote = nil
         call.markNotes = [:]
-        let said = call.recordings.flatMap(\.items).contains { $0.mark == nil && !$0.text.isEmpty }
-        let transcript = said ? call.transcript : ""
         Task { @MainActor in
-            do {
-                call.draft = try await writeDraft(from: transcript)
-            } catch {
-                call.draft = .blank
-                call.draftNote = "Nothing was drafted. \(error.localizedDescription) Fill in the lines yourself."
-            }
+            let out = await engine.finish()
+            call.draft = out.draft
+            call.docs = out.docs
+            call.reviewNotes = out.notes
+            call.draftNote = out.notes.isEmpty ? nil : out.notes.joined(separator: " ")
             guard drafts == .analyzing else { return }
             call.drafted = true
             drafts = .ready
@@ -178,6 +232,7 @@ struct Call: Identifiable, Codable {
 
     /// Signing off ends the call: it moves to the past calls and a new one can start.
     func signOff(_ signature: Signature) {
+        engine.endCall()   // audio and the working record are wiped; the signed paperwork is kept
         call.signature = signature
         call.signedAt = Date()
         past.insert(call, at: 0)
@@ -200,6 +255,7 @@ struct Call: Identifiable, Codable {
     /// Throws away a call that has not been signed, with its recordings and drafts.
     func discard() {
         stop()
+        engine.endCall()
         call = Call()
         problem = nil
         live = .none
