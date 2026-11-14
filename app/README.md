@@ -1,9 +1,24 @@
 # Earshot app
 
-The iPhone and iPad app. It records a call from the device microphone, shows a live transcript with
-marks, then drafts a nurse handoff and a PCR for the medic to edit and sign.
+The iPhone and iPad app. It records a call, shows a live transcript with marks, then drafts a nurse
+handoff and a PCR for the medic to edit and sign.
 
-The clip is simulated in the app for now. Every recording comes from the phone or tablet microphone.
+Audio comes from the clip over Bluetooth when one is connected, and from the device's own microphone
+when none is. The Bluetooth side follows [`firmware/BLUETOOTH.md`](../firmware/BLUETOOTH.md) and lives
+in `Earshot/ClipLink.swift`. It has not been run against a clip yet.
+
+## Using a clip
+
+1. Power the clip. On the Clip tab, tap **Find my clip** and allow Bluetooth. The tab shows the clip's
+   name once it is connected. The app remembers it and reconnects by itself from then on.
+2. **New call**, then **Start recording** in the app, or press the clip's button. The clip's light
+   turns green and its audio becomes the transcript.
+3. **Mark** in the app or a double tap on the clip drops a mark. The red button, or holding the clip's
+   button, stops the recording.
+
+A press on the clip with no call open records nothing: the app tells the clip to stop again. If the
+clip goes out of range mid-recording, the recording ends as "cut short" and the clip reconnects when it
+is back. Bluetooth needs a real iPhone or iPad; the simulator has none.
 
 ## What you need
 
@@ -90,14 +105,16 @@ xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS
 |---|---|
 | `Earshot/EarshotApp.swift` | App state, saving to disk, the header and tabs, Home, Clip |
 | `Earshot/CallScreens.swift` | Live Call, AI Drafts, and the past-call screen |
-| `Earshot/Recorder.swift` | Microphone to text, and transcript to drafts |
+| `Earshot/Recorder.swift` | Audio to text (microphone or clip), and transcript to drafts |
+| `Earshot/ClipLink.swift` | The Bluetooth link to the clip: find, connect, receive, send |
 | `Earshot/Signature.swift` | The sign-off sheet and signature drawing |
 | `Earshot/Components.swift` | Colours, fonts, dot-matrix drawing, shared controls |
 | `Earshot/Fonts/` | Doto and Geist, both under the Open Font License |
 
 ## Not built yet
 
-- **The clip.** The Clip tab is a stand-in. Nothing talks to the hardware.
+- **The clip over the air.** The Bluetooth code is written but not yet run against a clip. The clip
+  reports no battery or signal, and the link has no pairing or encryption.
 - **Sign-in and audit trail.** Anyone holding the device can open the app and read past calls.
 - **Audio.** Only the transcript is kept. No audio file is saved.
 - **Long calls.** The on-device model reads about 4,000 tokens. Longer calls fail to draft with a

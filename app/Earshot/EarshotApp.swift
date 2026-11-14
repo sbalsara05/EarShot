@@ -64,7 +64,9 @@ struct Call: Identifiable, Codable {
 
 @Observable final class Model {
     var tab = Tab.home
-    var clip = false   // the clip is still simulated: every recording comes from the microphone
+    var clip = false                       // a clip is connected and ready; recordings then use its audio, not the microphone
+    var clipName: String?                  // the last clip that said hello, like "Earshot-A3F2"
+    var clipState = ClipLink.State.idle
     var live = Live.none
     var drafts = Drafts.none
 
@@ -75,8 +77,13 @@ struct Call: Identifiable, Codable {
     var problem: String?
 
     @ObservationIgnored private let transcriber = Transcriber()
+    @ObservationIgnored private let link = ClipLink()
+    @ObservationIgnored private var source = Transcriber.Source.mic   // where the current recording's audio comes from
 
     init() {
+        link.onState = { [weak self] state in self?.clipChanged(to: state) }
+        link.onEvent = { [weak self] event in self?.clipSaid(event) }
+        link.onAudio = { [weak self] buffer in self?.transcriber.push(buffer) }
         transcriber.onLevel = { [weak self] level in
             self?.levels.removeFirst()
             self?.levels.append(level)
@@ -91,6 +98,7 @@ struct Call: Identifiable, Codable {
             self?.stop()
         }
         load()
+        link.resume()
     }
 
     private func heard(_ id: UUID, _ text: String) {
@@ -117,39 +125,124 @@ struct Call: Identifiable, Codable {
 
     func record() {
         Task { @MainActor in
-            problem = await Transcriber.authorize()
+            problem = await Transcriber.authorize(microphone: !clip)
             guard problem == nil, live != .listening else { return }
-            do {
-                try transcriber.start()
-                call.recordings.append(Recording())
-                live = .listening
-            } catch {
-                problem = error.localizedDescription
+            if clip {
+                link.send("start")   // the recording begins when the clip confirms, in clipSaid
+            } else {
+                begin(from: .mic)
             }
+        }
+    }
+
+    private func begin(from source: Transcriber.Source) {
+        guard live != .listening, live != .none else { return }
+        do {
+            try transcriber.start(from: source)
+            self.source = source
+            call.recordings.append(Recording())
+            live = .listening
+            UIApplication.shared.isIdleTimerDisabled = true   // a locked screen would end the recording
+        } catch {
+            problem = error.localizedDescription
+            if source == .clip { link.send("stop") }
         }
     }
 
     func stop(as next: Live = .between) {
         guard live == .listening else { return }
+        if source == .clip { link.send("stop") }
+        finish(as: next)
+    }
+
+    private func finish(as next: Live) {
+        guard live == .listening else { return }
         transcriber.stop()
         call.recordings[call.recordings.count - 1].end = Date()
         live = next
+        UIApplication.shared.isIdleTimerDisabled = false
         save()
     }
 
     func mark() {
+        guard live == .listening else { return }
+        if source == .clip { link.send("marker") }   // so the clip logs it too; its echo is ignored in clipSaid
+        addMark()
+    }
+
+    private func addMark() {
         transcriber.cut()
         call.recordings[call.recordings.count - 1].items.append(Item(mark: call.markCount + 1))
     }
 
-    func connect() {
-        clip = true
-        if live == .cutShort { live = .between }
+    // MARK: The clip
+
+    /// What the clip is called on screen: its own name once it has said hello.
+    var clipTitle: String { clipName ?? "Earshot clip" }
+
+    /// One short line on where the link stands.
+    var clipStatus: String {
+        switch clipState {
+        case .ready: "Connected"
+        case .connecting: "Connecting"
+        case .searching: "Searching"
+        case .idle: "Not connected"
+        case .off: "Bluetooth unavailable"
+        }
     }
 
+    func connect() {
+        link.connect()
+    }
+
+    /// Lets go of the clip and stops looking for it. A recording in progress ends there.
     func disconnect() {
-        clip = false
         stop(as: .cutShort)
+        link.forget()
+    }
+
+    private func clipChanged(to state: ClipLink.State) {
+        clipState = state
+        if case .ready(let name) = state {
+            clip = true
+            clipName = name
+            if live == .cutShort { live = .between }
+        } else {
+            clip = false
+            if live == .listening && source == .clip { finish(as: .cutShort) }   // the link dropped mid-recording
+        }
+    }
+
+    private func clipSaid(_ event: ClipEvent) {
+        switch (event.type, event.event) {
+        case ("hello", _):
+            if let codec = event.audio?.codec, codec != "opus" {
+                problem = "This clip sends \(codec) audio, which Earshot cannot read yet."
+            }
+        case ("consent", "granted"):
+            clipStarted()
+        case ("state", _) where event.listening == true:
+            clipStarted()   // said after every connect: the clip was already listening, so pick it up
+        case ("consent", "stopped"):
+            if source == .clip { finish(as: .between) }
+        case ("marker", _) where event.source == "button":
+            if live == .listening && source == .clip { addMark() }
+        default:
+            break   // a marker the app asked for is already in the transcript
+        }
+    }
+
+    /// The clip began capturing, from its button or because the app asked.
+    private func clipStarted() {
+        guard live != .listening else { return }
+        guard live != .none else {
+            link.send("stop")   // no call is open, so nothing is recorded and the clip's light goes dark again
+            return
+        }
+        Task { @MainActor in
+            problem = await Transcriber.authorize(microphone: false)
+            if problem == nil { begin(from: .clip) } else { link.send("stop") }
+        }
     }
 
     // MARK: The paperwork
@@ -287,6 +380,12 @@ struct Call: Identifiable, Codable {
         let copy = try? JSONDecoder().decode(Call.self, from: JSONEncoder().encode(call))
         assert(copy?.id == call.id && copy?.transcript == call.transcript && copy?.markNotes[2] == "Moved to stretcher")
         if case .typed("A. Medic")? = copy?.signature {} else { assertionFailure("the signature was lost on disk") }
+        // The clip's messages must be readable exactly as firmware/BLUETOOTH.md gives them.
+        let hello = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"hello","device":"Earshot-A3F2","fw":"0.6.0","audio":{"codec":"opus","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}"#.utf8))
+        assert(hello?.device == "Earshot-A3F2" && hello?.audio?.codec == "opus")
+        let marker = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"marker","id":1,"source":"button","t_ms":47781,"audio_seq":327}"#.utf8))
+        assert(marker?.type == "marker" && marker?.source == "button")
+        assert(ClipLink.frameNumber(of: Data([0x47, 0x01, 0, 0, 9, 9, 9, 9])) == 327)   // 0x0147, least significant byte first
     }
     #endif
 }
@@ -467,7 +566,7 @@ struct HomeScreen: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: model.past.isEmpty ? .leading : .topLeading)
 
             Button {
-                model.connect()
+                if model.clipState == .idle { model.connect() }
                 model.tab = .clip
             } label: {
                 // A tall card beside the headline on iPad, a short row under it on iPhone.
@@ -476,7 +575,7 @@ struct HomeScreen: View {
                     ClipModel(ghost: !model.clip, scale: fit(0.95, 0.42), sway: true).frame(width: fit(215, 96), height: fit(290, 124))
                     VStack(alignment: phone ? .leading : .center, spacing: fit(28, 12)) {
                         VStack(alignment: phone ? .leading : .center, spacing: fit(10, 6)) {
-                            Text("Earshot-A3F2").font(doto(fit(30, 24)))
+                            Text(model.clipTitle).font(doto(fit(30, 24)))
                             if model.clip {
                                 HStack(spacing: 8) {
                                     Circle().frame(width: 9, height: 9)
@@ -484,15 +583,10 @@ struct HomeScreen: View {
                                 }
                                 .font(geist(17, 500)).foregroundStyle(Color.green)
                             } else {
-                                Text("Nearby, not connected").font(geist(17, 500)).foregroundStyle(Color.dim)
+                                Text(model.clipStatus).font(geist(17, 500)).foregroundStyle(Color.dim)
                             }
                         }
-                        if model.clip {
-                            HStack(spacing: 12) {
-                                LevelDots(lit: 8, of: 10)
-                                Text("82%").font(geist(15)).foregroundStyle(Color.dim)
-                            }
-                        } else {
+                        if model.clipState == .idle {
                             Text("Connect").font(geist(fit(19, 16), 600)).padding(.horizontal, fit(32, 22)).frame(height: fit(52, 40))
                                 .overlay(Capsule().strokeBorder(Color.outline, lineWidth: 1.5))
                         }
@@ -506,7 +600,7 @@ struct HomeScreen: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(model.clip ? "Clip Earshot-A3F2, connected, battery 82 percent" : "Connect clip Earshot-A3F2")
+            .accessibilityLabel("Clip \(model.clipTitle), \(model.clipStatus)")
         }
         .sheet(item: $opened) { PastCallView(call: $0).presentationSizing(.page).presentationDragIndicator(.visible) }
     }
@@ -611,40 +705,33 @@ struct ClipScreen: View {
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Earshot-A3F2").font(doto(fit(46, 34)))
+            Text(model.clipTitle).font(doto(fit(46, 34)))
             HStack(spacing: 10) {
                 Circle().frame(width: 10, height: 10)
                 Text("Connected")
             }
             .font(geist(19, 500)).foregroundStyle(Color.green).padding(.top, 6).padding(.bottom, 18)
-            row("Battery") {
-                LevelDots(lit: 8, of: 10)
-                Text("82%")
-            }
-            row("Signal") {
-                LevelDots(lit: 4, of: 5)
-                Text("Strong")
-            }
-            row("Mic check") {
-                Ticker(fps: 10) { t in Dots.meter(cols: 10, rows: 3, lit: .ink) { meterLevel($0, at: t, max: 3) } }
-            }
+            // ponytail: the clip reports no battery or signal yet. Add those rows when the firmware sends them.
+            row("Link") { Text("Bluetooth") }
+            row("Records from") { Text("Clip") }
+            Text("Press the clip to start a recording once a call is open. Hold it to stop. Double tap to mark.")
+                .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 18)
             Spacer(minLength: 16)
-            VStack(spacing: 14) {
-                Button(finding ? "Blinking and buzzing" : "Find clip") {
-                    finding = true
-                    Task {
-                        try? await Task.sleep(for: .seconds(3.2))
-                        finding = false
-                    }
-                }
-                .buttonStyle(Pill(grow: true))
-                .disabled(finding)
-                Button("Disconnect") { model.disconnect() }.buttonStyle(Pill(fill: nil, grow: true))
-            }
+            Button("Disconnect") { model.disconnect() }.buttonStyle(Pill(fill: nil, grow: true))
         }
         .padding(.top, fit(36, 24)).padding(.horizontal, fit(32, 20)).padding(.bottom, fit(32, 20))
         .side()
         .panel()
+    }
+
+    /// What to tell the medic while no clip is connected.
+    private var waiting: String {
+        switch model.clipState {
+        case .off(let why): why
+        case .searching: "Power the clip on and keep it close. Until it connects, calls record on the \(deviceName) mic."
+        case .connecting: "Waiting for \(model.clipTitle) to answer. It reconnects by itself when it is on and in range."
+        case .idle, .ready: "Calls record on the \(deviceName) mic until a clip connects."
+        }
     }
 
     private func row(_ name: String, @ViewBuilder value: () -> some View) -> some View {
@@ -672,7 +759,7 @@ struct ClipScreen: View {
                     }
                 }
                 .clipped()
-            Text("Looking for clips nearby").font(geist(18, 500)).foregroundStyle(Color.dim)
+            Text(model.clipState == .searching ? "Looking for clips nearby" : model.clipStatus).font(geist(18, 500)).foregroundStyle(Color.dim)
         }
         .padding(.vertical, fit(0, 24))
         .frame(maxWidth: .infinity, maxHeight: phone ? nil : .infinity)
@@ -682,21 +769,15 @@ struct ClipScreen: View {
     private var nearby: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("No clip connected").font(doto(fit(46, 34)))
-            Text("Calls record on the \(deviceName) mic until a clip connects.")
+            Text(waiting)
                 .font(geist(19)).lineSpacing(5).foregroundStyle(Color.dim).padding(.top, 10).padding(.bottom, 22)
-            Text("Nearby").font(geist(15, 600)).foregroundStyle(Color.dim)
-            VStack(spacing: 0) {
-                Color.line.frame(height: 1)
-                HStack(spacing: 16) {
-                    Dots(clipArt, pitch: 3, r: 1.08, palette: ["w": .ink, "m": .mid, "g": .green])
-                    Text("Earshot-A3F2").font(doto(24))
-                    Spacer()
-                }
-                .frame(height: 86)
-                Color.line.frame(height: 1)
-            }
             Spacer(minLength: 16)
-            Button("Connect Earshot-A3F2") { model.connect() }.buttonStyle(Pill(grow: true))
+            switch model.clipState {
+            case .idle: Button("Find my clip") { model.connect() }.buttonStyle(Pill(grow: true))
+            case .searching: Button("Stop looking") { model.disconnect() }.buttonStyle(Pill(fill: nil, grow: true))
+            case .connecting: Button("Forget this clip") { model.disconnect() }.buttonStyle(Pill(fill: nil, grow: true))
+            case .ready, .off: EmptyView()
+            }
         }
         .padding(.top, fit(36, 24)).padding(.horizontal, fit(32, 20)).padding(.bottom, fit(32, 20))
         .side()
