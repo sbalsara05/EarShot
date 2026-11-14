@@ -361,7 +361,10 @@ struct ReviewSheet: View {
                                           mark: "Mark \(n)", prompt: "What happened here?")
                                 }
                             }
-                            part("PCR") { PCRView(call: call) }
+                            part("PCR") {
+                                formatChoice(call)
+                                PCRView(call: call)
+                            }
                         }
                         part("Transcript") {
                             if call.transcript.isEmpty { Text("Nothing was heard on this call.").font(geist(fit(22, 19))).foregroundStyle(Color.dim) }
@@ -374,9 +377,11 @@ struct ReviewSheet: View {
                 }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
-                Button(call.drafted ? "Sign off" : "Writing reports") { signing = true }
+                // Nothing is signed while its narrative is still being rewritten.
+                let rewriting = model.rewriting[id] != nil
+                Button(!call.drafted ? "Writing reports" : rewriting ? "Writing the narrative" : "Sign off") { signing = true }
                     .buttonStyle(Pill(grow: true))
-                    .disabled(!call.drafted)
+                    .disabled(!call.drafted || rewriting)
             }
             .padding(.horizontal, fit(40, 20)).padding(.top, fit(36, 28)).padding(.bottom, fit(32, 12))
             .font(geist(17))
@@ -400,6 +405,42 @@ struct ReviewSheet: View {
         VStack(alignment: .leading, spacing: 18) {
             Text(title).font(doto(fit(26, 22)))
             content()
+        }
+    }
+
+    /// The layout of the PCR narrative, chosen here before signing. Picking one rewrites the narrative in it from
+    /// the transcript; one already written for this call comes back at once. The line underneath says what the
+    /// format is, that it is being written, or why it could not be.
+    private func formatChoice(_ call: Call) -> some View {
+        let busy = model.rewriting[call.id]
+        let shown = busy ?? call.narrativeFormat
+        let trouble = model.narrativeTrouble[call.id]
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Narrative format").font(geist(15, 600)).foregroundStyle(Color.dim)
+            HStack(spacing: 4) {
+                ForEach(NarrativeFormat.allCases) { format in
+                    let on = format == shown
+                    Button { model.setNarrativeFormat(format, for: call.id) } label: {
+                        Text(format.name).font(geist(fit(16, 15), 600)).lineLimit(1)
+                            .foregroundStyle(on ? Color.bg : .dim)
+                            .padding(.horizontal, fit(24, 6))
+                            .frame(maxWidth: phone ? .infinity : nil)
+                            .frame(height: 44)
+                            .background(on ? Color.ink : .clear, in: Capsule())
+                            .contentShape(Capsule())
+                    }
+                    .accessibilityLabel("\(format.name) narrative: \(format.detail)")
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(4)
+            .background(Color.panel, in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.line))
+            .disabled(busy != nil)
+            Text(busy.map { "Writing the narrative as \($0.name) on this \(deviceName). The rest of the report is unchanged." } ?? trouble ?? shown.detail)
+                .font(geist(15, 500)).foregroundStyle(busy == nil && trouble == nil ? Color.dim : .yellow)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -512,11 +553,16 @@ struct PCRView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Dims the leading clock time ("14:05 ...") on each line, so the reading stands out.
+    /// Dims the leading clock time ("14:05 ...") on each line, so the reading stands out. In a narrative laid out
+    /// in a format, section headings are set apart and a section that was not heard is yellow, like any empty line.
     private func timed(_ body: String) -> Text {
-        body.split(separator: "\n").enumerated().reduce(Text("")) { text, line in
+        body.split(separator: "\n", omittingEmptySubsequences: false).enumerated().reduce(Text("")) { text, line in
             let isTimed = line.element.count > 6 && line.element.prefix(5).contains(":")
             let newline = Text(line.offset == 0 ? "" : "\n")
+            if NarrativeFormat.isHeading(line.element) {
+                return text + newline + Text(line.element).font(geist(15, 600)).foregroundColor(.dim)
+            }
+            if line.element == NarrativeFormat.notHeard { return text + newline + Text(line.element).foregroundColor(.yellow) }
             return isTimed
                 ? text + newline + Text(line.element.prefix(6)).foregroundColor(.dim) + Text(line.element.dropFirst(6))
                 : text + newline + Text(line.element)
