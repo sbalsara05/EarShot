@@ -16,9 +16,9 @@ targets:
     platform: iOS
     sources:
       - path: Earshot
-      # The Whisper model: small.en fine-tuned on EMS speech, 488 MB, kept in Git LFS (transcribe/fetch.sh pulls it).
+      # The Whisper model: small.en fine-tuned on EMS speech, 175 MB, kept in Git LFS (transcribe/fetch.sh pulls it).
       # Without it the app builds and uses live words only.
-      - path: ../transcribe/Models/ggml-ems-small.en-ft-f16.bin
+      - path: ../transcribe/Models/ggml-ems-small.en-ft-q5_0.bin
         buildPhase: resources
         optional: true
     dependencies:

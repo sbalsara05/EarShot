@@ -20,5 +20,5 @@ firmware/codec_test/results/samples/
 .build/
 transcribe/Frameworks/
 transcribe/Models/*
-!transcribe/Models/ggml-ems-small.en-ft-f16.bin
+!transcribe/Models/ggml-ems-small.en-ft-q5_0.bin
 xcuserdata/

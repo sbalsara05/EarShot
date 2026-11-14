@@ -143,7 +143,7 @@ struct Call: Identifiable, Codable {
     var rewriting: [Call.ID: NarrativeFormat] = [:]   // calls whose narrative is being written in a newly chosen format
     var narrativeTrouble: [Call.ID: String] = [:]     // why a call's narrative could not be written in the format last chosen
 
-    var recordBy: String?                          // the Whisper model writing the record, like "ems-small.en-ft-f16". Nil: live words only
+    var recordBy: String?                          // the Whisper model writing the record, like "ems-small.en-ft-q5_0". Nil: live words only
     @ObservationIgnored private let transcriber = Transcriber()
     @ObservationIgnored private let scribe = Record()
     @ObservationIgnored private var retired = Set<UUID>()             // live lines Whisper's have replaced; late words for them are dropped

@@ -13,22 +13,28 @@ Audio in, transcript lines with a confidence out. Nothing else: no clean-up, no 
 ./fetch.sh
 ```
 
-It builds the whisper.cpp framework (about ten minutes, not in the repo) and pulls the model from Git LFS (488 MB;
+It builds the whisper.cpp framework (about ten minutes, not in the repo) and pulls the model from Git LFS (175 MB;
 needs `brew install git-lfs`).
 
 ## The model
 
-`ggml-ems-small.en-ft-f16`: Whisper small.en fine-tuned on EMS speech, from pull request 15. It runs about ten
-times faster than speech on an M1 iPad.
+`ggml-ems-small.en-ft-q5_0`: Whisper small.en fine-tuned on EMS speech, from pull request 15, stored at about five
+bits a number. It runs about ten times faster than speech on an M1 iPad.
 
-| Test | Stock small.en | Fine-tuned |
-|---|---|---|
-| Scripted call dense with EMS terms (Mac) | "steamy", "end title CO2", "Medik 4" | "STEMI", "end tidal CO2", "Medic 4" |
-| Real call played to an iPad, words wrong | 26.7% | 28.1% (a tie at 645 words) |
-| Punctuation | Kept | Often dropped, which gives long lines |
+Three models were tried on one real call, played to an iPad and scored against a transcript of 645 words:
 
-The stock model still works for comparing: put `ggml-small.en.bin` in `Models/` and bundle it in place of the
-fine-tuned one (`app/project.yml`).
+| | Stock small.en | Fine-tuned, full size (f16) | Fine-tuned, compressed (q5_0) |
+|---|---|---|---|
+| Size | 465 MB | 488 MB | 175 MB |
+| Words wrong | 26.7% | 28.1% | 23.6% |
+| Lines under the 0.6 bar | 4 | 0 | 7, of which 5 were real mistakes |
+| Lines over 40 words | 0 | 3 | 1 |
+
+One run each, so the gaps are a guide and not proof. On a scripted call dense with EMS terms, the fine-tuned model
+wrote "STEMI", "end tidal CO2" and "Medic 4" where stock wrote "steamy", "end title CO2" and "Medik 4". The
+fine-tuned models often drop punctuation, which gives some long lines.
+
+To try another model, put its file in `Models/`, name it first in `Record.models` and bundle it in `app/project.yml`.
 
 ## What comes out
 
@@ -68,7 +74,7 @@ It says how sure Whisper was, not whether it was right.
 ## Try it on a Mac
 
 ```bash
-swift run -c release transcribe-wav Models/ggml-ems-small.en-ft-f16.bin call.wav
+swift run -c release transcribe-wav Models/ggml-ems-small.en-ft-q5_0.bin call.wav
 ```
 
 Prints each line with its confidence and its unsure words, then how long Whisper took. Add `--json` for the full shape.

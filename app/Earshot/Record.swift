@@ -13,7 +13,7 @@ final class Record {
     /// A call's new lines, and the moment in the audio Whisper has got to. On the main queue.
     var onLines: (Call.ID, [Item], Date) -> Void = { _, _, _ in }
 
-    /// The model writing the record, like "ems-small.en-ft-f16". Nil when none is installed: live words are then all there is.
+    /// The model writing the record, like "ems-small.en-ft-q5_0". Nil when none is installed: live words are then all there is.
     private(set) var name: String?
 
     private var whisper: Whisper?
@@ -49,7 +49,7 @@ final class Record {
     }
     /// The models to look for, best first: Whisper small.en fine-tuned on EMS speech, which the app is built with,
     /// then the stock one, for comparing the two.
-    static let models = ["ggml-ems-small.en-ft-f16", "ggml-small.en"]
+    static let models = ["ggml-ems-small.en-ft-q5_0", "ggml-small.en"]
 
     /// A stretch of audio is starting for this call.
     func begin(for call: Call.ID) {
