@@ -17,14 +17,24 @@ Press to start, hold to stop.
 
 | Ring | State | What is happening |
 |---|---|---|
-| Dark | Not listening | Mic off. Nothing is captured |
-| Green | Listening | Mic on, audio streams to the tablet |
+| Slow blue blink | Not listening | No tablet connected; ready for one. Shown after power-on and after the tablet disconnects on purpose |
+| Green | Not listening | Mic off. A tablet is connected |
+| Red | Listening | Mic on, audio streams to the tablet |
+| Flashing red | Either | The tablet is gone when it should be there: it dropped out of range, or the clip is listening with no tablet connected (that audio is being dropped) |
 | White flash | | Marker dropped |
-| Blinking | | Listening, but not connected to the tablet |
+| Fast white blink | | Find clip (about 3 seconds) |
+
+Solid red always means the microphone is on. Flashing red is the alarm; it returns to green,
+or to solid red if a capture is running, when the tablet is back.
+
+The clip tells a deliberate disconnect from a lost connection by the reason Bluetooth gives
+when the link ends. The tablet hanging up (the app's Disconnect button, the app closing,
+Bluetooth switched off) is deliberate: blue blink. The tablet no longer answering (out of
+range, battery dead) is a loss: flashing red.
 
 | Gesture | When | Effect |
 |---|---|---|
-| Press | Not listening | Start: consent is logged and capture begins (green) |
+| Press | Not listening | Start: consent is logged and capture begins (red) |
 | Hold 1.5 s | Listening | Stop the capture |
 | Double tap | Listening | Timestamp marker sent to the tablet |
 
@@ -47,12 +57,13 @@ changes that. While listening the clip only blinks, so the beep cannot land in a
 
 Details worth knowing:
 
-- The microphone is only on while the ring is green. Nothing is captured before the press, so there is nothing to wipe or withhold.
+- The microphone is only on while the ring is red. Nothing is captured before the press, so there is nothing to wipe or withhold.
 - The consent message is sent before the first audio frame, and every start and stop is logged with a timestamp.
 - A press while already listening is ignored, so a bumped button cannot cut the capture. A double tap or a hold never starts one.
 - Each capture restarts the audio frame counter at 0, which gives the tablet a clean boundary between patients.
 - If the link drops while listening, audio is dropped (not stored); consent events and markers are queued and sent on reconnect.
-- The board has no battery or power switch: plugging in USB powers it, and it starts in "not listening".
+- The board has no battery or power switch: plugging in USB powers it, and it starts in "not listening", blinking blue until a tablet connects and green once one has.
+- There is no pairing step or pairing mode: the clip is findable whenever it is powered and no tablet is connected, which is what the blue blink shows.
 
 ### Audio compression
 
@@ -135,8 +146,8 @@ By default the simulated clip hears a test tone. Under **Clip microphone**, choo
 and allow microphone access: the laptop's microphone then stands in for the clip's microphone.
 Open the page in Chrome or Safari for this (http://localhost:8765).
 
-- Speak while the ring is dark: the tablet stays at 0 bytes.
-- Press the button (ring green), speak, hold to stop, then press **Play received audio** to hear exactly what the tablet was sent.
+- Speak while the ring is green (connected, not listening): the tablet stays at 0 bytes.
+- Press the button (ring red), speak, hold to stop, then press **Play received audio** to hear exactly what the tablet was sent.
 
 The laptop mic tests the whole path with real speech. It does not tell you how the clip's own
 microphone sounds; for that, run the real device against `sim/tablet.py --no-sim --lan` and use
@@ -180,8 +191,8 @@ too slow to run the Opus encoder in real time. Microphone testing stays with the
 3. Start the mock tablet: `python3 sim/tablet.py --no-sim`
 4. Open the `firmware/` folder in VS Code, then F1 → "Wokwi: Start Simulator".
 
-Click the blue button (or hold the **B** key) for the clip button. The ring goes green on a
-press and dark again on a hold; http://localhost:8765 shows what the virtual clip sent. The
+Click the blue button (or hold the **B** key) for the clip button. The ring is green once the
+virtual clip has connected, red after a press and green again after a hold; http://localhost:8765 shows what the virtual clip sent. The
 virtual board reaches the laptop as `host.wokwi.internal` through the gateway built into the
 extension.
 
@@ -200,7 +211,7 @@ This writes `build/wokwi_web/`: a tiny `sketch.ino`, the whole firmware folded i
 then press play. No account is needed to run it.
 
 The website cannot reach a tablet on your laptop, so this build is standalone: the ring shows
-the state (dark or green) and the serial monitor prints the clip's state every 5 seconds, but
+the state (dark when not listening, red when listening) and the serial monitor prints the clip's state every 5 seconds, but
 nothing is streamed. A recorded run of the earlier two-press flow is in
 `evidence/2026-11-13-wokwi-run/`.
 
@@ -221,7 +232,7 @@ and the onboard NeoPixel is the light. No `config.h` is needed for Bluetooth.
    mode.) If the script says the board did not enter flashing mode, hold BOOT, tap RESET,
    release BOOT, and run it again.
 3. Watch the log: `pio device monitor`. Every 5 seconds it prints a status line, which should
-   include `bluetooth=advertising-as-Earshot-XXXX`. (The start-up lines are usually missed,
+   include `bluetooth=advertising-as-ESP-CLIP-XXXX`. (The start-up lines are usually missed,
    because the monitor connects after the board has booted; press RESET to see them.)
 4. Receive on the Mac, from Terminal (macOS asks once to let Terminal use Bluetooth):
    `build/codec-test-venv/bin/python tools/ble_receiver.py --start --seconds 13 --transcribe`

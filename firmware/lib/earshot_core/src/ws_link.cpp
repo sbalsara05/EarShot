@@ -13,9 +13,17 @@ WsLink::WsLink(Hal& hal, Transport& transport, uint32_t random_seed, const char*
       reconnect_ms_(reconnect_ms),
       handshake_timeout_ms_(handshake_timeout_ms),
       tried_connect_(false),
-      last_attempt_(0) {}
+      last_attempt_(0),
+      was_open_(false),
+      lost_(false) {}
 
 void WsLink::service(uint32_t now) {
+  // Notice an open connection ending, and whether the server closed it on purpose.
+  bool open = ws_.isOpen();
+  if (was_open_ && !open) lost_ = !ws_.peerClosed();
+  if (open) lost_ = false;
+  was_open_ = open;
+
   if (!hal_.networkUp()) {
     if (ws_.state() != WsClient::State::Closed) ws_.close();
     return;

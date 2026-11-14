@@ -41,7 +41,7 @@ void ClipApp::init() {
 }
 
 void ClipApp::begin() {
-  // Power-on state: not listening, mic off, ring dark. Nothing happens until the medic presses.
+  // Power-on state: not listening, mic off. Nothing happens until the medic presses.
   refreshLed(hal_.millis(), true);
 }
 
@@ -193,19 +193,37 @@ void ClipApp::serviceAudio(uint32_t now) {
 }
 
 void ClipApp::refreshLed(uint32_t now, bool force) {
-  LedColor want = state_ == ClipState::Listening ? LedColor::Green : LedColor::Off;
+  // What the light says:
+  //   slow blue blink      not listening, no tablet: ready for one to connect. Shown after
+  //                        power-on and after the tablet disconnects on purpose
+  //   green                tablet connected, not listening
+  //   red                  tablet connected, listening (the microphone is on)
+  //   red, flashing        the tablet is gone when it should be there: it dropped out of
+  //                        range, or the clip is listening with no tablet connected
+  //   white flash          marker
+  //   fast white blink     "find"
+  // Solid red always means the microphone is on. Flashing red is the alarm: it goes back to
+  // solid red or green when the tablet is back.
+  // A standalone clip (no tablet to connect to) is dark when it is not listening.
+  bool listening = state_ == ClipState::Listening;
+  bool connected = cfg_.gateway_enabled && linkOpen();
+  bool waiting = cfg_.gateway_enabled && !linkOpen();
+  bool alarm = waiting && (listening || link_->lostUnexpectedly());
+  LedColor base = listening ? LedColor::Red : connected ? LedColor::Green : LedColor::Off;
+  LedColor want = base;
 
   if (flashing_ && (uint32_t)(now - flash_start_) >= cfg_.marker_flash_ms) flashing_ = false;
 
   if (finding_) {
-    // Fast white blink. Between blinks the light shows the state as usual, so a clip that is
-    // listening still reads as listening.
+    // Between blinks the light shows the state as usual, so a clip that is listening still
+    // reads as listening.
     if ((((uint32_t)(now - find_start_)) / cfg_.find_blink_ms) % 2 == 0) want = LedColor::White;
   } else if (flashing_) {
     want = LedColor::White;
-  } else if (cfg_.gateway_enabled && state_ != ClipState::NotListening && !linkOpen() &&
-             ((now / 500) % 2) == 1) {
-    want = LedColor::Off;  // blinking = listening, but not connected to the tablet
+  } else if (alarm) {
+    want = ((now / 500) % 2) == 0 ? LedColor::Red : LedColor::Off;
+  } else if (waiting) {
+    if ((now % cfg_.wait_period_ms) < cfg_.wait_blink_ms) want = LedColor::Blue;
   }
 
   if (force || want != led_) {

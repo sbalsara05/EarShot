@@ -27,6 +27,8 @@ struct ClipConfig {
   uint32_t reconnect_ms;
   uint32_t handshake_timeout_ms;
   uint32_t marker_flash_ms;
+  uint32_t wait_blink_ms;       // waiting for a tablet: blue for this long...
+  uint32_t wait_period_ms;      // ...once every this long
   uint32_t find_ms;             // how long "find" blinks and beeps; matches the app's button
   uint32_t find_blink_ms;       // light on for this long, then off for this long
   uint32_t find_beep_ms;        // each beep lasts this long...
@@ -43,6 +45,8 @@ struct ClipConfig {
         reconnect_ms(2000),
         handshake_timeout_ms(3000),
         marker_flash_ms(200),
+        wait_blink_ms(500),
+        wait_period_ms(2000),
         find_ms(3200),
         find_blink_ms(125),
         find_beep_ms(120),

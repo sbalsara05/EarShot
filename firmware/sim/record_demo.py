@@ -125,10 +125,10 @@ class Recorder:
 
 async def scenario(cdp, rec):
     btn = "#btn"
-    rec.say("Power on. Ring dark: not listening. Microphone off, tablet has received 0 bytes.")
+    rec.say("Power on. Ring green: connected to the tablet, not listening. Microphone off, tablet has received 0 bytes.")
     await asyncio.sleep(3.5)
 
-    rec.say("One press: the patient has agreed. Consent is logged, ring green, audio reaches the tablet.")
+    rec.say("One press: the patient has agreed. Consent is logged, ring red, audio reaches the tablet.")
     await cdp.press(btn, 0.12)
     await asyncio.sleep(4.0)
 
@@ -142,7 +142,7 @@ async def scenario(cdp, rec):
     await cdp.press(btn, 0.12)
     await asyncio.sleep(2.5)
 
-    rec.say("Hold 1.5 s: stop. Ring dark; the byte count stops.")
+    rec.say("Hold 1.5 s: stop. Ring back to green; the byte count stops.")
     await cdp.press(btn, 1.8)
     await asyncio.sleep(3.5)
 

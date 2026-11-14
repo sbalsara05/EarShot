@@ -43,6 +43,12 @@
 #error "At more than 56 kbit/s an Opus frame no longer fits in one Bluetooth packet."
 #endif
 
+// ---- the name the clip shows in a Bluetooth scan: this prefix plus the last four digits of
+// the chip's address, for example ESP-CLIP-1814
+#ifndef CLIP_NAME_PREFIX
+#define CLIP_NAME_PREFIX "ESP-CLIP-"
+#endif
+
 // ---- the "find" beep
 #ifndef BEEP_HZ
 #define BEEP_HZ 2700            // around where small speakers and piezo buzzers are loudest

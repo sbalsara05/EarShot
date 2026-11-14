@@ -441,7 +441,7 @@ static void test_app_press_to_start() {
 
   r.run(1000);                                      // powered, connected, nobody has pressed
   CHECK(r.app.linkOpen());
-  CHECK(r.hal.led == LedColor::Off);                // ring dark = not listening
+  CHECK(r.hal.led == LedColor::Green);              // green = tablet connected, not listening
   CHECK_EQ(r.hal.mic_starts, 0);                    // the microphone has never been on
   CHECK_EQ(r.app.stats().frames_captured, 0);
   CHECK_EQ(r.audioFrames(), 0);
@@ -456,7 +456,7 @@ static void test_app_press_to_start() {
 
   r.shortPress();                                   // one press: consent logged, capture starts
   CHECK(r.app.state() == ClipState::Listening);
-  CHECK(r.hal.led == LedColor::Green);
+  CHECK(r.hal.led == LedColor::Red);
   CHECK(r.hal.mic_on);
   CHECK_EQ(r.hal.mic_starts, 1);
   CHECK_EQ(r.textCount("\"type\":\"consent\",\"event\":\"granted\",\"source\":\"button\""), 1);
@@ -495,7 +495,7 @@ static void test_app_press_to_start() {
   r.longPress();                                    // hold: stop
   CHECK(r.app.state() == ClipState::NotListening);
   CHECK(!r.hal.mic_on);
-  CHECK(r.hal.led == LedColor::Off);
+  CHECK(r.hal.led == LedColor::Green);
   CHECK_EQ(r.textCount("\"type\":\"consent\",\"event\":\"stopped\",\"source\":\"button\""), 1);
   int after_stop = r.audioFrames();
   r.run(1000);
@@ -662,7 +662,7 @@ static void test_app_standalone() {
   bool blinked = false;
   for (size_t i = 1; i < hal.led_history.size(); ++i) blinked |= hal.led_history[i] == LedColor::Off;
   CHECK(!blinked);                                    // green stays steady, no "not connected" blink
-  CHECK(hal.led == LedColor::Green);
+  CHECK(hal.led == LedColor::Red);
   CHECK(app.stats().frames_captured > 50);
   CHECK_EQ(app.stats().frames_sent, 0);
   CHECK_EQ(app.stats().frames_dropped, app.stats().frames_captured);
@@ -754,15 +754,19 @@ static void test_app_encoder() {
 class FakeLink : public Link {
  public:
   bool up;                 // a tablet is connected and subscribed
+  bool lost;               // the tablet vanished (out of range) rather than disconnecting
   bool reopened;           // the tablet reconnected since the last pass
   int fail_text;           // this many text sends fail before one succeeds
   size_t max_bytes;
   std::vector<std::string> texts;
   std::vector<std::string> audio;
   std::deque<std::string> from_tablet;
-  FakeLink() : up(false), reopened(false), fail_text(0), max_bytes(kBleMaxMessage), open_(false) {}
+  FakeLink() : up(false), lost(false), reopened(false), fail_text(0), max_bytes(kBleMaxMessage), open_(false) {}
 
-  void connect() { up = true; reopened = true; }
+  void connect() { up = true; lost = false; reopened = true; }
+  void disconnect() { up = false; lost = false; }   // the tablet hangs up on purpose
+  void vanish() { up = false; lost = true; }        // the tablet goes out of range
+  bool lostUnexpectedly() const override { return lost && !open_; }
   void service(uint32_t) override {
     if (reopened) {  // read as closed for one pass, as link.h requires
       reopened = false;
@@ -809,7 +813,7 @@ static void test_app_packet_link() {
   FakeEncoder enc;
   ClipConfig cfg;
   cfg.encoder = &enc;
-  cfg.device_id = "Earshot-A3F2";
+  cfg.device_id = "ESP-CLIP-A3F2";
   ClipApp app(hal, link, cfg);
   app.begin();
 
@@ -822,7 +826,7 @@ static void test_app_packet_link() {
   CHECK(app.linkOpen());
   CHECK_EQ(link.texts.size(), 2);                      // introduces itself: hello, then state
   CHECK(link.texts.size() == 2 && link.texts[0].find("\"type\":\"hello\"") != std::string::npos &&
-        link.texts[0].find("\"device\":\"Earshot-A3F2\"") != std::string::npos &&
+        link.texts[0].find("\"device\":\"ESP-CLIP-A3F2\"") != std::string::npos &&
         link.texts[1].find("\"state\":\"not_listening\"") != std::string::npos);
 
   // A command from the tablet starts a capture; every audio frame is one packet that fits.
@@ -890,7 +894,7 @@ static void test_app_packet_link() {
 static void test_message_sizes() {
   printf("protocol: every message fits one Bluetooth packet\n");
   const uint32_t big = 0xFFFFFFFFu;  // longest possible numbers
-  CHECK(helloJson("Earshot-A3F2", "opus", 32000).size() <= kBleMaxMessage);
+  CHECK(helloJson("ESP-CLIP-A3F2", "opus", 32000).size() <= kBleMaxMessage);
   CHECK(stateJson(ClipState::NotListening, big).size() <= kBleMaxMessage);
   CHECK(stateJson(ClipState::Listening, big).size() <= kBleMaxMessage);
   CHECK(consentJson("granted", "button", big).size() <= kBleMaxMessage);
@@ -983,7 +987,7 @@ static void test_find() {
     CHECK(!r.hal.beeping);
     CHECK(r.hal.beeps >= 7 && r.hal.beeps <= 9);         // 3.2 s at one per 400 ms
     CHECK_EQ(r.hal.beep_dones, 1);                       // the speaker is released once, at the end
-    CHECK(r.hal.led == LedColor::Off);
+    CHECK(r.hal.led == LedColor::Green);
     CHECK_EQ(r.hal.mic_starts, 0);                       // find never turns the microphone on
     CHECK_EQ(r.audioFrames(), 0);
     CHECK_EQ(r.textCount("\"type\":\"consent\""), 0);
@@ -1009,13 +1013,13 @@ static void test_find() {
     CHECK(r.app.finding());
     CHECK(r.app.state() == ClipState::Listening);
     CHECK(ledChanges(r.hal, mark, LedColor::White) >= 3);
-    CHECK(ledChanges(r.hal, mark, LedColor::Green) >= 3);   // green shows between blinks
+    CHECK(ledChanges(r.hal, mark, LedColor::Red) >= 3);     // red shows between blinks
     CHECK(r.audioFrames() >= frames_before + 40);        // audio kept flowing
     r.run(2500);
     CHECK(!r.app.finding());
     CHECK_EQ(r.hal.beeps, 0);
     CHECK_EQ(r.hal.beeps_with_mic_on, 0);
-    CHECK(r.hal.led == LedColor::Green);
+    CHECK(r.hal.led == LedColor::Red);
     CHECK(r.hal.mic_on);
   }
   {  // a capture that starts during a find silences it before the microphone turns on
@@ -1034,7 +1038,7 @@ static void test_find() {
     r.run(3500);
     CHECK_EQ(r.hal.beeps, beeps);                        // no more beeps once listening
     CHECK_EQ(r.hal.beeps_with_mic_on, 0);
-    CHECK(r.hal.led == LedColor::Green);
+    CHECK(r.hal.led == LedColor::Red);
   }
   {  // stopping a capture mid-find lets the beeps begin
     AppRig r;
@@ -1047,6 +1051,179 @@ static void test_find() {
     r.run(1500);
     CHECK(r.hal.beeps >= 2);
     CHECK_EQ(r.hal.beeps_with_mic_on, 0);
+  }
+}
+
+// ---------------------------------------------------------------- what the light shows
+
+// Runs the app for `ms` of clip time and returns how often the light changed to each colour.
+struct LedCount {
+  int blue, green, red, white, off;
+};
+static LedCount runAndCount(ClipApp& app, FakeHal& hal, uint32_t ms) {
+  size_t from = hal.led_history.size();
+  uint32_t end = hal.now + ms;
+  while ((int32_t)(end - hal.now) > 0) {
+    uint32_t before = hal.now;
+    app.tick();
+    if (hal.now == before) hal.now += 1;
+  }
+  LedCount c = {0, 0, 0, 0, 0};
+  for (size_t i = from; i < hal.led_history.size(); ++i) {
+    c.blue += hal.led_history[i] == LedColor::Blue;
+    c.green += hal.led_history[i] == LedColor::Green;
+    c.red += hal.led_history[i] == LedColor::Red;
+    c.white += hal.led_history[i] == LedColor::White;
+    c.off += hal.led_history[i] == LedColor::Off;
+  }
+  return c;
+}
+
+static void test_light() {
+  printf("light: blue ready, green connected, red listening, flashing red when the tablet is lost\n");
+  FakeHal hal;
+  FakeLink link;
+  ClipApp app(hal, link, ClipConfig());
+  app.begin();
+
+  // Powered, no tablet: one blue blink every 2 seconds. Never green (nothing is connected)
+  // and never red (the microphone is off).
+  LedCount c = runAndCount(app, hal, 6000);
+  CHECK(c.blue >= 2 && c.blue <= 4);
+  CHECK(c.off >= 2);
+  CHECK_EQ(c.green, 0);
+  CHECK_EQ(c.red, 0);
+  CHECK_EQ(hal.mic_starts, 0);
+
+  // A tablet connects: solid green, and it stays green.
+  link.connect();
+  runAndCount(app, hal, 100);
+  CHECK(app.linkOpen());
+  CHECK(hal.led == LedColor::Green);
+  c = runAndCount(app, hal, 6000);
+  CHECK_EQ(c.blue + c.red + c.off + c.white, 0);       // no change at all
+  CHECK(hal.led == LedColor::Green);
+
+  // Listening and connected: solid red.
+  app.onButtonEvent(ButtonEvent::ShortPress);
+  c = runAndCount(app, hal, 4000);
+  CHECK_EQ(c.blue + c.green, 0);
+  CHECK(hal.led == LedColor::Red);
+  CHECK(hal.mic_on);
+
+  // The tablet goes away mid-capture: red flashes. No blue, and no green.
+  link.up = false;
+  c = runAndCount(app, hal, 4000);
+  CHECK_EQ(c.blue + c.green, 0);
+  CHECK(c.red >= 2 && c.off >= 2);
+
+  // The tablet comes back mid-capture: solid red again.
+  link.connect();
+  runAndCount(app, hal, 200);
+  c = runAndCount(app, hal, 3000);
+  CHECK_EQ(c.off + c.blue + c.green, 0);
+  CHECK(hal.led == LedColor::Red);
+
+  // The capture is stopped while connected: back to green.
+  app.onButtonEvent(ButtonEvent::LongPress);
+  runAndCount(app, hal, 200);
+  CHECK(hal.led == LedColor::Green);
+  CHECK(!hal.mic_on);
+
+  // The tablet disconnects on purpose while idle (the app's Disconnect button): back to the
+  // blue blink, ready for a tablet to connect. No red.
+  link.disconnect();
+  c = runAndCount(app, hal, 6000);
+  CHECK(c.blue >= 2 && c.blue <= 4);
+  CHECK_EQ(c.red + c.green, 0);
+
+  // It connects again: green.
+  link.connect();
+  runAndCount(app, hal, 200);
+  CHECK(hal.led == LedColor::Green);
+
+  // The tablet goes out of range while idle: red flashes, though the microphone stays off.
+  link.vanish();
+  c = runAndCount(app, hal, 6000);
+  CHECK(c.red >= 4 && c.off >= 4);
+  CHECK_EQ(c.blue + c.green, 0);
+  CHECK(!hal.mic_on);
+  CHECK(app.state() == ClipState::NotListening);
+
+  // It comes back into range: solid green again.
+  link.connect();
+  runAndCount(app, hal, 200);
+  c = runAndCount(app, hal, 3000);
+  CHECK_EQ(c.red + c.off + c.blue, 0);
+  CHECK(hal.led == LedColor::Green);
+
+  // A deliberate disconnect in the middle of a capture still flashes red: the microphone is
+  // on and nothing is receiving the audio.
+  app.onButtonEvent(ButtonEvent::ShortPress);
+  runAndCount(app, hal, 500);
+  link.disconnect();
+  c = runAndCount(app, hal, 4000);
+  CHECK(c.red >= 2 && c.off >= 2);
+  CHECK_EQ(c.blue + c.green, 0);
+  CHECK(hal.mic_on);
+  app.onButtonEvent(ButtonEvent::LongPress);            // stopped with no tablet: blue, not red
+  c = runAndCount(app, hal, 6000);
+  CHECK(c.blue >= 2);
+  CHECK_EQ(c.red + c.green, 0);
+
+  // "Find" while waiting is still the fast white blink.
+  link.connect();
+  runAndCount(app, hal, 100);
+  link.from_tablet.push_back("{\"cmd\":\"find\"}");
+  link.up = false;                                     // the tablet drops right after asking
+  c = runAndCount(app, hal, 3000);
+  CHECK(c.white >= 8);
+
+  // A standalone clip (no tablet to wait for) stays dark.
+  FakeHal hal2;
+  FakeLink link2;
+  ClipConfig alone;
+  alone.gateway_enabled = false;
+  ClipApp solo(hal2, link2, alone);
+  solo.begin();
+  c = runAndCount(solo, hal2, 6000);
+  CHECK_EQ(c.blue + c.green, 0);
+  CHECK(hal2.led == LedColor::Off);
+  solo.onButtonEvent(ButtonEvent::ShortPress);          // listening is red there too, and steady
+  c = runAndCount(solo, hal2, 3000);
+  CHECK(hal2.led == LedColor::Red);
+  CHECK_EQ(c.off + c.blue + c.green, 0);
+}
+
+static void test_wifi_link_loss_kind() {
+  printf("wi-fi link: a server goodbye is deliberate, a dead connection is a loss\n");
+  {  // the connection simply dies: lost, so the light flashes red
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    CHECK(r.app.linkOpen());
+    r.tr.up = false;                                     // and it cannot reconnect
+    r.tr.drop();
+    r.run(300);
+    CHECK(!r.app.linkOpen());
+    size_t mark = r.hal.led_history.size();
+    r.run(4000);
+    CHECK(ledChanges(r.hal, mark, LedColor::Red) >= 2);
+    CHECK_EQ(ledChanges(r.hal, mark, LedColor::Blue), 0);
+  }
+  {  // the server sends a WebSocket Close: deliberate, so the light goes to the blue blink
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    CHECK(r.app.linkOpen());
+    r.tr.up = false;
+    r.tr.serverSend(0x8, "");
+    r.run(300);
+    CHECK(!r.app.linkOpen());
+    size_t mark = r.hal.led_history.size();
+    r.run(6000);
+    CHECK(ledChanges(r.hal, mark, LedColor::Blue) >= 2);
+    CHECK_EQ(ledChanges(r.hal, mark, LedColor::Red), 0);
   }
 }
 
@@ -1064,6 +1241,8 @@ int main() {
   test_message_sizes();
   test_voice_clip();
   test_find();
+  test_light();
+  test_wifi_link_loss_kind();
   printf("\n%d checks, %d failed\n", g_checks, g_failed);
   return g_failed ? 1 : 0;
 }

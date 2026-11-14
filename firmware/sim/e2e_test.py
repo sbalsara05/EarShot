@@ -49,7 +49,7 @@ async def main():
         check("microphone is off: nothing captured", t.sim_status.get("captured", -1) == 0,
               f"{t.sim_status.get('captured')} frames captured")
         check("tablet received 0 audio bytes", t.audio_bytes == 0, f"{t.audio_bytes} bytes")
-        check("ring is dark", t.sim_led == "off", t.sim_led)
+        check("ring is green: connected, not listening", t.sim_led == "green", t.sim_led)
 
         print("find clip")
         await t.send_command("find")
@@ -60,7 +60,7 @@ async def main():
         await asyncio.sleep(2.6)
         beeps = t.sim_beeps
         await asyncio.sleep(1.0)
-        check("find stops by itself after about 3 seconds", t.sim_beeps == beeps and t.sim_led == "off",
+        check("find stops by itself after about 3 seconds", t.sim_beeps == beeps and t.sim_led == "green",
               f"{t.sim_beeps} beeps, ring {t.sim_led}")
 
         print("gestures that must not start a capture")
@@ -83,7 +83,7 @@ async def main():
         rate = (t.audio_bytes + 8 * t.audio_frames) / (t.audio_frames * 0.02)
         check("data rate with headers is under 8,000 bytes per second", rate <= 8000, f"{rate:.0f} bytes/s")
         check("no frames lost", t.lost_frames == 0, f"{t.lost_frames} lost")
-        check("ring is green", t.sim_led == "green", t.sim_led)
+        check("ring is red: listening", t.sim_led == "red", t.sim_led)
         check("the press was logged as consent", consent_events(t) == ["granted"], str(consent_events(t)))
 
         print("double tap = marker")
@@ -103,7 +103,7 @@ async def main():
         n = t.audio_frames
         await asyncio.sleep(0.8)
         check("audio stops", t.audio_frames == n)
-        check("ring is dark", t.sim_led == "off", t.sim_led)
+        check("ring is green: connected, not listening", t.sim_led == "green", t.sim_led)
         check("the stop was logged", consent_events(t) == ["granted", "stopped"], str(consent_events(t)))
 
         print("tablet commands")

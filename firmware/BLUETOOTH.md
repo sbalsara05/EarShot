@@ -13,11 +13,11 @@ The clip advertises. The app scans, connects and subscribes. Then the clip pushe
 
 | Step | Who | What happens |
 |---|---|---|
-| 1 | Clip | From power-on it broadcasts its service ID and its name (`Earshot-` plus four hex digits, for example `Earshot-A3F2`) about eight times a second |
+| 1 | Clip | From power-on it broadcasts its service ID and its name (`ESP-CLIP-` plus four hex digits, for example `ESP-CLIP-A3F2`) about eight times a second. Its light blinks blue slowly while it waits |
 | 2 | App | Scans for the service ID, sees the clip, connects |
 | 3 | App | Looks up the service and its three channels |
 | 4 | App | Subscribes to the audio channel, then the events channel |
-| 5 | Clip | Sends `hello` and `state` as soon as the events channel is subscribed, then events and audio as they happen |
+| 5 | Clip | Sends `hello` and `state` as soon as the events channel is subscribed, then events and audio as they happen. Its light turns solid green (red while it is listening) |
 
 In Bluetooth terms the clip is the peripheral and the app is the central. A "channel" is a
 characteristic; "subscribing" is turning on notifications.
@@ -47,7 +47,7 @@ the app never has to join packets together.
 **Events** (UTF-8 JSON, clip to app):
 
 ```json
-{"type":"hello","device":"Earshot-A3F2","fw":"0.7.0","audio":{"codec":"opus","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}
+{"type":"hello","device":"ESP-CLIP-A3F2","fw":"0.8.0","audio":{"codec":"opus","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}
 {"type":"state","state":"listening","listening":true,"t_ms":41234}
 {"type":"consent","event":"granted","source":"button","t_ms":41230}
 {"type":"consent","event":"stopped","source":"tablet","t_ms":63010}
@@ -98,7 +98,11 @@ The simulator in Xcode has no Bluetooth. This needs a real iPad or iPhone.
 The clip does its half: it starts advertising again the instant a connection drops, and it says
 `hello` again on every new subscription. The app's half:
 
-- **On disconnect, reconnect at once.** In `didDisconnectPeripheral`, call `connect` on the same
+- **A Disconnect button should call `cancelPeripheralConnection`.** The clip sees that as a
+  deliberate goodbye and goes back to its slow blue "ready to connect" blink. If the iPad
+  just goes out of range, the clip flashes red until it is back. Do not reconnect
+  automatically after a disconnect the user asked for.
+- **On an unexpected disconnect, reconnect at once.** In `didDisconnectPeripheral`, call `connect` on the same
   peripheral. That request does not time out, so the link returns by itself when the clip is
   back in range or powered again.
 - **Subscribe again after every connect.** Nothing carries over from the last connection. In
@@ -124,7 +128,7 @@ For decoding, iOS has an Opus decoder in AudioToolbox (`kAudioFormatOpus`, throu
 
 ## Testing without the app
 
-- **On a phone:** install nRF Connect or LightBlue. Scan, connect to `Earshot-XXXX`, turn on
+- **On a phone:** install nRF Connect or LightBlue. Scan, connect to `ESP-CLIP-XXXX`, turn on
   notifications for the two notify characteristics, then press the clip's button. Events show as
   text and audio as 88-byte packets.
 - **On a Mac:** `tools/ble_receiver.py` does all five steps, decodes the audio to a WAV file,

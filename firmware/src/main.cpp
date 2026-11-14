@@ -99,6 +99,8 @@ class Esp32Hal : public earshot::Hal {
     switch (color) {
       case earshot::LedColor::Green: c = ring_.Color(0, 255, 60); break;
       case earshot::LedColor::White: c = ring_.Color(255, 255, 255); break;
+      case earshot::LedColor::Blue: c = ring_.Color(0, 60, 255); break;
+      case earshot::LedColor::Red: c = ring_.Color(255, 0, 0); break;
       case earshot::LedColor::Off: c = 0; break;
     }
     ring_.fill(c);
@@ -262,7 +264,7 @@ static Esp32Hal g_hal;
 static earshot::ClipApp* g_app = nullptr;
 #if LINK_BLUETOOTH
 static BleLink g_ble;
-static char g_name[20] = "Earshot";
+static char g_name[24] = CLIP_NAME_PREFIX;
 #else
 static Esp32Transport g_transport;
 #endif
@@ -315,10 +317,10 @@ void setup() {
 #endif
 
 #if LINK_BLUETOOTH
-  // The name the tablet shows: "Earshot-" plus the last four digits of the chip's address.
+  // The name the tablet shows: the prefix plus the last four digits of the chip's address.
   uint8_t mac[6] = {0};
   esp_efuse_mac_get_default(mac);
-  snprintf(g_name, sizeof g_name, "Earshot-%02X%02X", mac[4], mac[5]);
+  snprintf(g_name, sizeof g_name, CLIP_NAME_PREFIX "%02X%02X", mac[4], mac[5]);
   app_cfg.device_id = g_name;
   if (g_ble.begin(g_name)) Serial.printf("[clip] link: Bluetooth, advertising as %s\n", g_name);
   else Serial.println("[clip] ERROR: Bluetooth failed to start");
