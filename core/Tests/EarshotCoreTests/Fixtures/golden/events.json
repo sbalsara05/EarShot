@@ -1,0 +1,977 @@
+[
+  {
+    "call_id" : "c1",
+    "confidence" : 1,
+    "fields" : {
+      "consent" : "yes"
+    },
+    "id" : "e1",
+    "models" : {
+      "asr" : "none",
+      "extract" : "none"
+    },
+    "source" : "tap",
+    "t_ms" : 500,
+    "tap_clip_ms" : 500,
+    "tap_source" : "button",
+    "time" : "2026-11-15T14:00:00-05:00",
+    "type" : "consent"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.85,
+    "fields" : {
+      "dispatch_reason" : "fall"
+    },
+    "id" : "e2",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "We got called for a fall,",
+    "raw_span" : "s1",
+    "receipts" : {
+      "dispatch_reason" : {
+        "quote" : "We got called for a fall,",
+        "raw_range" : [
+          0,
+          25
+        ],
+        "raw_span" : "s1"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 2000,
+    "time" : "2026-11-15T14:00:02-05:00",
+    "type" : "dispatch"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.75,
+    "fields" : {
+      "found" : "chest pain"
+    },
+    "id" : "e3",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "turned out to be chest pain.",
+    "raw_span" : "s1",
+    "receipts" : {
+      "found" : {
+        "quote" : "turned out to be chest pain.",
+        "raw_range" : [
+          33,
+          61
+        ],
+        "raw_span" : "s1"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 4259,
+    "time" : "2026-11-15T14:00:04-05:00",
+    "type" : "dispatch"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.8,
+    "fields" : {
+      "kind" : "symptom",
+      "symptom" : "chest pain"
+    },
+    "id" : "e4",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "chest pain.",
+    "raw_span" : "s1",
+    "receipts" : {
+      "symptom" : {
+        "quote" : "chest pain.",
+        "raw_range" : [
+          50,
+          61
+        ],
+        "raw_span" : "s1"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 5423,
+    "time" : "2026-11-15T14:00:05-05:00",
+    "type" : "status"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.9,
+    "fields" : {
+      "age" : "67",
+      "kind" : "patient",
+      "sex" : "female"
+    },
+    "id" : "e5",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "sixty seven year old female,",
+    "raw_span" : "s2",
+    "receipts" : {
+      "age" : {
+        "quote" : "sixty seven year old female,",
+        "raw_range" : [
+          9,
+          37
+        ],
+        "raw_span" : "s2"
+      },
+      "sex" : {
+        "quote" : "sixty seven year old female,",
+        "raw_range" : [
+          9,
+          37
+        ],
+        "raw_span" : "s2"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 9675,
+    "time" : "2026-11-15T14:00:09-05:00",
+    "type" : "status"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.85,
+    "fields" : {
+      "kind" : "patient",
+      "weight_estimated" : "true",
+      "weight_kg" : "70"
+    },
+    "id" : "e6",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "about seventy kilos.",
+    "raw_span" : "s2",
+    "receipts" : {
+      "weight_kg" : {
+        "quote" : "about seventy kilos.",
+        "raw_range" : [
+          38,
+          58
+        ],
+        "raw_span" : "s2"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 11852,
+    "time" : "2026-11-15T14:00:11-05:00",
+    "type" : "status"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.8,
+    "fields" : {
+      "kind" : "symptom",
+      "symptom" : "chest pressure"
+    },
+    "id" : "e7",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "chest pressure",
+    "raw_span" : "s3",
+    "receipts" : {
+      "symptom" : {
+        "quote" : "chest pressure",
+        "raw_range" : [
+          15,
+          29
+        ],
+        "raw_span" : "s3"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 17014,
+    "time" : "2026-11-15T14:00:17-05:00",
+    "type" : "status"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.8,
+    "fields" : {
+      "kind" : "symptom",
+      "symptom" : "radiating pain"
+    },
+    "id" : "e8",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "radiating",
+    "raw_span" : "s3",
+    "receipts" : {
+      "symptom" : {
+        "quote" : "radiating",
+        "raw_range" : [
+          30,
+          39
+        ],
+        "raw_span" : "s3"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 18028,
+    "time" : "2026-11-15T14:00:18-05:00",
+    "type" : "status"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.75,
+    "fields" : {
+      "history" : "hypertension and diabetes",
+      "kind" : "history"
+    },
+    "id" : "e9",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "History of hypertension and diabetes.",
+    "raw_span" : "s4",
+    "receipts" : {
+      "history" : {
+        "quote" : "History of hypertension and diabetes.",
+        "raw_range" : [
+          0,
+          37
+        ],
+        "raw_span" : "s4"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 25000,
+    "time" : "2026-11-15T14:00:25-05:00",
+    "type" : "status"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.75,
+    "fields" : {
+      "allergy" : "penicillin",
+      "kind" : "allergy"
+    },
+    "flags" : [
+      "confirm"
+    ],
+    "id" : "e10",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "Allergic to penicillin.",
+    "raw_span" : "s4",
+    "receipts" : {
+      "allergy" : {
+        "quote" : "Allergic to penicillin.",
+        "raw_range" : [
+          38,
+          61
+        ],
+        "raw_span" : "s4"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 27920,
+    "time" : "2026-11-15T14:00:27-05:00",
+    "type" : "status"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.9,
+    "fields" : {
+      "drug" : "metoprolol",
+      "kind" : "home_med"
+    },
+    "id" : "e11",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "metoprolol.",
+    "raw_span" : "s4",
+    "receipts" : {
+      "drug" : {
+        "quote" : "metoprolol.",
+        "raw_range" : [
+          72,
+          83
+        ],
+        "raw_span" : "s4"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 30533,
+    "time" : "2026-11-15T14:00:30-05:00",
+    "type" : "status"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.88,
+    "fields" : {
+      "bp_diastolic" : "92",
+      "bp_systolic" : "158",
+      "heart_rate" : "110",
+      "o2_on" : "room air",
+      "resp_rate" : "22",
+      "spo2" : "94"
+    },
+    "id" : "e12",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "B P one fifty eight over ninety two, heart rate one ten, sats ninety four percent on room air, resps twenty two.",
+    "raw_span" : "s5",
+    "receipts" : {
+      "bp_diastolic" : {
+        "quote" : "B P one fifty eight over ninety two,",
+        "raw_range" : [
+          0,
+          36
+        ],
+        "raw_span" : "s5"
+      },
+      "bp_systolic" : {
+        "quote" : "B P one fifty eight over ninety two,",
+        "raw_range" : [
+          0,
+          36
+        ],
+        "raw_span" : "s5"
+      },
+      "heart_rate" : {
+        "quote" : "heart rate one ten,",
+        "raw_range" : [
+          37,
+          56
+        ],
+        "raw_span" : "s5"
+      },
+      "o2_on" : {
+        "quote" : "on room air,",
+        "raw_range" : [
+          82,
+          94
+        ],
+        "raw_span" : "s5"
+      },
+      "resp_rate" : {
+        "quote" : "resps twenty two.",
+        "raw_range" : [
+          95,
+          112
+        ],
+        "raw_span" : "s5"
+      },
+      "spo2" : {
+        "quote" : "sats ninety four",
+        "raw_range" : [
+          57,
+          73
+        ],
+        "raw_span" : "s5"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 36000,
+    "time" : "2026-11-15T14:00:36-05:00",
+    "type" : "vitals"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.9,
+    "fields" : {
+      "dose" : "324",
+      "drug" : "aspirin",
+      "heard_at" : "14:00:53",
+      "route" : "PO",
+      "route_as_heard" : "chewed",
+      "unit_suggested" : "mg"
+    },
+    "id" : "e13",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "Three twenty four of aspirin, chewed.",
+    "raw_span" : "s6",
+    "receipts" : {
+      "dose" : {
+        "quote" : "Three twenty four",
+        "raw_range" : [
+          0,
+          17
+        ],
+        "raw_span" : "s6"
+      },
+      "drug" : {
+        "quote" : "aspirin,",
+        "raw_range" : [
+          21,
+          29
+        ],
+        "raw_span" : "s6"
+      },
+      "route" : {
+        "quote" : "chewed.",
+        "raw_range" : [
+          30,
+          37
+        ],
+        "raw_span" : "s6"
+      }
+    },
+    "source" : "tap+heard",
+    "t_ms" : 52500,
+    "tap_clip_ms" : 52500,
+    "tap_source" : "button",
+    "time" : "2026-11-15T14:00:52-05:00",
+    "type" : "medication"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.85,
+    "fields" : {
+      "procedure" : "12-lead ECG"
+    },
+    "id" : "e14",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "Twelve lead",
+    "raw_span" : "s7",
+    "receipts" : {
+      "procedure" : {
+        "quote" : "Twelve lead",
+        "raw_range" : [
+          0,
+          11
+        ],
+        "raw_span" : "s7"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 62000,
+    "time" : "2026-11-15T14:01:02-05:00",
+    "type" : "procedure"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.8,
+    "fields" : {
+      "alert" : "hospital pre-alert given (as said)"
+    },
+    "id" : "e15",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "STEMI alert.",
+    "raw_span" : "s7",
+    "receipts" : {
+      "alert" : {
+        "quote" : "STEMI alert.",
+        "raw_range" : [
+          40,
+          52
+        ],
+        "raw_span" : "s7"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 65224,
+    "time" : "2026-11-15T14:01:05-05:00",
+    "type" : "transport"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.88,
+    "fields" : {
+      "gauge" : "18",
+      "heard_at" : "14:01:14",
+      "procedure" : "IV access",
+      "site" : "left AC"
+    },
+    "id" : "e16",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "Eighteen gauge in the left A C.",
+    "raw_span" : "s8",
+    "receipts" : {
+      "gauge" : {
+        "quote" : "Eighteen gauge in the left A C.",
+        "raw_range" : [
+          0,
+          31
+        ],
+        "raw_span" : "s8"
+      },
+      "procedure" : {
+        "quote" : "Eighteen gauge in the left A C.",
+        "raw_range" : [
+          0,
+          31
+        ],
+        "raw_span" : "s8"
+      },
+      "site" : {
+        "quote" : "Eighteen gauge in the left A C.",
+        "raw_range" : [
+          0,
+          31
+        ],
+        "raw_span" : "s8"
+      }
+    },
+    "source" : "tap+heard",
+    "t_ms" : 73000,
+    "tap_clip_ms" : 73000,
+    "tap_source" : "button",
+    "time" : "2026-11-15T14:01:13-05:00",
+    "type" : "procedure"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.9,
+    "fields" : {
+      "dose" : "0.4",
+      "drug" : "nitroglycerin",
+      "drug_as_heard" : "Nitro",
+      "heard_at" : "14:01:26",
+      "route" : "SL",
+      "unit_suggested" : "mg"
+    },
+    "id" : "e17",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "Nitro point four sublingual.",
+    "raw_span" : "s9",
+    "receipts" : {
+      "dose" : {
+        "quote" : "point four",
+        "raw_range" : [
+          6,
+          16
+        ],
+        "raw_span" : "s9"
+      },
+      "drug" : {
+        "quote" : "Nitro",
+        "raw_range" : [
+          0,
+          5
+        ],
+        "raw_span" : "s9"
+      },
+      "route" : {
+        "quote" : "sublingual.",
+        "raw_range" : [
+          17,
+          28
+        ],
+        "raw_span" : "s9"
+      }
+    },
+    "source" : "tap+heard",
+    "t_ms" : 86200,
+    "tap_clip_ms" : 86200,
+    "tap_source" : "button",
+    "time" : "2026-11-15T14:01:26-05:00",
+    "type" : "medication"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 1,
+    "fields" : {
+      "label" : "no label"
+    },
+    "flags" : [
+      "unlabeled"
+    ],
+    "id" : "e18",
+    "models" : {
+      "asr" : "none",
+      "extract" : "none"
+    },
+    "source" : "tap",
+    "t_ms" : 100000,
+    "tap_clip_ms" : 100000,
+    "tap_source" : "button",
+    "time" : "2026-11-15T14:01:40-05:00",
+    "type" : "tap"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.85,
+    "fields" : {
+      "pain" : "6"
+    },
+    "id" : "e19",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "Pain is a six out of ten",
+    "raw_span" : "s10",
+    "receipts" : {
+      "pain" : {
+        "quote" : "Pain is a six out of ten",
+        "raw_range" : [
+          0,
+          24
+        ],
+        "raw_span" : "s10"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 112000,
+    "time" : "2026-11-15T14:01:52-05:00",
+    "type" : "vitals"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.8,
+    "fields" : {
+      "condition" : "compensating",
+      "kind" : "condition"
+    },
+    "id" : "e20",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "compensating.",
+    "raw_span" : "s10",
+    "receipts" : {
+      "condition" : {
+        "quote" : "compensating.",
+        "raw_range" : [
+          37,
+          50
+        ],
+        "raw_span" : "s10"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 114925,
+    "time" : "2026-11-15T14:01:54-05:00",
+    "type" : "status"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.9,
+    "fields" : {
+      "bp_diastolic" : "84",
+      "bp_systolic" : "138",
+      "heart_rate" : "96",
+      "o2_on" : "2 l",
+      "spo2" : "97"
+    },
+    "id" : "e21",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "B P one thirty eight over eighty four, pulse ninety six, sats ninety seven on two liters.",
+    "raw_span" : "s11",
+    "receipts" : {
+      "bp_diastolic" : {
+        "quote" : "B P one thirty eight over eighty four,",
+        "raw_range" : [
+          0,
+          38
+        ],
+        "raw_span" : "s11"
+      },
+      "bp_systolic" : {
+        "quote" : "B P one thirty eight over eighty four,",
+        "raw_range" : [
+          0,
+          38
+        ],
+        "raw_span" : "s11"
+      },
+      "heart_rate" : {
+        "quote" : "pulse ninety six,",
+        "raw_range" : [
+          39,
+          56
+        ],
+        "raw_span" : "s11"
+      },
+      "o2_on" : {
+        "quote" : "on two liters.",
+        "raw_range" : [
+          75,
+          89
+        ],
+        "raw_span" : "s11"
+      },
+      "spo2" : {
+        "quote" : "sats ninety seven",
+        "raw_range" : [
+          57,
+          74
+        ],
+        "raw_span" : "s11"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 122000,
+    "time" : "2026-11-15T14:02:02-05:00",
+    "type" : "vitals"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.9,
+    "fields" : {
+      "dose" : "4",
+      "drug" : "ondansetron",
+      "drug_as_heard" : "Zofran",
+      "heard_at" : "14:02:17",
+      "route" : "IV",
+      "unit" : "mg"
+    },
+    "id" : "e22",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "Four milligrams of Zofran I V",
+    "raw_span" : "s12",
+    "receipts" : {
+      "dose" : {
+        "quote" : "Four",
+        "raw_range" : [
+          0,
+          4
+        ],
+        "raw_span" : "s12"
+      },
+      "drug" : {
+        "quote" : "Zofran",
+        "raw_range" : [
+          19,
+          25
+        ],
+        "raw_span" : "s12"
+      },
+      "route" : {
+        "quote" : "I V",
+        "raw_range" : [
+          26,
+          29
+        ],
+        "raw_span" : "s12"
+      },
+      "unit" : {
+        "quote" : "milligrams of",
+        "raw_range" : [
+          5,
+          18
+        ],
+        "raw_span" : "s12"
+      }
+    },
+    "source" : "tap+heard",
+    "t_ms" : 137000,
+    "tap_clip_ms" : 137000,
+    "tap_source" : "button",
+    "time" : "2026-11-15T14:02:17-05:00",
+    "type" : "medication"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.8,
+    "fields" : {
+      "kind" : "symptom",
+      "symptom" : "nausea"
+    },
+    "id" : "e23",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "nausea.",
+    "raw_span" : "s12",
+    "receipts" : {
+      "symptom" : {
+        "quote" : "nausea.",
+        "raw_range" : [
+          34,
+          41
+        ],
+        "raw_span" : "s12"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 138380,
+    "time" : "2026-11-15T14:02:18-05:00",
+    "type" : "status"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.75,
+    "fields" : {
+      "etime" : "eTimes.09",
+      "kind" : "departed"
+    },
+    "id" : "e24",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "Transporting",
+    "raw_span" : "s13",
+    "receipts" : {
+      "kind" : {
+        "quote" : "Transporting",
+        "raw_range" : [
+          0,
+          12
+        ],
+        "raw_span" : "s13"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 146000,
+    "time" : "2026-11-15T14:02:26-05:00",
+    "type" : "transport"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.8,
+    "fields" : {
+      "destination" : "Mass General",
+      "eta_min" : "12",
+      "mode" : "lights and sirens"
+    },
+    "id" : "e25",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "Transporting to Mass General, lights and sirens, E T A twelve minutes.",
+    "raw_span" : "s13",
+    "receipts" : {
+      "destination" : {
+        "quote" : "Transporting to Mass General,",
+        "raw_range" : [
+          0,
+          29
+        ],
+        "raw_span" : "s13"
+      },
+      "eta_min" : {
+        "quote" : "E T A twelve minutes.",
+        "raw_range" : [
+          49,
+          70
+        ],
+        "raw_span" : "s13"
+      },
+      "mode" : {
+        "quote" : "lights and sirens,",
+        "raw_range" : [
+          30,
+          48
+        ],
+        "raw_span" : "s13"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 146000,
+    "time" : "2026-11-15T14:02:26-05:00",
+    "type" : "transport"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 0.6,
+    "fields" : {
+      "destination" : "E D",
+      "etime" : "eTimes.11",
+      "kind" : "arrived_heard"
+    },
+    "flags" : [
+      "confirm"
+    ],
+    "id" : "e26",
+    "models" : {
+      "asr" : "whisper.cpp small.en",
+      "extract" : "rules-v1"
+    },
+    "quote" : "we're at the E D.",
+    "raw_span" : "s14",
+    "receipts" : {
+      "kind" : {
+        "quote" : "we're at the E D.",
+        "raw_range" : [
+          6,
+          23
+        ],
+        "raw_span" : "s14"
+      }
+    },
+    "source" : "heard",
+    "t_ms" : 158000,
+    "time" : "2026-11-15T14:02:38-05:00",
+    "type" : "transport"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 1,
+    "fields" : {
+      "method" : "tap",
+      "nemsis" : "eTimes.11"
+    },
+    "id" : "e27",
+    "models" : {
+      "asr" : "none",
+      "extract" : "none"
+    },
+    "source" : "tablet",
+    "t_ms" : 160000,
+    "tap_clip_ms" : 160000,
+    "tap_source" : "tablet",
+    "time" : "2026-11-15T14:02:40-05:00",
+    "type" : "arrival"
+  },
+  {
+    "call_id" : "c1",
+    "confidence" : 1,
+    "fields" : {
+      "method" : "nurse accept",
+      "nemsis" : "eTimes.12"
+    },
+    "id" : "e28",
+    "models" : {
+      "asr" : "none",
+      "extract" : "none"
+    },
+    "source" : "tablet",
+    "t_ms" : 1360000,
+    "tap_clip_ms" : 1360000,
+    "tap_source" : "tablet",
+    "time" : "2026-11-15T14:22:40-05:00",
+    "type" : "handoff"
+  }
+]

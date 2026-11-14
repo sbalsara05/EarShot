@@ -1,0 +1,86 @@
+[
+ {
+  "id": "s1",
+  "start_ms": 2000,
+  "end_ms": 6177,
+  "text": "We got called for a fall, but it turned out to be chest pain."
+ },
+ {
+  "id": "s2",
+  "start_ms": 9000,
+  "end_ms": 13354,
+  "text": "She is a sixty seven year old female, about seventy kilos."
+ },
+ {
+  "id": "s3",
+  "start_ms": 16000,
+  "end_ms": 21206,
+  "text": "Complaining of chest pressure radiating to the left arm, started an hour ago."
+ },
+ {
+  "id": "s4",
+  "start_ms": 25000,
+  "end_ms": 31379,
+  "text": "History of hypertension and diabetes. Allergic to penicillin. She takes metoprolol."
+ },
+ {
+  "id": "s5",
+  "start_ms": 36000,
+  "end_ms": 44390,
+  "text": "B P one fifty eight over ninety two, heart rate one ten, sats ninety four percent on room air, resps twenty two."
+ },
+ {
+  "id": "s6",
+  "start_ms": 52000,
+  "end_ms": 54808,
+  "text": "Three twenty four of aspirin, chewed."
+ },
+ {
+  "id": "s7",
+  "start_ms": 62000,
+  "end_ms": 66192,
+  "text": "Twelve lead shows S T elevation. Call a STEMI alert."
+ },
+ {
+  "id": "s8",
+  "start_ms": 74000,
+  "end_ms": 76046,
+  "text": "Eighteen gauge in the left A C."
+ },
+ {
+  "id": "s9",
+  "start_ms": 86000,
+  "end_ms": 88240,
+  "text": "Nitro point four sublingual."
+ },
+ {
+  "id": "s10",
+  "start_ms": 112000,
+  "end_ms": 115954,
+  "text": "Pain is a six out of ten now. She is compensating."
+ },
+ {
+  "id": "s11",
+  "start_ms": 122000,
+  "end_ms": 128399,
+  "text": "B P one thirty eight over eighty four, pulse ninety six, sats ninety seven on two liters."
+ },
+ {
+  "id": "s12",
+  "start_ms": 136000,
+  "end_ms": 138871,
+  "text": "Four milligrams of Zofran I V for nausea."
+ },
+ {
+  "id": "s13",
+  "start_ms": 146000,
+  "end_ms": 150978,
+  "text": "Transporting to Mass General, lights and sirens, E T A twelve minutes."
+ },
+ {
+  "id": "s14",
+  "start_ms": 158000,
+  "end_ms": 159582,
+  "text": "Okay, we're at the E D."
+ }
+]

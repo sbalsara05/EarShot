@@ -1,0 +1,5281 @@
+{
+ "context_required_aliases": [
+  "a trophy",
+  "advil",
+  "amio",
+  "asa",
+  "at a van",
+  "auvi-q",
+  "b1",
+  "benadryl",
+  "bi carb",
+  "blow by",
+  "bolus",
+  "breathing treatment",
+  "bvm",
+  "by carb",
+  "calcium",
+  "card is em",
+  "charcoal",
+  "cpap",
+  "dex",
+  "dex rose",
+  "dilt",
+  "epi",
+  "fent",
+  "fluid bolus",
+  "glucose",
+  "hal doll",
+  "hep",
+  "high flow",
+  "insulin",
+  "juice",
+  "kepra",
+  "ket",
+  "label all",
+  "leave a fed",
+  "levo",
+  "lido",
+  "low presser",
+  "lr",
+  "mag",
+  "magnesium",
+  "mark one",
+  "more feen",
+  "motrin",
+  "ms",
+  "nasal cannula",
+  "nc",
+  "neb",
+  "neffy",
+  "neo",
+  "night row",
+  "nitrogen",
+  "nitrous",
+  "non rebreather",
+  "nrb",
+  "ns",
+  "o2",
+  "orange juice",
+  "pepcid",
+  "pit",
+  "play vix",
+  "regular insulin",
+  "ringers",
+  "roc",
+  "saline",
+  "sole you med roll",
+  "special k",
+  "succs",
+  "sucks",
+  "sugar",
+  "sux",
+  "tylenol",
+  "valley um",
+  "vaso",
+  "vec",
+  "zyrtec"
+ ],
+ "version": "1.0.0",
+ "generated_by": "core/tools/build_dictionary.py",
+ "notes": "Typical doses are reference values from state protocols for plausibility checks ONLY. Earshot never fills a dose it did not hear.",
+ "drugs": [
+  {
+   "generic": "aspirin",
+   "class": "antiplatelet",
+   "rxcui": "1191",
+   "brands": [
+    "Aspergum",
+    "Aspi-Cor",
+    "Bayer Aspirin",
+    "Bufferin",
+    "Durlaza",
+    "Ecotrin",
+    "Miniprin",
+    "Norwich Aspirin",
+    "St. Joseph Aspirin",
+    "Vazalore"
+   ],
+   "slang": [
+    "asa",
+    "baby aspirin",
+    "chewable aspirin"
+   ],
+   "aliases": [
+    "asa",
+    "aspergum",
+    "aspi-cor",
+    "aspirin",
+    "baby aspirin",
+    "bayer",
+    "bayer aspirin",
+    "bufferin",
+    "chewable aspirin",
+    "durlaza",
+    "ecotrin",
+    "miniprin",
+    "norwich aspirin",
+    "st. joseph aspirin",
+    "vazalore"
+   ],
+   "asr_variants": [
+    "a s a",
+    "as burn",
+    "aspirin's",
+    "aspiryn",
+    "asprin",
+    "aspyrin",
+    "aspyryn",
+    "azpirin",
+    "azpiryn",
+    "azpyrin"
+   ],
+   "phonetic": [
+    "AS",
+    "ASPKR",
+    "ASPRKM",
+    "ASPRN",
+    "BFRN",
+    "EKTRN",
+    "FSLR",
+    "MNPRN",
+    "TRLS"
+   ],
+   "typical_doses": [
+    {
+     "amount": "324",
+     "unit": "mg",
+     "route": "PO"
+    },
+    {
+     "amount": "325",
+     "unit": "mg",
+     "route": "PO"
+    },
+    {
+     "amount": "162",
+     "unit": "mg",
+     "route": "PO"
+    },
+    {
+     "amount": "81",
+     "unit": "mg",
+     "route": "PO"
+    }
+   ],
+   "routes": [
+    "PO"
+   ],
+   "label_routes_openfda": [
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "nitroglycerin",
+   "class": "vasodilator",
+   "rxcui": "4917",
+   "brands": [
+    "Gonitro",
+    "Nitro-Bid",
+    "Nitro-Dur",
+    "NitroMist",
+    "Nitrolingual",
+    "Nitrostat",
+    "Rectiv"
+   ],
+   "slang": [
+    "nitro",
+    "ntg",
+    "nitro spray",
+    "nitro tab",
+    "nitro paste"
+   ],
+   "aliases": [
+    "gonitro",
+    "nitro",
+    "nitro paste",
+    "nitro spray",
+    "nitro tab",
+    "nitro-bid",
+    "nitro-dur",
+    "nitroglycerin",
+    "nitrolingual",
+    "nitromist",
+    "nitrostat",
+    "ntg",
+    "rectiv"
+   ],
+   "asr_variants": [
+    "night row",
+    "nitro glycerin",
+    "nitro glycerine",
+    "nitrogen",
+    "nitroglicerin",
+    "nitrogliceryn",
+    "nitroglycerine",
+    "nitroglyceryn",
+    "nytro",
+    "nytroglicerin",
+    "nytroglycerin",
+    "nytroglyceryn",
+    "sprai",
+    "zprai",
+    "zpray"
+   ],
+   "phonetic": [
+    "KNTR",
+    "NTK",
+    "NTR",
+    "NTRBT",
+    "NTRKLSRN",
+    "NTRLNKL",
+    "NTRMST",
+    "NTRSTT",
+    "NTRTR",
+    "RKTF"
+   ],
+   "typical_doses": [
+    {
+     "amount": "0.4",
+     "unit": "mg",
+     "route": "SL"
+    }
+   ],
+   "routes": [
+    "SL",
+    "TD",
+    "IV"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS",
+    "ORAL",
+    "SUBLINGUAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "epinephrine",
+   "class": "sympathomimetic",
+   "rxcui": "3992",
+   "brands": [
+    "Adrenalin",
+    "Auvi-Q",
+    "Epipen",
+    "Neffy",
+    "Symjepi"
+   ],
+   "slang": [
+    "epi",
+    "adrenaline",
+    "epi pen",
+    "epipen",
+    "push dose epi",
+    "one milligram epi",
+    "cardiac epi"
+   ],
+   "aliases": [
+    "adrenalin",
+    "adrenaline",
+    "auvi-q",
+    "cardiac epi",
+    "epi",
+    "epi 1 to 1000",
+    "epi 1:10,000",
+    "epi 1:1000",
+    "epi pen",
+    "epi pin",
+    "epinephrine",
+    "epipen",
+    "neffy",
+    "one milligram epi",
+    "push dose epi",
+    "symjepi"
+   ],
+   "asr_variants": [
+    "adrenaleen",
+    "adrenalen",
+    "adrenalyne",
+    "epeenfrine",
+    "epeenphreen",
+    "epeenphrine",
+    "epeenphryne",
+    "epenphrine",
+    "epi friend",
+    "epi nephrine",
+    "epinefreen",
+    "epinefrine",
+    "epinefryne",
+    "epinephreen",
+    "epinephren",
+    "epinephrin",
+    "epinephryne",
+    "epynefrine"
+   ],
+   "phonetic": [
+    "AFK",
+    "ATRNLN",
+    "EP",
+    "EPNFRN",
+    "EPPN",
+    "NF",
+    "SMJP"
+   ],
+   "typical_doses": [
+    {
+     "amount": "0.3",
+     "unit": "mg",
+     "route": "IM"
+    },
+    {
+     "amount": "0.5",
+     "unit": "mg",
+     "route": "IM"
+    },
+    {
+     "amount": "0.15",
+     "unit": "mg",
+     "route": "IM"
+    },
+    {
+     "amount": "1",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "1",
+     "unit": "mg",
+     "route": "IO"
+    },
+    {
+     "amount": "10",
+     "unit": "mcg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IM",
+    "IV",
+    "IO",
+    "NEB",
+    "ET"
+   ],
+   "label_routes_openfda": [
+    "EPIDURAL",
+    "INFILTRATION",
+    "INTRACAUDAL",
+    "INTRAMUSCULAR",
+    "INTRAOCULAR",
+    "INTRAVENOUS",
+    "NASAL",
+    "PERINEURAL",
+    "RETROBULBAR",
+    "SUBCUTANEOUS",
+    "SUBMUCOSAL",
+    "TOPICAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "racemic epinephrine",
+   "class": "sympathomimetic",
+   "rxcui": "314610",
+   "brands": [],
+   "slang": [
+    "racemic epi",
+    "racepinephrine"
+   ],
+   "aliases": [
+    "racemic epi",
+    "racemic epinephrine",
+    "racepinephrine"
+   ],
+   "asr_variants": [
+    "epeenfrine",
+    "epeenphreen",
+    "epeenphrine",
+    "epeenphryne",
+    "epenphrine",
+    "epinefreen",
+    "epinefrine",
+    "epinefryne",
+    "epinephreen",
+    "epinephren",
+    "epinephryne",
+    "epynefrine",
+    "race emic epi",
+    "racemik",
+    "racemyc",
+    "racemyk",
+    "racepeenfrine",
+    "racepeenphreen",
+    "racepeenphrine",
+    "racepeenphryne",
+    "racepenphrine",
+    "racepinefreen",
+    "racepinefrine",
+    "racepinefryne",
+    "racepinephreen",
+    "racepinephren",
+    "racepinephryne",
+    "racepynefrine"
+   ],
+   "phonetic": [
+    "RSPNFRN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "0.5",
+     "unit": "ml",
+     "route": "NEB"
+    }
+   ],
+   "routes": [
+    "NEB"
+   ],
+   "label_routes_openfda": [],
+   "high_alert": false
+  },
+  {
+   "generic": "naloxone",
+   "class": "opioid antagonist",
+   "rxcui": "7242",
+   "brands": [
+    "Kloxxado",
+    "Narcan",
+    "Rextovy",
+    "Rezenopy",
+    "Zimhi"
+   ],
+   "slang": [
+    "narcan",
+    "nalox"
+   ],
+   "aliases": [
+    "kloxxado",
+    "nalox",
+    "naloxone",
+    "narcan",
+    "nasal narcan",
+    "now loxone",
+    "rextovy",
+    "rezenopy",
+    "zimhi"
+   ],
+   "asr_variants": [
+    "nalocs",
+    "nalocsone",
+    "naloks",
+    "naloksone",
+    "naloksown",
+    "nalokz",
+    "nalokzone",
+    "naloxon",
+    "naloxown",
+    "nar can",
+    "narc an",
+    "narkan",
+    "now locks own"
+   ],
+   "phonetic": [
+    "KLKST",
+    "NLKS",
+    "NLKSN",
+    "NRKN",
+    "RKSTF",
+    "RSNP",
+    "SMH"
+   ],
+   "typical_doses": [
+    {
+     "amount": "0.4",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "2",
+     "unit": "mg",
+     "route": "IN"
+    },
+    {
+     "amount": "4",
+     "unit": "mg",
+     "route": "IN"
+    },
+    {
+     "amount": "0.4",
+     "unit": "mg",
+     "route": "IM"
+    },
+    {
+     "amount": "2",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IN",
+    "IV",
+    "IM",
+    "IO",
+    "SQ"
+   ],
+   "label_routes_openfda": [
+    "BUCCAL",
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "NASAL",
+    "ORAL",
+    "PARENTERAL",
+    "SUBCUTANEOUS",
+    "SUBLINGUAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "albuterol",
+   "class": "bronchodilator",
+   "rxcui": "435",
+   "brands": [
+    "ProAir",
+    "Proventil",
+    "Ventolin"
+   ],
+   "slang": [
+    "albuterol neb",
+    "proventil",
+    "ventolin",
+    "breathing treatment"
+   ],
+   "aliases": [
+    "albuterol",
+    "albuterol neb",
+    "albuterol's",
+    "breathing treatment",
+    "proair",
+    "proventil",
+    "ventolin"
+   ],
+   "asr_variants": [
+    "al butyrol",
+    "albuteral",
+    "albuterall",
+    "albuterl",
+    "albuterols",
+    "all bureau",
+    "proventyl",
+    "ventalin",
+    "ventallin",
+    "ventallyn",
+    "ventolyn"
+   ],
+   "phonetic": [
+    "ALBTRL",
+    "FNTLN",
+    "PRFNTL",
+    "PRR"
+   ],
+   "typical_doses": [
+    {
+     "amount": "2.5",
+     "unit": "mg",
+     "route": "NEB"
+    },
+    {
+     "amount": "5",
+     "unit": "mg",
+     "route": "NEB"
+    }
+   ],
+   "routes": [
+    "NEB",
+    "INH"
+   ],
+   "label_routes_openfda": [
+    "ORAL",
+    "RESPIRATORY (INHALATION)"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "ipratropium",
+   "class": "anticholinergic bronchodilator",
+   "rxcui": "7213",
+   "brands": [
+    "Atrovent"
+   ],
+   "slang": [
+    "atrovent",
+    "duoneb",
+    "duo neb"
+   ],
+   "aliases": [
+    "albuterol/ipratropium",
+    "atro vent",
+    "atrovent",
+    "do neb",
+    "dual neb",
+    "duo neb",
+    "duoneb",
+    "ipratropeum",
+    "ipratropium"
+   ],
+   "asr_variants": [
+    "a tro vent",
+    "do a neb",
+    "duo nab",
+    "duownb",
+    "epitropium",
+    "ipra tropium"
+   ],
+   "phonetic": [
+    "ATRFNT",
+    "IPRTRPM",
+    "TNB"
+   ],
+   "typical_doses": [
+    {
+     "amount": "0.5",
+     "unit": "mg",
+     "route": "NEB"
+    }
+   ],
+   "routes": [
+    "NEB"
+   ],
+   "label_routes_openfda": [
+    "NASAL",
+    "RESPIRATORY (INHALATION)"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "oral glucose",
+   "class": "antihypoglycemic",
+   "rxcui": "371773",
+   "brands": [],
+   "slang": [
+    "glucose gel",
+    "insta glucose",
+    "glutose",
+    "oral glucose gel",
+    "sugar gel"
+   ],
+   "aliases": [
+    "glucose gel",
+    "glucose tube",
+    "glutose",
+    "insta glucose",
+    "oral glucos",
+    "oral glucose",
+    "oral glucose gel",
+    "sugar gel"
+   ],
+   "asr_variants": [
+    "glucose jell",
+    "glucoze",
+    "glue cose",
+    "glukose",
+    "glukoze",
+    "glutoze",
+    "inzta"
+   ],
+   "phonetic": [
+    "KLTS"
+   ],
+   "typical_doses": [
+    {
+     "amount": "15",
+     "unit": "g",
+     "route": "PO"
+    },
+    {
+     "amount": "24",
+     "unit": "g",
+     "route": "PO"
+    }
+   ],
+   "routes": [
+    "PO",
+    "BUC"
+   ],
+   "label_routes_openfda": [],
+   "high_alert": false
+  },
+  {
+   "generic": "dextrose",
+   "class": "antihypoglycemic",
+   "rxcui": "4850",
+   "brands": [
+    "Dex4",
+    "Enfamil Glucose",
+    "Glucoburst",
+    "Glutose",
+    "Insta-Glucose"
+   ],
+   "slang": [
+    "d10",
+    "d50",
+    "d25",
+    "dextrose 10",
+    "dextrose 50",
+    "amp of d50"
+   ],
+   "aliases": [
+    "amp of d50",
+    "d10",
+    "d10w",
+    "d25",
+    "d50",
+    "dex4",
+    "dextros",
+    "dextrose",
+    "dextrose 10",
+    "dextrose 10%",
+    "dextrose 50",
+    "dextrose 50%",
+    "enfamil glucose",
+    "glucoburst",
+    "glutose",
+    "insta-glucose"
+   ],
+   "asr_variants": [
+    "d 10",
+    "d 50",
+    "decstrose",
+    "dee fifty",
+    "dee ten",
+    "dekstrose",
+    "dekstroze",
+    "dekztrose",
+    "dex rose",
+    "dextrose's",
+    "dextroze"
+   ],
+   "phonetic": [
+    "INSTKLKS",
+    "KLKBRST",
+    "KLTS",
+    "T",
+    "TKS",
+    "TKSTRS"
+   ],
+   "typical_doses": [
+    {
+     "amount": "25",
+     "unit": "g",
+     "route": "IV"
+    },
+    {
+     "amount": "12.5",
+     "unit": "g",
+     "route": "IV"
+    },
+    {
+     "amount": "250",
+     "unit": "ml",
+     "route": "IV"
+    },
+    {
+     "amount": "100",
+     "unit": "ml",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAPERITONEAL",
+    "INTRATHECAL",
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "glucagon",
+   "class": "antihypoglycemic",
+   "rxcui": "4832",
+   "brands": [
+    "Baqsimi",
+    "GlucaGen",
+    "Gvoke"
+   ],
+   "slang": [
+    "glucagen"
+   ],
+   "aliases": [
+    "baqsimi",
+    "gluca gone",
+    "glucagen",
+    "glucagon",
+    "glucogon",
+    "gvoke"
+   ],
+   "asr_variants": [
+    "glucagons",
+    "glucose gone",
+    "glue ca gone",
+    "glukagen",
+    "glukagon"
+   ],
+   "phonetic": [
+    "BKSM",
+    "KFK",
+    "KLKJN",
+    "KLKKN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "1",
+     "unit": "mg",
+     "route": "IM"
+    },
+    {
+     "amount": "1",
+     "unit": "mg",
+     "route": "IN"
+    },
+    {
+     "amount": "3",
+     "unit": "mg",
+     "route": "IN"
+    }
+   ],
+   "routes": [
+    "IM",
+    "IN",
+    "IV",
+    "SQ"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "NASAL",
+    "ORAL",
+    "SUBCUTANEOUS"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "ondansetron",
+   "class": "antiemetic",
+   "rxcui": "26225",
+   "brands": [],
+   "slang": [
+    "zofran",
+    "zofran odt"
+   ],
+   "aliases": [
+    "ondansetron",
+    "zofran",
+    "zofran odt",
+    "zofran's",
+    "zofrin"
+   ],
+   "asr_variants": [
+    "on dancetron",
+    "ondansetrin",
+    "ondanzetron",
+    "so fran",
+    "sofran",
+    "sophran",
+    "zo fran",
+    "zofren",
+    "zophran"
+   ],
+   "phonetic": [
+    "ONTNSTRN",
+    "SFRN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "4",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "4",
+     "unit": "mg",
+     "route": "PO"
+    },
+    {
+     "amount": "8",
+     "unit": "mg",
+     "route": "PO"
+    },
+    {
+     "amount": "4",
+     "unit": "mg",
+     "route": "IM"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM",
+    "PO",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "fentanyl",
+   "class": "opioid analgesic",
+   "rxcui": "4337",
+   "brands": [
+    "Abstral",
+    "Actiq",
+    "Fentora",
+    "Ionsys",
+    "Subsys"
+   ],
+   "slang": [
+    "fent",
+    "sublimaze"
+   ],
+   "aliases": [
+    "abstral",
+    "actiq",
+    "fent",
+    "fenta nil",
+    "fentanyl",
+    "fentenyl",
+    "fentora",
+    "ionsys",
+    "sublimaze",
+    "subsys"
+   ],
+   "asr_variants": [
+    "fent and ill",
+    "fentanil",
+    "fentanol",
+    "fentanyls",
+    "fenton al",
+    "phentanil",
+    "phentanyl",
+    "sublimase",
+    "sublymase",
+    "sublymaze",
+    "zublimase",
+    "zublimaze",
+    "zublymaze"
+   ],
+   "phonetic": [
+    "ABSTRL",
+    "AKTK",
+    "FNT",
+    "FNTNL",
+    "FNTR",
+    "INSS",
+    "SBLMS",
+    "SBSS"
+   ],
+   "typical_doses": [
+    {
+     "amount": "50",
+     "unit": "mcg",
+     "route": "IV"
+    },
+    {
+     "amount": "25",
+     "unit": "mcg",
+     "route": "IV"
+    },
+    {
+     "amount": "100",
+     "unit": "mcg",
+     "route": "IN"
+    },
+    {
+     "amount": "1",
+     "unit": "mcg/kg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IN",
+    "IM",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "TRANSDERMAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "morphine",
+   "class": "opioid analgesic",
+   "rxcui": "7052",
+   "brands": [
+    "Duramorph",
+    "Infumorph",
+    "Kadian",
+    "MS Contin",
+    "Mitigo"
+   ],
+   "slang": [
+    "ms",
+    "morphine sulfate",
+    "mso4"
+   ],
+   "aliases": [
+    "duramorph",
+    "infumorph",
+    "kadian",
+    "mitigo",
+    "morphin",
+    "morphine",
+    "morphine sulfate",
+    "ms",
+    "ms contin",
+    "mso4"
+   ],
+   "asr_variants": [
+    "more feen",
+    "morfeen",
+    "morfine",
+    "morfyne",
+    "morpheen",
+    "morphen",
+    "morphene",
+    "morphyne",
+    "sulphate",
+    "zulfate",
+    "zulphate"
+   ],
+   "phonetic": [
+    "INFMRF",
+    "KTN",
+    "MRFN",
+    "MS",
+    "MTK",
+    "TRMRF"
+   ],
+   "typical_doses": [
+    {
+     "amount": "4",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "2",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "0.1",
+     "unit": "mg/kg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "EPIDURAL",
+    "INTRAMUSCULAR",
+    "INTRATHECAL",
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "hydromorphone",
+   "class": "opioid analgesic",
+   "rxcui": "3423",
+   "brands": [
+    "Dilaudid"
+   ],
+   "slang": [
+    "dilaudid"
+   ],
+   "aliases": [
+    "dilaudid",
+    "hydromorphone"
+   ],
+   "asr_variants": [
+    "dilaudyd",
+    "dye lauded",
+    "dylaudid",
+    "dylaudyd",
+    "hydro morphone",
+    "hydromorfone",
+    "hydromorfown",
+    "hydromorphown",
+    "the laudid"
+   ],
+   "phonetic": [
+    "TLTT",
+    "TRMRFN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "0.5",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "1",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "ORAL",
+    "RECTAL",
+    "SUBCUTANEOUS"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "ketamine",
+   "class": "dissociative anesthetic",
+   "rxcui": "6130",
+   "brands": [
+    "Ketalar",
+    "Ketaset",
+    "Zetamine"
+   ],
+   "slang": [
+    "ketalar",
+    "special k",
+    "ket"
+   ],
+   "aliases": [
+    "ket",
+    "ketalar",
+    "ketamine",
+    "ketaset",
+    "special k",
+    "zetamine"
+   ],
+   "asr_variants": [
+    "cat a mean",
+    "keta mean",
+    "ketameen",
+    "ketamen",
+    "ketamin",
+    "ketamyne",
+    "ketumeen",
+    "ketumine",
+    "ketumyne",
+    "key to mean",
+    "zpecial"
+   ],
+   "phonetic": [
+    "KT",
+    "KTLR",
+    "KTMN",
+    "KTST",
+    "STMN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "0.3",
+     "unit": "mg/kg",
+     "route": "IV"
+    },
+    {
+     "amount": "4",
+     "unit": "mg/kg",
+     "route": "IM"
+    },
+    {
+     "amount": "50",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "2",
+     "unit": "mg/kg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM",
+    "IN",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "midazolam",
+   "class": "benzodiazepine",
+   "rxcui": "6960",
+   "brands": [
+    "Nayzilam"
+   ],
+   "slang": [
+    "versed"
+   ],
+   "aliases": [
+    "midazolam",
+    "midazolom",
+    "nayzilam",
+    "ver said",
+    "versed"
+   ],
+   "asr_variants": [
+    "mid as olam",
+    "midasallam",
+    "midasolam",
+    "midasolum",
+    "midazalam",
+    "midazallam",
+    "midazallum",
+    "midazepam",
+    "midazolan",
+    "midazolum",
+    "mydasolam",
+    "mydazallam",
+    "mydazolam",
+    "mydazolum",
+    "verse said",
+    "versed's",
+    "verzed"
+   ],
+   "phonetic": [
+    "FRST",
+    "MTSLM",
+    "NSLM"
+   ],
+   "typical_doses": [
+    {
+     "amount": "2.5",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "5",
+     "unit": "mg",
+     "route": "IM"
+    },
+    {
+     "amount": "10",
+     "unit": "mg",
+     "route": "IM"
+    },
+    {
+     "amount": "5",
+     "unit": "mg",
+     "route": "IN"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM",
+    "IN",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "NASAL",
+    "ORAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "diazepam",
+   "class": "benzodiazepine",
+   "rxcui": "3322",
+   "brands": [
+    "Diastat",
+    "Libervant",
+    "Valium",
+    "Valtoco"
+   ],
+   "slang": [
+    "valium"
+   ],
+   "aliases": [
+    "diastat",
+    "diazepam",
+    "libervant",
+    "valium",
+    "valtoco"
+   ],
+   "asr_variants": [
+    "diasepam",
+    "diasepum",
+    "diazepum",
+    "die as a pam",
+    "valley um"
+   ],
+   "phonetic": [
+    "FLM",
+    "FLTK",
+    "LBRFNT",
+    "TSPM",
+    "TSTT"
+   ],
+   "typical_doses": [
+    {
+     "amount": "5",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "10",
+     "unit": "mg",
+     "route": "PR"
+    }
+   ],
+   "routes": [
+    "IV",
+    "PR",
+    "IM",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "NASAL",
+    "ORAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "lorazepam",
+   "class": "benzodiazepine",
+   "rxcui": "6470",
+   "brands": [
+    "Ativan",
+    "Loreev"
+   ],
+   "slang": [
+    "ativan"
+   ],
+   "aliases": [
+    "adivan",
+    "ativan",
+    "ativen",
+    "lorazepam",
+    "loreev"
+   ],
+   "asr_variants": [
+    "adavan",
+    "at a van",
+    "atyvan",
+    "lorasepam",
+    "lorasepum",
+    "lorazapam",
+    "lorazepum"
+   ],
+   "phonetic": [
+    "ATFN",
+    "LRF",
+    "LRSPM"
+   ],
+   "typical_doses": [
+    {
+     "amount": "2",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "1",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "4",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "diphenhydramine",
+   "class": "antihistamine",
+   "rxcui": "3498",
+   "brands": [
+    "Banophen",
+    "Benadryl",
+    "Compoz",
+    "Dermamycin",
+    "Diphedryl",
+    "Diphenhist",
+    "Dormin",
+    "Genahist",
+    "Kids-Eeze Allergy",
+    "Nytol"
+   ],
+   "slang": [
+    "benadryl"
+   ],
+   "aliases": [
+    "banophen",
+    "bena dril",
+    "benadryl",
+    "compoz",
+    "dermamycin",
+    "diphedryl",
+    "diphen hydramine",
+    "diphenhist",
+    "diphenhydramine",
+    "dormin",
+    "genahist",
+    "kids-eeze allergy",
+    "nytol"
+   ],
+   "asr_variants": [
+    "ben a drill",
+    "bena drill",
+    "benadril",
+    "benedryl",
+    "die fen hydra mean",
+    "difenhydrameen",
+    "difenhydramine",
+    "difenhydramyne",
+    "difenhydrumine",
+    "diphenhydrameen",
+    "diphenhydramen",
+    "diphenhydramyne",
+    "diphenhydrumeen",
+    "diphenhydrumine",
+    "diphenhydrumyne",
+    "dyfenhydramine",
+    "dyphenhydrameen"
+   ],
+   "phonetic": [
+    "BNFN",
+    "BNTRL",
+    "JNHST",
+    "KMPS",
+    "NTL",
+    "TFNHST",
+    "TFNTRMN",
+    "TFTRL",
+    "TRMMSN",
+    "TRMN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "25",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "50",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "50",
+     "unit": "mg",
+     "route": "IM"
+    },
+    {
+     "amount": "50",
+     "unit": "mg",
+     "route": "PO"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM",
+    "PO",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "ORAL",
+    "TOPICAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "methylprednisolone",
+   "class": "corticosteroid",
+   "rxcui": "6902",
+   "brands": [
+    "Depo-Medrol",
+    "HybriSil",
+    "Medrol",
+    "Solu-Medrol"
+   ],
+   "slang": [
+    "solu-medrol",
+    "solumedrol",
+    "solu medrol"
+   ],
+   "aliases": [
+    "depo-medrol",
+    "hybrisil",
+    "medrol",
+    "methylprednisolone",
+    "sol you medrol",
+    "solu medrol",
+    "solu-medrol",
+    "solu-medrol's",
+    "solumedrol",
+    "soul medrol"
+   ],
+   "asr_variants": [
+    "medral",
+    "medrall",
+    "methilprednisallone",
+    "methilprednisolone",
+    "methilprednisolown",
+    "methilprednizolone",
+    "methilprednysolone",
+    "method pred",
+    "methylprednisallone",
+    "methylprednisallown",
+    "methylprednisalone",
+    "methylprednisolown",
+    "methylprednizallone",
+    "methylprednizolone",
+    "methylprednizolown",
+    "sallu-medrall",
+    "sallu-medrol",
+    "sallumedrall",
+    "sallumedrol",
+    "salu-medrol",
+    "salumedrol",
+    "sole you med roll",
+    "solu metrol",
+    "solu-medral",
+    "solu-medrall",
+    "solumedral",
+    "solumedrall",
+    "zallu-medrol",
+    "zallumedrol",
+    "zolu-medrall",
+    "zolu-medrol",
+    "zolumedrall",
+    "zolumedrol"
+   ],
+   "phonetic": [
+    "BRSL",
+    "M0LPRTNSLN",
+    "MTRL",
+    "SLMTRL",
+    "TPMTRL"
+   ],
+   "typical_doses": [
+    {
+     "amount": "125",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "EPIDURAL",
+    "INFILTRATION",
+    "INTRA-ARTICULAR",
+    "INTRALESIONAL",
+    "INTRAMUSCULAR",
+    "INTRASYNOVIAL",
+    "INTRAVENOUS",
+    "ORAL",
+    "SOFT TISSUE",
+    "SUBCUTANEOUS",
+    "TOPICAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "dexamethasone",
+   "class": "corticosteroid",
+   "rxcui": "3264",
+   "brands": [
+    "Decadron",
+    "Dexasone",
+    "Dexium",
+    "Dexlyt",
+    "Dextenza",
+    "Dexycu",
+    "Hemady",
+    "Maxidex",
+    "Ozurdex"
+   ],
+   "slang": [
+    "decadron",
+    "dex"
+   ],
+   "aliases": [
+    "decadron",
+    "dex",
+    "dexamethasone",
+    "dexasone",
+    "dexium",
+    "dexlyt",
+    "dextenza",
+    "dexycu",
+    "hemady",
+    "maxidex",
+    "ozurdex"
+   ],
+   "asr_variants": [
+    "deca drone",
+    "decsamethasone",
+    "dekadron",
+    "deksamethasone",
+    "deksamethasown",
+    "deksamethazone",
+    "deksumethasone",
+    "dekzamethasone",
+    "dexa methasone",
+    "dexamethasown",
+    "dexamethazone",
+    "dexamethazown",
+    "dexumethasone",
+    "dexumethasown",
+    "dexumethazone"
+   ],
+   "phonetic": [
+    "HMT",
+    "MKSTKS",
+    "OSRTKS",
+    "TKS",
+    "TKSK",
+    "TKSLT",
+    "TKSM",
+    "TKSM0SN",
+    "TKSSN",
+    "TKSTNS",
+    "TKTRN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "10",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "8",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "10",
+     "unit": "mg",
+     "route": "PO"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM",
+    "PO",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "AURICULAR (OTIC)",
+    "INTRA-ARTICULAR",
+    "INTRALESIONAL",
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "OPHTHALMIC",
+    "ORAL",
+    "SOFT TISSUE"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "magnesium sulfate",
+   "class": "electrolyte",
+   "rxcui": "6585",
+   "brands": [],
+   "slang": [
+    "mag",
+    "mag sulfate",
+    "magnesium",
+    "mgso4"
+   ],
+   "aliases": [
+    "mag",
+    "mag sulfate",
+    "mag sulphate",
+    "magnesium",
+    "magnesium sulfate",
+    "mgso4"
+   ],
+   "asr_variants": [
+    "mag sulfite",
+    "magnesium sulphate",
+    "magnezium",
+    "sulphate",
+    "zulfate",
+    "zulphate"
+   ],
+   "phonetic": [
+    "MK",
+    "MKNSM",
+    "MKS"
+   ],
+   "typical_doses": [
+    {
+     "amount": "2",
+     "unit": "g",
+     "route": "IV"
+    },
+    {
+     "amount": "4",
+     "unit": "g",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRATHECAL",
+    "INTRAVENOUS",
+    "ORAL",
+    "TOPICAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "amiodarone",
+   "class": "antiarrhythmic",
+   "rxcui": "703",
+   "brands": [
+    "Nexterone",
+    "Pacerone"
+   ],
+   "slang": [
+    "amio",
+    "cordarone",
+    "nexterone"
+   ],
+   "aliases": [
+    "amio",
+    "amiodarone",
+    "amioderone",
+    "amy oderone",
+    "cordarone",
+    "nexterone",
+    "pacerone"
+   ],
+   "asr_variants": [
+    "ami adorn",
+    "amiodaron",
+    "amiodarown",
+    "amy oh",
+    "amy oh da rone",
+    "cordarown",
+    "kordarone",
+    "kordarown",
+    "necsterone",
+    "neksterone",
+    "neksterown",
+    "nekzterone",
+    "nexterown"
+   ],
+   "phonetic": [
+    "AM",
+    "AMTRN",
+    "KRTRN",
+    "NKSTRN",
+    "PSRN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "300",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "150",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "lidocaine",
+   "class": "antiarrhythmic / local anesthetic",
+   "rxcui": "6387",
+   "brands": [
+    "Akten",
+    "Alocane",
+    "AneCream",
+    "Bio-Kool",
+    "Bondlido",
+    "Bruselix",
+    "Burn Jel Plus",
+    "Comfortcaine",
+    "Cutiecaine",
+    "Derma Numb"
+   ],
+   "slang": [
+    "lido",
+    "xylocaine"
+   ],
+   "aliases": [
+    "akten",
+    "alocane",
+    "anecream",
+    "bio-kool",
+    "bondlido",
+    "bruselix",
+    "burn jel plus",
+    "comfortcaine",
+    "cutiecaine",
+    "derma numb",
+    "lido",
+    "lidocaine",
+    "xylocaine"
+   ],
+   "asr_variants": [
+    "lido cane",
+    "lidocaeen",
+    "lidocaen",
+    "lidocane",
+    "lidocayne",
+    "lidokaeen",
+    "lidokaine",
+    "lidokayne",
+    "lighter cane",
+    "lydocaeen",
+    "lydocaine",
+    "lydocayne",
+    "lydokaine",
+    "xilocaeen",
+    "xilocaine",
+    "xilocayne",
+    "xilokaine",
+    "xylocaeen",
+    "xylocaen",
+    "xylocayne",
+    "xylokaeen",
+    "xylokaine",
+    "xylokayne"
+   ],
+   "phonetic": [
+    "AKTN",
+    "ALKN",
+    "ANKRM",
+    "BKL",
+    "BNTLT",
+    "BRSLKS",
+    "KMFRTKN",
+    "KTKN",
+    "LT",
+    "LTKN",
+    "SLKN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "1.5",
+     "unit": "mg/kg",
+     "route": "IV"
+    },
+    {
+     "amount": "1",
+     "unit": "mg/kg",
+     "route": "IV"
+    },
+    {
+     "amount": "40",
+     "unit": "mg",
+     "route": "IO"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO",
+    "TOP"
+   ],
+   "label_routes_openfda": [
+    "EPIDURAL",
+    "INFILTRATION",
+    "INTRA-ARTICULAR",
+    "INTRALESIONAL",
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "ORAL",
+    "SOFT TISSUE",
+    "SUBCUTANEOUS",
+    "TOPICAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "adenosine",
+   "class": "antiarrhythmic",
+   "rxcui": "296",
+   "brands": [
+    "Adenocard",
+    "Adenoscan"
+   ],
+   "slang": [
+    "adenocard"
+   ],
+   "aliases": [
+    "a denosine",
+    "adenocard",
+    "adenoscan",
+    "adenosine"
+   ],
+   "asr_variants": [
+    "a den o seen",
+    "add no scene",
+    "adenokard",
+    "adenoseen",
+    "adenosen",
+    "adenosene",
+    "adenosyne",
+    "adenozeen",
+    "adenozine",
+    "adenozyne"
+   ],
+   "phonetic": [
+    "ATNKRT",
+    "ATNSKN",
+    "ATNSN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "6",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "12",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "EXTRACORPOREAL",
+    "INTRAVENOUS",
+    "ORAL",
+    "TOPICAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "atropine",
+   "class": "anticholinergic",
+   "rxcui": "1223",
+   "brands": [
+    "Atropen",
+    "Isopto Atropine"
+   ],
+   "slang": [
+    "atropine sulfate"
+   ],
+   "aliases": [
+    "a tropine",
+    "atropen",
+    "atropine",
+    "atropine sulfate",
+    "isopto atropine"
+   ],
+   "asr_variants": [
+    "a trophy",
+    "at row peen",
+    "atro pine",
+    "atropeen",
+    "atropen",
+    "atropyne",
+    "sulphate",
+    "zulfate",
+    "zulphate"
+   ],
+   "phonetic": [
+    "ATRPN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "1",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "0.5",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "2",
+     "unit": "mg",
+     "route": "IM"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO",
+    "IM"
+   ],
+   "label_routes_openfda": [
+    "ENDOTRACHEAL",
+    "INTRAMEDULLARY",
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "OPHTHALMIC",
+    "ORAL",
+    "SUBCUTANEOUS"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "diltiazem",
+   "class": "calcium channel blocker",
+   "rxcui": "3443",
+   "brands": [
+    "Cardizem",
+    "Cartia",
+    "Dilt",
+    "Diltzac",
+    "Matzim",
+    "Taztia",
+    "Tiadylt",
+    "Tiazac"
+   ],
+   "slang": [
+    "cardizem",
+    "dilt"
+   ],
+   "aliases": [
+    "cardi zem",
+    "cardizem",
+    "cartia",
+    "dil tiazem",
+    "dilt",
+    "diltiazem",
+    "diltzac",
+    "matzim",
+    "taztia",
+    "tiadylt",
+    "tiazac"
+   ],
+   "asr_variants": [
+    "card is em",
+    "cardisem",
+    "cardysem",
+    "cardyzem",
+    "dill tea a zem",
+    "diltiasem",
+    "diltiazam",
+    "dyltiasem",
+    "dyltiazem",
+    "kardisem",
+    "kardizem",
+    "kardyzem"
+   ],
+   "phonetic": [
+    "KRTSM",
+    "KRX",
+    "MTSM",
+    "TLT",
+    "TLTSK",
+    "TLXSM",
+    "TSX",
+    "XSK",
+    "XTLT"
+   ],
+   "typical_doses": [
+    {
+     "amount": "0.25",
+     "unit": "mg/kg",
+     "route": "IV"
+    },
+    {
+     "amount": "10",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "20",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV"
+   ],
+   "label_routes_openfda": [
+    "ORAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "metoprolol",
+   "class": "beta blocker",
+   "rxcui": "6918",
+   "brands": [
+    "Kapspargo",
+    "Lopressor",
+    "Toprol"
+   ],
+   "slang": [
+    "lopressor"
+   ],
+   "aliases": [
+    "kapspargo",
+    "lopressor",
+    "metoprolol",
+    "toprol"
+   ],
+   "asr_variants": [
+    "lopresor",
+    "loprezor",
+    "low presser",
+    "metaprolol",
+    "meto pro lol",
+    "metoprallall",
+    "metoprallol",
+    "metopralol",
+    "metoprolal",
+    "metoprolall"
+   ],
+   "phonetic": [
+    "KPSPRK",
+    "LPRSR",
+    "MTPRLL",
+    "TPRL"
+   ],
+   "typical_doses": [
+    {
+     "amount": "5",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "PO"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "calcium chloride",
+   "class": "electrolyte",
+   "rxcui": "1901",
+   "brands": [],
+   "slang": [
+    "calcium",
+    "cacl"
+   ],
+   "aliases": [
+    "cacl",
+    "calcium",
+    "calcium chloride"
+   ],
+   "asr_variants": [
+    "calcium chlorine",
+    "chloryde",
+    "kalcium"
+   ],
+   "phonetic": [
+    "KKL",
+    "KLSM"
+   ],
+   "typical_doses": [
+    {
+     "amount": "1",
+     "unit": "g",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRA-ARTERIAL",
+    "INTRAPERITONEAL",
+    "INTRATHECAL",
+    "INTRAVENOUS",
+    "INTRAVENTRICULAR",
+    "IRRIGATION"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "calcium gluconate",
+   "class": "electrolyte",
+   "rxcui": "1908",
+   "brands": [
+    "Calgonate"
+   ],
+   "slang": [
+    "calcium gluc"
+   ],
+   "aliases": [
+    "calcium gluc",
+    "calcium gluconate",
+    "calgonate"
+   ],
+   "asr_variants": [
+    "calcium glue con ate",
+    "glukonate",
+    "kalcium"
+   ],
+   "phonetic": [
+    "KLKNT"
+   ],
+   "typical_doses": [
+    {
+     "amount": "3",
+     "unit": "g",
+     "route": "IV"
+    },
+    {
+     "amount": "1",
+     "unit": "g",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "sodium bicarbonate",
+   "class": "alkalinizer",
+   "rxcui": "36676",
+   "brands": [
+    "Desempacho"
+   ],
+   "slang": [
+    "bicarb",
+    "sodium bicarb",
+    "bicarb amp"
+   ],
+   "aliases": [
+    "amp of bicarb",
+    "bicarb",
+    "bicarb amp",
+    "desempacho",
+    "sodium bicarb",
+    "sodium bicarbonate"
+   ],
+   "asr_variants": [
+    "bi carb",
+    "bikarb",
+    "bikarbonate",
+    "by carb",
+    "bycarb",
+    "bycarbonate",
+    "bykarb",
+    "bykarbonate",
+    "sodium bicarb nate",
+    "zodium"
+   ],
+   "phonetic": [
+    "BKRB",
+    "TSMPX"
+   ],
+   "typical_doses": [
+    {
+     "amount": "50",
+     "unit": "meq",
+     "route": "IV"
+    },
+    {
+     "amount": "1",
+     "unit": "meq/kg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "HEMODIALYSIS",
+    "INTRATHECAL",
+    "INTRAVENOUS",
+    "NASAL",
+    "ORAL",
+    "TOPICAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "normal saline",
+   "class": "crystalloid",
+   "rxcui": "1866877",
+   "brands": [],
+   "slang": [
+    "ns",
+    "saline",
+    "fluid bolus",
+    "bolus",
+    "0.9 saline",
+    "sodium chloride"
+   ],
+   "aliases": [
+    "0.9 saline",
+    "0.9% sodium chloride",
+    "bolus",
+    "fluid bolus",
+    "normal saline",
+    "ns",
+    "saline",
+    "sodium chloride"
+   ],
+   "asr_variants": [
+    "ballus",
+    "balluz",
+    "balus",
+    "boluz",
+    "fluyd",
+    "in s",
+    "normal sailing",
+    "phluid",
+    "phluyd",
+    "saleen",
+    "salen",
+    "saline bolus",
+    "salyne",
+    "zaleen",
+    "zaline",
+    "zalyne"
+   ],
+   "phonetic": [
+    "BLS",
+    "NS",
+    "SLN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "500",
+     "unit": "ml",
+     "route": "IV"
+    },
+    {
+     "amount": "1000",
+     "unit": "ml",
+     "route": "IV"
+    },
+    {
+     "amount": "250",
+     "unit": "ml",
+     "route": "IV"
+    },
+    {
+     "amount": "20",
+     "unit": "ml/kg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [],
+   "high_alert": false
+  },
+  {
+   "generic": "lactated ringers",
+   "class": "crystalloid",
+   "rxcui": "35629",
+   "brands": [],
+   "slang": [
+    "lr",
+    "ringers",
+    "lactated ringer's",
+    "ringer's lactate"
+   ],
+   "aliases": [
+    "lactated ringer's",
+    "lactated ringers",
+    "lr",
+    "ringer's lactate",
+    "ringers"
+   ],
+   "asr_variants": [
+    "l r",
+    "lack tated ringers",
+    "lactated ringer",
+    "laktated",
+    "ringer'z",
+    "ringerz",
+    "rynger's",
+    "rynger'z",
+    "ryngers",
+    "ryngerz"
+   ],
+   "phonetic": [
+    "LR",
+    "RNJRS"
+   ],
+   "typical_doses": [
+    {
+     "amount": "500",
+     "unit": "ml",
+     "route": "IV"
+    },
+    {
+     "amount": "1000",
+     "unit": "ml",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [],
+   "high_alert": false
+  },
+  {
+   "generic": "oxygen",
+   "class": "gas",
+   "rxcui": "7806",
+   "brands": [],
+   "slang": [
+    "o2",
+    "high flow",
+    "high flow oxygen",
+    "supplemental oxygen"
+   ],
+   "aliases": [
+    "high flow",
+    "high flow oxygen",
+    "o2",
+    "oxygen",
+    "supplemental oxygen"
+   ],
+   "asr_variants": [
+    "nasal canula",
+    "non re breather",
+    "o two",
+    "ocsygen",
+    "oh two",
+    "oksigen",
+    "oksygen",
+    "okzygen",
+    "oxigen"
+   ],
+   "phonetic": [
+    "O",
+    "OKSJN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "2",
+     "unit": "lpm",
+     "route": "NC"
+    },
+    {
+     "amount": "4",
+     "unit": "lpm",
+     "route": "NC"
+    },
+    {
+     "amount": "15",
+     "unit": "lpm",
+     "route": "NRB"
+    },
+    {
+     "amount": "10",
+     "unit": "lpm",
+     "route": "NRB"
+    }
+   ],
+   "routes": [
+    "NC",
+    "NRB",
+    "BVM",
+    "CPAP",
+    "BLOWBY",
+    "INH"
+   ],
+   "label_routes_openfda": [
+    "RESPIRATORY (INHALATION)"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "tranexamic acid",
+   "class": "antifibrinolytic",
+   "rxcui": "10691",
+   "brands": [
+    "Cyklokapron",
+    "Lysteda"
+   ],
+   "slang": [
+    "txa",
+    "cyklokapron"
+   ],
+   "aliases": [
+    "cyklokapron",
+    "lysteda",
+    "tranexamic acid",
+    "txa"
+   ],
+   "asr_variants": [
+    "ciclokapron",
+    "ciklocapron",
+    "ciklokapron",
+    "cyclocapron",
+    "cyclokapron",
+    "cyklocapron",
+    "t x a",
+    "tea x a",
+    "tranecsamic",
+    "traneksamic",
+    "traneksamik",
+    "traneksamyc",
+    "traneksumic",
+    "tranekzamic",
+    "tranexamic",
+    "tranexamik",
+    "tranexamyc",
+    "tranexamyk",
+    "tranexumic",
+    "tranexumik",
+    "tranexumyc"
+   ],
+   "phonetic": [
+    "LSTT",
+    "SKLKPRN",
+    "TKS"
+   ],
+   "typical_doses": [
+    {
+     "amount": "1",
+     "unit": "g",
+     "route": "IV"
+    },
+    {
+     "amount": "2",
+     "unit": "g",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "ketorolac",
+   "class": "nsaid",
+   "rxcui": "35827",
+   "brands": [
+    "Acular",
+    "Acuvail",
+    "Sprix"
+   ],
+   "slang": [
+    "toradol"
+   ],
+   "aliases": [
+    "acular",
+    "acuvail",
+    "ketorolac",
+    "sprix",
+    "toradol"
+   ],
+   "asr_variants": [
+    "keto rolac",
+    "ketoralac",
+    "ketorallac",
+    "ketorallak",
+    "ketorolak",
+    "tora doll",
+    "toradal",
+    "toradall",
+    "tore a dull"
+   ],
+   "phonetic": [
+    "AKFL",
+    "AKLR",
+    "KTRLK",
+    "SPRKS",
+    "TRTL"
+   ],
+   "typical_doses": [
+    {
+     "amount": "15",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "30",
+     "unit": "mg",
+     "route": "IM"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAOCULAR",
+    "INTRAVENOUS",
+    "OPHTHALMIC",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "acetaminophen",
+   "class": "analgesic / antipyretic",
+   "rxcui": "161",
+   "brands": [
+    "Acephen",
+    "Anacin AF",
+    "Bactimicina",
+    "Cetafen",
+    "CounterAct Pain",
+    "Feverall",
+    "Little Fevers",
+    "Mapap",
+    "Nortemp",
+    "Panadol"
+   ],
+   "slang": [
+    "tylenol",
+    "apap",
+    "ofirmev",
+    "paracetamol"
+   ],
+   "aliases": [
+    "acephen",
+    "acetaminophen",
+    "anacin af",
+    "apap",
+    "bactimicina",
+    "cetafen",
+    "counteract pain",
+    "feverall",
+    "little fevers",
+    "mapap",
+    "nortemp",
+    "ofirmev",
+    "panadol",
+    "paracetamol",
+    "tylenol"
+   ],
+   "asr_variants": [
+    "a seat a mino fen",
+    "acetaminofen",
+    "acetamynofen",
+    "acetamynophen",
+    "acetuminofen",
+    "acetuminophen",
+    "acetumynophen",
+    "ofyrmev",
+    "ophirmev",
+    "ophyrmev",
+    "tile and all",
+    "tilenall",
+    "tilenol",
+    "tylenal",
+    "tylenall",
+    "tylenols"
+   ],
+   "phonetic": [
+    "APP",
+    "ASFN",
+    "ASTMNFN",
+    "BKTMSN",
+    "FFRL",
+    "MPP",
+    "NRTMP",
+    "OFRMF",
+    "PNTL",
+    "PRSTML",
+    "STFN",
+    "TLNL"
+   ],
+   "typical_doses": [
+    {
+     "amount": "1000",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "1000",
+     "unit": "mg",
+     "route": "PO"
+    },
+    {
+     "amount": "650",
+     "unit": "mg",
+     "route": "PO"
+    },
+    {
+     "amount": "15",
+     "unit": "mg/kg",
+     "route": "PO"
+    }
+   ],
+   "routes": [
+    "PO",
+    "IV",
+    "PR"
+   ],
+   "label_routes_openfda": [
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "ibuprofen",
+   "class": "nsaid",
+   "rxcui": "5640",
+   "brands": [
+    "Addaprin",
+    "Advil",
+    "Caldolor",
+    "Counteract IB",
+    "Genpril",
+    "Ibu",
+    "Ibuprohm",
+    "Motrin",
+    "Neoprofen",
+    "Proprinal"
+   ],
+   "slang": [
+    "motrin",
+    "advil"
+   ],
+   "aliases": [
+    "addaprin",
+    "advil",
+    "caldolor",
+    "counteract ib",
+    "genpril",
+    "ibu",
+    "ibuprofen",
+    "ibuprohm",
+    "motrin",
+    "neoprofen",
+    "proprinal"
+   ],
+   "asr_variants": [
+    "advyl",
+    "eye bu pro fen",
+    "i be profen",
+    "ibuprophen",
+    "motryn"
+   ],
+   "phonetic": [
+    "ATFL",
+    "ATPRN",
+    "IB",
+    "IBPRFN",
+    "IBPRM",
+    "JNPRL",
+    "KLTLR",
+    "MTRN",
+    "NPRFN",
+    "PRPRNL"
+   ],
+   "typical_doses": [
+    {
+     "amount": "400",
+     "unit": "mg",
+     "route": "PO"
+    },
+    {
+     "amount": "600",
+     "unit": "mg",
+     "route": "PO"
+    },
+    {
+     "amount": "800",
+     "unit": "mg",
+     "route": "PO"
+    }
+   ],
+   "routes": [
+    "PO"
+   ],
+   "label_routes_openfda": [
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "oxytocin",
+   "class": "hormone",
+   "rxcui": "7824",
+   "brands": [
+    "Pitocin"
+   ],
+   "slang": [
+    "pitocin",
+    "pit"
+   ],
+   "aliases": [
+    "oxytocin",
+    "pit",
+    "pitocin"
+   ],
+   "asr_variants": [
+    "ocsytocin",
+    "oksitocin",
+    "oksytocin",
+    "oksytocyn",
+    "okzytocin",
+    "ox e toe sin",
+    "oxitocin",
+    "oxitocyn",
+    "oxytocyn",
+    "pito sin",
+    "pitocyn",
+    "pytocin",
+    "pytocyn"
+   ],
+   "phonetic": [
+    "OKSTSN",
+    "PT",
+    "PTSN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "10",
+     "unit": "units",
+     "route": "IM"
+    },
+    {
+     "amount": "20",
+     "unit": "units",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IM",
+    "IV"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "norepinephrine",
+   "class": "vasopressor",
+   "rxcui": "7512",
+   "brands": [
+    "Levophed"
+   ],
+   "slang": [
+    "levophed",
+    "levo",
+    "norepi"
+   ],
+   "aliases": [
+    "levo",
+    "levophed",
+    "norepi",
+    "norepinephrine"
+   ],
+   "asr_variants": [
+    "leave a fed",
+    "levo fed",
+    "levofed",
+    "nor epi",
+    "norepeenfrine",
+    "norepeenphreen",
+    "norepeenphrine",
+    "norepeenphryne",
+    "norepenphrine",
+    "norepinefreen",
+    "norepinefrine",
+    "norepinefryne",
+    "norepinephreen",
+    "norepinephren",
+    "norepinephryne",
+    "norepy",
+    "norepynefrine"
+   ],
+   "phonetic": [
+    "LF",
+    "LFFT",
+    "NRP",
+    "NRPNFRN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "2",
+     "unit": "mcg/min",
+     "route": "IV"
+    },
+    {
+     "amount": "8",
+     "unit": "mcg/min",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "dopamine",
+   "class": "vasopressor",
+   "rxcui": "3628",
+   "brands": [],
+   "slang": [
+    "intropin"
+   ],
+   "aliases": [
+    "dopamine",
+    "intropin"
+   ],
+   "asr_variants": [
+    "dopa mean",
+    "dopameen",
+    "dopamen",
+    "dopamyne",
+    "dope a mean",
+    "dopumeen",
+    "dopumine",
+    "dopumyne",
+    "intropyn"
+   ],
+   "phonetic": [
+    "INTRPN",
+    "TPMN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "5",
+     "unit": "mcg/kg/min",
+     "route": "IV"
+    },
+    {
+     "amount": "10",
+     "unit": "mcg/kg/min",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "haloperidol",
+   "class": "antipsychotic",
+   "rxcui": "5093",
+   "brands": [
+    "Haldol"
+   ],
+   "slang": [
+    "haldol"
+   ],
+   "aliases": [
+    "haldol",
+    "haloperidol"
+   ],
+   "asr_variants": [
+    "hal doll",
+    "haldal",
+    "haldall",
+    "halo perry doll",
+    "haloperidal",
+    "haloperidall",
+    "haloperydall",
+    "haloperydol"
+   ],
+   "phonetic": [
+    "HLPRTL",
+    "HLTL"
+   ],
+   "typical_doses": [
+    {
+     "amount": "5",
+     "unit": "mg",
+     "route": "IM"
+    },
+    {
+     "amount": "2.5",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IM",
+    "IV"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "droperidol",
+   "class": "antipsychotic",
+   "rxcui": "3648",
+   "brands": [],
+   "slang": [
+    "inapsine"
+   ],
+   "aliases": [
+    "droperidol",
+    "inapsine"
+   ],
+   "asr_variants": [
+    "drop air a doll",
+    "drop perry doll",
+    "droperidal",
+    "droperidall",
+    "droperydall",
+    "droperydol",
+    "inapseen",
+    "inapsen",
+    "inapsyne",
+    "inapzeen",
+    "inapzine",
+    "inapzyne"
+   ],
+   "phonetic": [
+    "INPSN",
+    "TRPRTL"
+   ],
+   "typical_doses": [
+    {
+     "amount": "2.5",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "5",
+     "unit": "mg",
+     "route": "IM"
+    },
+    {
+     "amount": "10",
+     "unit": "mg",
+     "route": "IM"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "olanzapine",
+   "class": "antipsychotic",
+   "rxcui": "61381",
+   "brands": [
+    "Zyprexa"
+   ],
+   "slang": [
+    "zyprexa"
+   ],
+   "aliases": [
+    "olanzapine",
+    "zyprexa"
+   ],
+   "asr_variants": [
+    "oh lanza peen",
+    "olansapeen",
+    "olansapine",
+    "olansapyne",
+    "olanzapeen",
+    "olanzapen",
+    "olanzapyne",
+    "siprexa",
+    "sypreksa",
+    "syprexa",
+    "zipreksa",
+    "ziprexa",
+    "zy prexa",
+    "zyprecsa",
+    "zypreksa",
+    "zyprekza"
+   ],
+   "phonetic": [
+    "OLNSPN",
+    "SPRKS"
+   ],
+   "typical_doses": [
+    {
+     "amount": "10",
+     "unit": "mg",
+     "route": "IM"
+    },
+    {
+     "amount": "10",
+     "unit": "mg",
+     "route": "PO"
+    }
+   ],
+   "routes": [
+    "IM",
+    "PO"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "prochlorperazine",
+   "class": "antiemetic",
+   "rxcui": "8704",
+   "brands": [
+    "Compazine",
+    "Compro"
+   ],
+   "slang": [
+    "compazine"
+   ],
+   "aliases": [
+    "compazine",
+    "compro",
+    "prochlorperazine"
+   ],
+   "asr_variants": [
+    "com pa zeen",
+    "compaseen",
+    "compasine",
+    "compasyne",
+    "compazeen",
+    "compazen",
+    "compazyne",
+    "kompasine",
+    "kompazeen",
+    "kompazine",
+    "kompazyne",
+    "pro chlor perazine",
+    "prochlorperaseen",
+    "prochlorperasine",
+    "prochlorperasyne",
+    "prochlorperazeen",
+    "prochlorperazen",
+    "prochlorperazyne"
+   ],
+   "phonetic": [
+    "KMPR",
+    "KMPSN",
+    "PRXLRPRSN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "10",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "10",
+     "unit": "mg",
+     "route": "IM"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "promethazine",
+   "class": "antiemetic",
+   "rxcui": "8745",
+   "brands": [
+    "Phenadoz",
+    "Phenergan",
+    "Promethegan"
+   ],
+   "slang": [
+    "phenergan"
+   ],
+   "aliases": [
+    "phenadoz",
+    "phenergan",
+    "promethazine",
+    "promethegan"
+   ],
+   "asr_variants": [
+    "fen er gan",
+    "fenergan",
+    "pro meth a zine",
+    "promethaseen",
+    "promethasine",
+    "promethasyne",
+    "promethazeen",
+    "promethazen",
+    "promethazyne"
+   ],
+   "phonetic": [
+    "FNRKN",
+    "FNTS",
+    "PRM0KN",
+    "PRM0SN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "12.5",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "25",
+     "unit": "mg",
+     "route": "IM"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "ORAL",
+    "RECTAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "famotidine",
+   "class": "h2 blocker",
+   "rxcui": "4278",
+   "brands": [
+    "Calmicid",
+    "Pepcid"
+   ],
+   "slang": [
+    "pepcid"
+   ],
+   "aliases": [
+    "calmicid",
+    "famotidine",
+    "pepcid"
+   ],
+   "asr_variants": [
+    "fa mo ti dean",
+    "famitating",
+    "famitidine",
+    "famotideen",
+    "famotiden",
+    "famotidyne",
+    "famotydeen",
+    "famotydine",
+    "famotydyne",
+    "fumotideen",
+    "fumotidine",
+    "fumotidyne",
+    "fumotydine",
+    "pep sid",
+    "pepcyd",
+    "phamotideen",
+    "phamotidine"
+   ],
+   "phonetic": [
+    "FMTTN",
+    "KLMST",
+    "PPST"
+   ],
+   "typical_doses": [
+    {
+     "amount": "20",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "PO"
+   ],
+   "label_routes_openfda": [
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "nitrous oxide",
+   "class": "analgesic gas",
+   "rxcui": "7486",
+   "brands": [],
+   "slang": [
+    "nitronox",
+    "laughing gas",
+    "n2o"
+   ],
+   "aliases": [
+    "laughing gas",
+    "n2o",
+    "nitronox",
+    "nitrous oxide"
+   ],
+   "asr_variants": [
+    "laughyng",
+    "nitro knox",
+    "nitronocs",
+    "nitronoks",
+    "nitronokz",
+    "nitrous",
+    "nitrouz",
+    "nytronoks",
+    "nytronox",
+    "nytrous",
+    "nytrouz",
+    "ocside",
+    "okside",
+    "oksyde",
+    "okzide",
+    "oxyde"
+   ],
+   "phonetic": [
+    "N",
+    "NTRNKS"
+   ],
+   "typical_doses": [],
+   "routes": [
+    "INH"
+   ],
+   "label_routes_openfda": [
+    "ORAL",
+    "RESPIRATORY (INHALATION)"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "activated charcoal",
+   "class": "adsorbent",
+   "rxcui": "272",
+   "brands": [
+    "Actidose",
+    "CharcoCaps",
+    "Insta-Char"
+   ],
+   "slang": [
+    "charcoal",
+    "actidose"
+   ],
+   "aliases": [
+    "actidose",
+    "activated charcoal",
+    "charcoal",
+    "charcocaps",
+    "insta-char"
+   ],
+   "asr_variants": [
+    "actidoze",
+    "activated char coal",
+    "actydose",
+    "actydoze",
+    "actyvated",
+    "aktidose",
+    "aktidoze",
+    "aktivated",
+    "aktydose",
+    "aktyvated",
+    "charkoal"
+   ],
+   "phonetic": [
+    "AKTTS",
+    "INSTXR",
+    "XRKKPS",
+    "XRKL"
+   ],
+   "typical_doses": [
+    {
+     "amount": "50",
+     "unit": "g",
+     "route": "PO"
+    },
+    {
+     "amount": "1",
+     "unit": "g/kg",
+     "route": "PO"
+    }
+   ],
+   "routes": [
+    "PO"
+   ],
+   "label_routes_openfda": [
+    "ORAL",
+    "SUBLINGUAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "hydroxocobalamin",
+   "class": "antidote",
+   "rxcui": "5514",
+   "brands": [
+    "Cyanokit"
+   ],
+   "slang": [
+    "cyanokit"
+   ],
+   "aliases": [
+    "cyanokit",
+    "hydroxocobalamin"
+   ],
+   "asr_variants": [
+    "cyano kit",
+    "cyanokyt",
+    "hydrocsocobalamin",
+    "hydroksocobalamin",
+    "hydroksocobalamyn",
+    "hydroksocobalumin",
+    "hydroksokobalamin",
+    "hydrokzocobalamin",
+    "hydroxo cobalamin",
+    "hydroxocobalamyn",
+    "hydroxocobalumin",
+    "hydroxocobalumyn",
+    "hydroxokobalamin",
+    "hydroxokobalamyn",
+    "hydroxokobalumin"
+   ],
+   "phonetic": [
+    "SYNKT",
+    "TRKSKBLMN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "5",
+     "unit": "g",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "SUBCUTANEOUS"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "atropine and pralidoxime",
+   "class": "antidote",
+   "rxcui": "465370",
+   "brands": [],
+   "slang": [
+    "duodote",
+    "mark 1 kit",
+    "mark one kit",
+    "2-pam"
+   ],
+   "aliases": [
+    "2-pam",
+    "atropine and pralidoxime",
+    "duodote",
+    "mark 1 kit",
+    "mark one kit"
+   ],
+   "asr_variants": [
+    "atropeen",
+    "atropen",
+    "atropyne",
+    "duo dote",
+    "mark one",
+    "pralidocsime",
+    "pralidoksime",
+    "pralidoksyme",
+    "pralidokzime",
+    "pralidoxyme",
+    "pralydoksime",
+    "pralydoxime",
+    "pralydoxyme"
+   ],
+   "phonetic": [
+    "PM",
+    "TTT"
+   ],
+   "typical_doses": [
+    {
+     "amount": "1",
+     "unit": "kit",
+     "route": "IM"
+    }
+   ],
+   "routes": [
+    "IM"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "etomidate",
+   "class": "sedative / induction agent",
+   "rxcui": "4177",
+   "brands": [
+    "Amidate"
+   ],
+   "slang": [
+    "amidate"
+   ],
+   "aliases": [
+    "amidate",
+    "etomidate"
+   ],
+   "asr_variants": [
+    "a toe mid ate",
+    "amydate",
+    "eto mid ate",
+    "etomydate"
+   ],
+   "phonetic": [
+    "AMTT",
+    "ETMTT"
+   ],
+   "typical_doses": [
+    {
+     "amount": "0.3",
+     "unit": "mg/kg",
+     "route": "IV"
+    },
+    {
+     "amount": "20",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "rocuronium",
+   "class": "paralytic",
+   "rxcui": "68139",
+   "brands": [],
+   "slang": [
+    "roc",
+    "zemuron"
+   ],
+   "aliases": [
+    "roc",
+    "rocc",
+    "rocuronium",
+    "zemuron"
+   ],
+   "asr_variants": [
+    "rock you ronium",
+    "rocky ronium",
+    "rokuronium",
+    "semuron"
+   ],
+   "phonetic": [
+    "RK",
+    "RKRNM",
+    "SMRN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "1",
+     "unit": "mg/kg",
+     "route": "IV"
+    },
+    {
+     "amount": "100",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "succinylcholine",
+   "class": "paralytic",
+   "rxcui": "10154",
+   "brands": [
+    "Anectine",
+    "Quelicin"
+   ],
+   "slang": [
+    "sux",
+    "anectine",
+    "succs"
+   ],
+   "aliases": [
+    "anectine",
+    "quelicin",
+    "succinylcholine",
+    "succs",
+    "sux"
+   ],
+   "asr_variants": [
+    "anecteen",
+    "anecten",
+    "anectyne",
+    "anekteen",
+    "anektine",
+    "anektyne",
+    "succinilchalline",
+    "succinilcholeen",
+    "succinilcholine",
+    "succinilcholyne",
+    "succinyl choline",
+    "succinylchaline",
+    "succinylchalleen",
+    "succinylchalline",
+    "succinylchallyne",
+    "succinylcholeen",
+    "succinylcholen",
+    "succinylcholyne",
+    "succynilcholine",
+    "succz",
+    "suck sinful colleen",
+    "sucks",
+    "sukcs",
+    "sukcz",
+    "zuccs",
+    "zuccz",
+    "zukcs"
+   ],
+   "phonetic": [
+    "ANKTN",
+    "KLSN",
+    "SKKS",
+    "SKS",
+    "SKSNLXLN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "1.5",
+     "unit": "mg/kg",
+     "route": "IV"
+    },
+    {
+     "amount": "100",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "PARENTERAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "vecuronium",
+   "class": "paralytic",
+   "rxcui": "71535",
+   "brands": [],
+   "slang": [
+    "vec",
+    "norcuron"
+   ],
+   "aliases": [
+    "norcuron",
+    "vec",
+    "vecuronium"
+   ],
+   "asr_variants": [
+    "norkuron",
+    "vec you ronium",
+    "vekuronium"
+   ],
+   "phonetic": [
+    "FK",
+    "FKRNM",
+    "NRKRN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "0.1",
+     "unit": "mg/kg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "thiamine",
+   "class": "vitamin",
+   "rxcui": "10454",
+   "brands": [],
+   "slang": [
+    "vitamin b1",
+    "b1"
+   ],
+   "aliases": [
+    "b1",
+    "thiamine",
+    "vitamin b1"
+   ],
+   "asr_variants": [
+    "thiameen",
+    "thiamen",
+    "thiamin",
+    "thiamyne",
+    "thigh a mean",
+    "thiumeen",
+    "thiumine",
+    "thiumyne",
+    "vitamyn",
+    "vitumin",
+    "vitumyn",
+    "vytamin",
+    "vytamyn",
+    "vytumin"
+   ],
+   "phonetic": [
+    "0MN",
+    "B"
+   ],
+   "typical_doses": [
+    {
+     "amount": "100",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "labetalol",
+   "class": "beta blocker",
+   "rxcui": "6185",
+   "brands": [
+    "Trandate"
+   ],
+   "slang": [
+    "trandate"
+   ],
+   "aliases": [
+    "labetalol",
+    "trandate"
+   ],
+   "asr_variants": [
+    "la bet a lol",
+    "label all",
+    "labetalal",
+    "labetalall"
+   ],
+   "phonetic": [
+    "LBTLL",
+    "TRNTT"
+   ],
+   "typical_doses": [
+    {
+     "amount": "10",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "20",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "terbutaline",
+   "class": "bronchodilator",
+   "rxcui": "10368",
+   "brands": [],
+   "slang": [
+    "brethine"
+   ],
+   "aliases": [
+    "brethine",
+    "terb",
+    "terbutaline"
+   ],
+   "asr_variants": [
+    "bretheen",
+    "brethen",
+    "brethyne",
+    "terbu ta lean",
+    "terbutaleen",
+    "terbutalen",
+    "terbutalyne",
+    "turbo ta lean"
+   ],
+   "phonetic": [
+    "BR0N",
+    "TRBTLN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "0.25",
+     "unit": "mg",
+     "route": "SQ"
+    }
+   ],
+   "routes": [
+    "SQ"
+   ],
+   "label_routes_openfda": [
+    "ORAL",
+    "SUBCUTANEOUS"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "heparin",
+   "class": "anticoagulant",
+   "rxcui": "235473",
+   "brands": [],
+   "slang": [
+    "hep"
+   ],
+   "aliases": [
+    "hep",
+    "heparin"
+   ],
+   "asr_variants": [
+    "hep a rin",
+    "heparine",
+    "heparyn"
+   ],
+   "phonetic": [
+    "HP",
+    "HPRN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "5000",
+     "unit": "units",
+     "route": "IV"
+    },
+    {
+     "amount": "60",
+     "unit": "units/kg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV"
+   ],
+   "label_routes_openfda": [
+    "INTRALUMINAL",
+    "INTRAVENOUS",
+    "SUBCUTANEOUS"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "ticagrelor",
+   "class": "antiplatelet",
+   "rxcui": "1116632",
+   "brands": [
+    "Brilinta"
+   ],
+   "slang": [
+    "brilinta"
+   ],
+   "aliases": [
+    "brilinta",
+    "ticagrelor"
+   ],
+   "asr_variants": [
+    "brilliant a",
+    "brilynta",
+    "brylinta",
+    "brylynta",
+    "tie ca grel or",
+    "tikagrelor",
+    "tycagrelor",
+    "tykagrelor"
+   ],
+   "phonetic": [
+    "BRLNT",
+    "TKKRLR"
+   ],
+   "typical_doses": [
+    {
+     "amount": "180",
+     "unit": "mg",
+     "route": "PO"
+    }
+   ],
+   "routes": [
+    "PO"
+   ],
+   "label_routes_openfda": [
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "clopidogrel",
+   "class": "antiplatelet",
+   "rxcui": "32968",
+   "brands": [
+    "Plavix"
+   ],
+   "slang": [
+    "plavix"
+   ],
+   "aliases": [
+    "clopidogrel",
+    "plavix"
+   ],
+   "asr_variants": [
+    "clo pid o grel",
+    "clopydogrel",
+    "klopidogrel",
+    "klopydogrel",
+    "plavics",
+    "plaviks",
+    "plavikz",
+    "plavyks",
+    "plavyx",
+    "play vix"
+   ],
+   "phonetic": [
+    "KLPTKRL",
+    "PLFKS"
+   ],
+   "typical_doses": [
+    {
+     "amount": "600",
+     "unit": "mg",
+     "route": "PO"
+    },
+    {
+     "amount": "300",
+     "unit": "mg",
+     "route": "PO"
+    }
+   ],
+   "routes": [
+    "PO"
+   ],
+   "label_routes_openfda": [
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "levetiracetam",
+   "class": "anticonvulsant",
+   "rxcui": "114477",
+   "brands": [
+    "Elepsia",
+    "Keppra",
+    "Roweepra",
+    "Spritam"
+   ],
+   "slang": [
+    "keppra"
+   ],
+   "aliases": [
+    "elepsia",
+    "keppra",
+    "levetiracetam",
+    "roweepra",
+    "spritam"
+   ],
+   "asr_variants": [
+    "capra",
+    "kepra",
+    "lev a tear a see tam",
+    "levetiracetum",
+    "levetyracetam",
+    "levetyracetum"
+   ],
+   "phonetic": [
+    "ELPX",
+    "KPR",
+    "LFTRSTM",
+    "RWPR",
+    "SPRTM"
+   ],
+   "typical_doses": [
+    {
+     "amount": "60",
+     "unit": "mg/kg",
+     "route": "IV"
+    },
+    {
+     "amount": "1000",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "nicardipine",
+   "class": "calcium channel blocker",
+   "rxcui": "7396",
+   "brands": [
+    "Cardene"
+   ],
+   "slang": [
+    "cardene"
+   ],
+   "aliases": [
+    "cardene",
+    "nicardipine"
+   ],
+   "asr_variants": [
+    "kardene",
+    "nicardipeen",
+    "nicardipen",
+    "nicardipyne",
+    "nicardypeen",
+    "nicardypine",
+    "nicardypyne",
+    "nick are da peen",
+    "nikardipeen",
+    "nikardipine",
+    "nikardipyne",
+    "nikardypine",
+    "nycardipeen",
+    "nycardipine"
+   ],
+   "phonetic": [
+    "KRTN",
+    "NKRTPN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "5",
+     "unit": "mg/hr",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "hydralazine",
+   "class": "vasodilator",
+   "rxcui": "5470",
+   "brands": [],
+   "slang": [
+    "apresoline"
+   ],
+   "aliases": [
+    "apresoline",
+    "hydralazine"
+   ],
+   "asr_variants": [
+    "apresaline",
+    "apresalleen",
+    "apresalline",
+    "apresallyne",
+    "apresoleen",
+    "apresolen",
+    "apresolyne",
+    "aprezalline",
+    "aprezoleen",
+    "aprezoline",
+    "aprezolyne",
+    "hydra la zeen",
+    "hydralaseen",
+    "hydralasine",
+    "hydralasyne",
+    "hydralazeen",
+    "hydralazen",
+    "hydralazyne"
+   ],
+   "phonetic": [
+    "APRSLN",
+    "TRLSN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "10",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IM"
+   ],
+   "label_routes_openfda": [
+    "INTRAMUSCULAR",
+    "INTRAVENOUS",
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "nitroglycerin paste",
+   "class": "vasodilator",
+   "rxcui": "4917",
+   "brands": [
+    "Gonitro",
+    "Nitro-Bid",
+    "Nitro-Dur",
+    "NitroMist",
+    "Nitrolingual",
+    "Nitrostat",
+    "Rectiv"
+   ],
+   "slang": [
+    "nitro paste",
+    "nitrobid"
+   ],
+   "aliases": [
+    "gonitro",
+    "nitro paste",
+    "nitro-bid",
+    "nitro-dur",
+    "nitrobid",
+    "nitroglycerin paste",
+    "nitrolingual",
+    "nitromist",
+    "nitrostat",
+    "rectiv"
+   ],
+   "asr_variants": [
+    "nitro bid",
+    "nitrobyd",
+    "nitroglicerin",
+    "nitrogliceryn",
+    "nitroglyceryn",
+    "nytro",
+    "nytrobid",
+    "nytrobyd",
+    "nytroglicerin",
+    "nytroglycerin",
+    "nytroglyceryn",
+    "pazte"
+   ],
+   "phonetic": [
+    "KNTR",
+    "NTRBT",
+    "NTRLNKL",
+    "NTRMST",
+    "NTRSTT",
+    "NTRTR",
+    "RKTF"
+   ],
+   "typical_doses": [
+    {
+     "amount": "1",
+     "unit": "inch",
+     "route": "TD"
+    }
+   ],
+   "routes": [
+    "TD"
+   ],
+   "label_routes_openfda": [],
+   "high_alert": false
+  },
+  {
+   "generic": "cetirizine",
+   "class": "antihistamine",
+   "rxcui": "20610",
+   "brands": [
+    "Aller-Tec",
+    "Alleroff",
+    "Quzyttir",
+    "Wal-Zyr",
+    "Zerviate",
+    "Zyrtec"
+   ],
+   "slang": [
+    "zyrtec"
+   ],
+   "aliases": [
+    "aller-tec",
+    "alleroff",
+    "cetirizine",
+    "quzyttir",
+    "wal-zyr",
+    "zerviate",
+    "zyrtec"
+   ],
+   "asr_variants": [
+    "cetiriseen",
+    "cetirisine",
+    "cetirisyne",
+    "cetirizeen",
+    "cetirizen",
+    "cetirizyne",
+    "cetirysine",
+    "cetiryzeen",
+    "cetiryzine",
+    "cetiryzyne",
+    "cetyrisine",
+    "cetyrizeen",
+    "sirtec",
+    "syrtec",
+    "syrtek",
+    "zer tech",
+    "zirtec",
+    "zirtek",
+    "zyrtek"
+   ],
+   "phonetic": [
+    "ALRF",
+    "ALRTK",
+    "KSTR",
+    "SRFT",
+    "SRTK",
+    "STRSN",
+    "WLSR"
+   ],
+   "typical_doses": [
+    {
+     "amount": "10",
+     "unit": "mg",
+     "route": "PO"
+    }
+   ],
+   "routes": [
+    "PO"
+   ],
+   "label_routes_openfda": [
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "phenylephrine",
+   "class": "vasopressor",
+   "rxcui": "8163",
+   "brands": [
+    "Biorphen",
+    "Immphentiv",
+    "Mydfrin",
+    "Nasop",
+    "Neo-Synephrine",
+    "Rhinall",
+    "Sudafed PE",
+    "Sudo-Tab",
+    "Vazculep",
+    "Wal-Four"
+   ],
+   "slang": [
+    "neo",
+    "neosynephrine",
+    "push dose neo"
+   ],
+   "aliases": [
+    "biorphen",
+    "immphentiv",
+    "mydfrin",
+    "nasop",
+    "neo",
+    "neo-synephrine",
+    "neosynephrine",
+    "phenylephrine",
+    "push dose neo",
+    "rhinall",
+    "sudafed pe",
+    "sudo-tab",
+    "vazculep",
+    "wal-four"
+   ],
+   "asr_variants": [
+    "fenilephrine",
+    "fennel efrin",
+    "fenylefrine",
+    "fenylephreen",
+    "fenylephrine",
+    "fenylephryne",
+    "neoseenphrine",
+    "neosinefrine",
+    "neosinephreen",
+    "neosinephrine",
+    "neosinephryne",
+    "neosynefreen",
+    "neosynefrine",
+    "neosynefryne",
+    "neosynephreen",
+    "neosynephren",
+    "neosynephryne",
+    "neozinephrine",
+    "phenilefrine",
+    "phenilephreen",
+    "phenilephrine",
+    "phenilephryne",
+    "phenylefreen",
+    "phenylefrine",
+    "phenylefryne"
+   ],
+   "phonetic": [
+    "BRFN",
+    "FNLFRN",
+    "FSKLP",
+    "IMFNTF",
+    "MTFRN",
+    "N",
+    "NSNFRN",
+    "NSP",
+    "RHNL",
+    "STTB",
+    "WLFR"
+   ],
+   "typical_doses": [
+    {
+     "amount": "100",
+     "unit": "mcg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV"
+   ],
+   "label_routes_openfda": [
+    "NASAL",
+    "ORAL",
+    "TOPICAL"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "vasopressin",
+   "class": "vasopressor",
+   "rxcui": "11149",
+   "brands": [
+    "Vasostrict"
+   ],
+   "slang": [
+    "vaso",
+    "pitressin"
+   ],
+   "aliases": [
+    "pitressin",
+    "vaso",
+    "vasopressin",
+    "vasostrict"
+   ],
+   "asr_variants": [
+    "pitresin",
+    "pitressyn",
+    "pitresyn",
+    "pitrezin",
+    "pytresin",
+    "pytressin",
+    "pytressyn",
+    "vaso pressin",
+    "vasopresin",
+    "vasopressyn",
+    "vasopresyn",
+    "vasoprezin",
+    "vazopresin",
+    "vazopressin",
+    "vazopressyn"
+   ],
+   "phonetic": [
+    "FS",
+    "FSPRSN",
+    "FSSTRKT",
+    "PTRSN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "40",
+     "unit": "units",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "IO"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "insulin",
+   "class": "hormone",
+   "rxcui": "253182",
+   "brands": [
+    "Afrezza",
+    "Humulin R",
+    "Myxredlin",
+    "Novolin R"
+   ],
+   "slang": [
+    "regular insulin",
+    "humalog",
+    "novolog",
+    "lantus"
+   ],
+   "aliases": [
+    "afrezza",
+    "humalog",
+    "humulin r",
+    "insulin",
+    "lantus",
+    "myxredlin",
+    "novolin r",
+    "novolog",
+    "regular insulin"
+   ],
+   "asr_variants": [
+    "in sue lin",
+    "insulyn",
+    "inzulin",
+    "inzulyn",
+    "novallog",
+    "novalog"
+   ],
+   "phonetic": [
+    "AFRS",
+    "HMLK",
+    "INSLN",
+    "LNTS",
+    "MKSRTLN",
+    "NFLK"
+   ],
+   "typical_doses": [],
+   "routes": [
+    "SQ",
+    "IV"
+   ],
+   "label_routes_openfda": [
+    "INTRAVENOUS",
+    "ORAL",
+    "RESPIRATORY (INHALATION)",
+    "SUBCUTANEOUS"
+   ],
+   "high_alert": true
+  },
+  {
+   "generic": "glucose",
+   "class": "antihypoglycemic",
+   "rxcui": "4850",
+   "brands": [
+    "Dex4",
+    "Enfamil Glucose",
+    "Glucoburst",
+    "Glutose",
+    "Insta-Glucose"
+   ],
+   "slang": [
+    "juice",
+    "orange juice",
+    "sugar"
+   ],
+   "aliases": [
+    "dex4",
+    "enfamil glucose",
+    "glucoburst",
+    "glucose",
+    "glutose",
+    "insta-glucose",
+    "juice",
+    "orange juice",
+    "sugar"
+   ],
+   "asr_variants": [
+    "glucoze",
+    "glukose",
+    "glukoze",
+    "juyce",
+    "zugar"
+   ],
+   "phonetic": [
+    "INSTKLKS",
+    "JS",
+    "KLKBRST",
+    "KLKS",
+    "KLTS",
+    "SKR",
+    "TKS"
+   ],
+   "typical_doses": [],
+   "routes": [
+    "PO"
+   ],
+   "label_routes_openfda": [
+    "ORAL"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "proparacaine",
+   "class": "topical anesthetic",
+   "rxcui": "34905",
+   "brands": [
+    "Alcaine"
+   ],
+   "slang": [
+    "alcaine",
+    "tetracaine"
+   ],
+   "aliases": [
+    "alcaine",
+    "proparacaine",
+    "tetracaine"
+   ],
+   "asr_variants": [
+    "alcaeen",
+    "alcaen",
+    "alcayne",
+    "alkaeen",
+    "alkaine",
+    "alkayne",
+    "pro para cane",
+    "proparacaeen",
+    "proparacaen",
+    "proparacayne",
+    "proparakaeen",
+    "proparakaine",
+    "proparakayne",
+    "tetracaeen",
+    "tetracaen",
+    "tetracayne",
+    "tetrakaeen",
+    "tetrakaine",
+    "tetrakayne"
+   ],
+   "phonetic": [
+    "ALKN",
+    "PRPRKN",
+    "TTRKN"
+   ],
+   "typical_doses": [
+    {
+     "amount": "2",
+     "unit": "drops",
+     "route": "TOP"
+    }
+   ],
+   "routes": [
+    "TOP"
+   ],
+   "label_routes_openfda": [
+    "OPHTHALMIC"
+   ],
+   "high_alert": false
+  },
+  {
+   "generic": "furosemide",
+   "class": "loop diuretic",
+   "rxcui": "4603",
+   "brands": [
+    "Lasix"
+   ],
+   "slang": [],
+   "aliases": [
+    "furosemide",
+    "lasix"
+   ],
+   "asr_variants": [],
+   "phonetic": [
+    "FRSMT",
+    "LSKS"
+   ],
+   "typical_doses": [
+    {
+     "amount": "40",
+     "unit": "mg",
+     "route": "IV"
+    },
+    {
+     "amount": "20",
+     "unit": "mg",
+     "route": "IV"
+    }
+   ],
+   "routes": [
+    "IV",
+    "PO"
+   ],
+   "label_routes_openfda": [],
+   "high_alert": false,
+   "source": "data-agent seed (NASEMSO model guidelines drug list)"
+  }
+ ],
+ "home_meds": [
+  "advair",
+  "alprazolam",
+  "amlodipine",
+  "apixaban",
+  "aricept",
+  "atorvastatin",
+  "buprenorphine",
+  "carvedilol",
+  "clonazepam",
+  "coumadin",
+  "depakote",
+  "digoxin",
+  "dilantin",
+  "donepezil",
+  "eliquis",
+  "entresto",
+  "fluoxetine",
+  "fluticasone",
+  "gabapentin",
+  "hctz",
+  "hydrochlorothiazide",
+  "hydrocodone",
+  "klonopin",
+  "lamictal",
+  "lamotrigine",
+  "lasix",
+  "levothyroxine",
+  "lipitor",
+  "lisinopril",
+  "losartan",
+  "metformin",
+  "methadone",
+  "montelukast",
+  "norco",
+  "omeprazole",
+  "oxycodone",
+  "pantoprazole",
+  "percocet",
+  "phenytoin",
+  "prednisone",
+  "prozac",
+  "rivaroxaban",
+  "sertraline",
+  "sildenafil",
+  "simvastatin",
+  "singulair",
+  "suboxone",
+  "symbicort",
+  "synthroid",
+  "tamsulosin",
+  "tramadol",
+  "valproic acid",
+  "viagra",
+  "warfarin",
+  "xanax",
+  "xarelto",
+  "zoloft"
+ ],
+ "routes": {
+  "PO": {
+   "spoken": [
+    "po",
+    "by mouth",
+    "oral",
+    "orally",
+    "chewed",
+    "chew",
+    "swallowed",
+    "p o"
+   ],
+   "nemsis_code": "9927035",
+   "nemsis_label": "Oral"
+  },
+  "SL": {
+   "spoken": [
+    "sl",
+    "sublingual",
+    "under the tongue",
+    "sub lingual",
+    "s l"
+   ],
+   "nemsis_code": "9927047",
+   "nemsis_label": "Sublingual"
+  },
+  "IV": {
+   "spoken": [
+    "iv",
+    "intravenous",
+    "iv push",
+    "ivp",
+    "i v",
+    "push",
+    "pushed",
+    "iv piggyback",
+    "drip"
+   ],
+   "nemsis_code": "9927023",
+   "nemsis_label": "Intravenous (IV)"
+  },
+  "IO": {
+   "spoken": [
+    "io",
+    "intraosseous",
+    "i o",
+    "humeral io",
+    "tibial io"
+   ],
+   "nemsis_code": "9927021",
+   "nemsis_label": "Intraosseous (IO)"
+  },
+  "IM": {
+   "spoken": [
+    "im",
+    "intramuscular",
+    "i m",
+    "in the thigh",
+    "in the deltoid",
+    "lateral thigh"
+   ],
+   "nemsis_code": "9927015",
+   "nemsis_label": "Intramuscular (IM)"
+  },
+  "IN": {
+   "spoken": [
+    "in",
+    "intranasal",
+    "nasal",
+    "atomized",
+    "mad device",
+    "up the nose",
+    "per nose"
+   ],
+   "nemsis_code": "9927017",
+   "nemsis_label": "Intranasal"
+  },
+  "SQ": {
+   "spoken": [
+    "sq",
+    "subq",
+    "sub q",
+    "subcutaneous",
+    "sc",
+    "sub cut"
+   ],
+   "nemsis_code": "9927045",
+   "nemsis_label": "Subcutaneous"
+  },
+  "NEB": {
+   "spoken": [
+    "neb",
+    "nebulized",
+    "nebulizer",
+    "via neb",
+    "hand held neb",
+    "inline neb",
+    "by nebulizer"
+   ],
+   "nemsis_code": "9927071",
+   "nemsis_label": "Nebulizer"
+  },
+  "NRB": {
+   "spoken": [
+    "non rebreather",
+    "non-rebreather",
+    "nrb",
+    "via nrb",
+    "via non rebreather",
+    "now we're breather",
+    "non rib breather",
+    "nonrebreather"
+   ],
+   "nemsis_code": "9927031",
+   "nemsis_label": "Non-Rebreather Mask"
+  },
+  "NC": {
+   "spoken": [
+    "nasal cannula",
+    "nasal canula",
+    "via nasal cannula",
+    "via nc",
+    "cannula"
+   ],
+   "nemsis_code": "9927025",
+   "nemsis_label": "Nasal Cannula"
+  },
+  "BVM": {
+   "spoken": [
+    "bvm",
+    "bag valve mask",
+    "via bvm"
+   ],
+   "nemsis_code": "9927065",
+   "nemsis_label": "BVM"
+  },
+  "CPAP": {
+   "spoken": [
+    "cpap",
+    "on cpap",
+    "via cpap"
+   ],
+   "nemsis_code": "9927067",
+   "nemsis_label": "CPAP"
+  },
+  "BLOWBY": {
+   "spoken": [
+    "blow by",
+    "blowby"
+   ],
+   "nemsis_code": "9927001",
+   "nemsis_label": "Blow-By"
+  },
+  "INH": {
+   "spoken": [
+    "inhaled",
+    "inhalation",
+    "mdi",
+    "inhaler"
+   ],
+   "nemsis_code": "9927009",
+   "nemsis_label": "Inhalation"
+  },
+  "ET": {
+   "spoken": [
+    "et",
+    "endotracheal",
+    "down the tube"
+   ],
+   "nemsis_code": "9927005",
+   "nemsis_label": "Endotracheal Tube (ET)"
+  },
+  "PR": {
+   "spoken": [
+    "pr",
+    "rectal",
+    "rectally"
+   ],
+   "nemsis_code": "9927043",
+   "nemsis_label": "Rectal"
+  },
+  "TOP": {
+   "spoken": [
+    "topical",
+    "topically"
+   ],
+   "nemsis_code": "9927049",
+   "nemsis_label": "Topical"
+  },
+  "BUC": {
+   "spoken": [
+    "buccal",
+    "in the cheek",
+    "between cheek and gum"
+   ],
+   "nemsis_code": "9927003",
+   "nemsis_label": "Buccal"
+  },
+  "TD": {
+   "spoken": [
+    "transdermal",
+    "patch",
+    "paste"
+   ],
+   "nemsis_code": "9927053",
+   "nemsis_label": "Transdermal"
+  }
+ },
+ "units": {
+  "mg": {
+   "spoken": [
+    "mg",
+    "milligram",
+    "milligrams",
+    "migs",
+    "milligrams of",
+    "mgs",
+    "milli grams"
+   ],
+   "nemsis_code": "3706021",
+   "nemsis_label": "Milligrams (mg)"
+  },
+  "mcg": {
+   "spoken": [
+    "mcg",
+    "microgram",
+    "micrograms",
+    "mics",
+    "mikes",
+    "micro",
+    "micrograms of",
+    "ug"
+   ],
+   "nemsis_code": "3706015",
+   "nemsis_label": "Micrograms (mcg)"
+  },
+  "g": {
+   "spoken": [
+    "g",
+    "gram",
+    "grams",
+    "gm",
+    "gms"
+   ],
+   "nemsis_code": "3706001",
+   "nemsis_label": "Grams (gms)"
+  },
+  "ml": {
+   "spoken": [
+    "ml",
+    "milliliter",
+    "milliliters",
+    "cc",
+    "ccs",
+    "mls",
+    "mil",
+    "mils"
+   ],
+   "nemsis_code": "3706025",
+   "nemsis_label": "Milliliters (ml)"
+  },
+  "l": {
+   "spoken": [
+    "l",
+    "liter",
+    "liters",
+    "litre",
+    "leader",
+    "leaders"
+   ],
+   "nemsis_code": "3706009",
+   "nemsis_label": "Liters (l)"
+  },
+  "meq": {
+   "spoken": [
+    "meq",
+    "milliequivalent",
+    "milliequivalents",
+    "mill equivalents"
+   ],
+   "nemsis_code": "3706019",
+   "nemsis_label": "Milliequivalents (mEq)"
+  },
+  "units": {
+   "spoken": [
+    "units",
+    "unit",
+    "u",
+    "iu",
+    "international units"
+   ],
+   "nemsis_code": "3706049",
+   "nemsis_label": "Units"
+  },
+  "lpm": {
+   "spoken": [
+    "lpm",
+    "liters per minute",
+    "liters a minute",
+    "l per minute",
+    "liters",
+    "leaders"
+   ],
+   "nemsis_code": "3706035",
+   "nemsis_label": "Liters Per Minute (LPM [gas])"
+  },
+  "mg/kg": {
+   "spoken": [
+    "mg/kg",
+    "milligrams per kilo",
+    "milligrams per kilogram",
+    "migs per kilo",
+    "mg per kg"
+   ],
+   "nemsis_code": "3706039",
+   "nemsis_label": "Milligrams per Kilogram (mg/kg)"
+  },
+  "mcg/kg": {
+   "spoken": [
+    "mcg/kg",
+    "micrograms per kilo",
+    "mics per kilo",
+    "micrograms per kilogram"
+   ],
+   "nemsis_code": "3706047",
+   "nemsis_label": "Micrograms per Kilogram (mcg/kg)"
+  },
+  "mcg/min": {
+   "spoken": [
+    "mcg/min",
+    "micrograms per minute",
+    "mics a minute"
+   ],
+   "nemsis_code": "3706037",
+   "nemsis_label": "Micrograms per Minute (mcg/min)"
+  },
+  "mcg/kg/min": {
+   "spoken": [
+    "mcg/kg/min",
+    "micrograms per kilo per minute"
+   ],
+   "nemsis_code": "3706017",
+   "nemsis_label": "Micrograms per Kilogram per Minute (mcg/kg/min)"
+  },
+  "mg/hr": {
+   "spoken": [
+    "mg/hr",
+    "milligrams per hour",
+    "milligrams an hour"
+   ],
+   "nemsis_code": "3706055",
+   "nemsis_label": "Milligrams per Hour (mg/hr)"
+  },
+  "ml/kg": {
+   "spoken": [
+    "ml/kg",
+    "mls per kilo",
+    "cc per kilo",
+    "ccs per kilo",
+    "milliliters per kilogram"
+   ],
+   "nemsis_code": "3706029",
+   "nemsis_label": "Other"
+  },
+  "units/kg": {
+   "spoken": [
+    "units/kg",
+    "units per kilo"
+   ],
+   "nemsis_code": "3706053",
+   "nemsis_label": "Units per Kilogram (units/kg)"
+  },
+  "meq/kg": {
+   "spoken": [
+    "meq/kg",
+    "milliequivalents per kilo"
+   ],
+   "nemsis_code": "3706029",
+   "nemsis_label": "Other"
+  },
+  "g/kg": {
+   "spoken": [
+    "g/kg",
+    "grams per kilo"
+   ],
+   "nemsis_code": "3706029",
+   "nemsis_label": "Other"
+  },
+  "drops": {
+   "spoken": [
+    "drops",
+    "gtts",
+    "drop"
+   ],
+   "nemsis_code": "3706033",
+   "nemsis_label": "Drops (gtts)"
+  },
+  "puffs": {
+   "spoken": [
+    "puffs",
+    "puff",
+    "sprays",
+    "spray"
+   ],
+   "nemsis_code": "3706043",
+   "nemsis_label": "Puffs"
+  },
+  "inch": {
+   "spoken": [
+    "inch",
+    "inches"
+   ],
+   "nemsis_code": "3706003",
+   "nemsis_label": "Inches (in)"
+  },
+  "kit": {
+   "spoken": [
+    "kit",
+    "kits",
+    "auto injector"
+   ],
+   "nemsis_code": "3706029",
+   "nemsis_label": "Other"
+  }
+ },
+ "nemsis": {
+  "routes": {
+   "9927001": "Blow-By",
+   "9927003": "Buccal",
+   "9927005": "Endotracheal Tube (ET)",
+   "9927007": "Gastrostomy Tube",
+   "9927009": "Inhalation",
+   "9927011": "Intraarterial",
+   "9927013": "Intradermal",
+   "9927015": "Intramuscular (IM)",
+   "9927017": "Intranasal",
+   "9927019": "Intraocular",
+   "9927021": "Intraosseous (IO)",
+   "9927023": "Intravenous (IV)",
+   "9927025": "Nasal Cannula",
+   "9927027": "Nasogastric",
+   "9927029": "Nasotracheal Tube",
+   "9927031": "Non-Rebreather Mask",
+   "9927033": "Ophthalmic",
+   "9927035": "Oral",
+   "9927037": "Other/miscellaneous",
+   "9927039": "Otic",
+   "9927041": "Re-breather mask",
+   "9927043": "Rectal",
+   "9927045": "Subcutaneous",
+   "9927047": "Sublingual",
+   "9927049": "Topical",
+   "9927051": "Tracheostomy",
+   "9927053": "Transdermal",
+   "9927055": "Urethral",
+   "9927057": "Ventimask",
+   "9927059": "Wound",
+   "9927061": "Portacath",
+   "9927063": "Auto Injector",
+   "9927065": "BVM",
+   "9927067": "CPAP",
+   "9927069": "IV Pump",
+   "9927071": "Nebulizer",
+   "9927073": "Umbilical Artery Catheter",
+   "9927075": "Umbilical Venous Catheter"
+  },
+  "units": {
+   "3706001": "Grams (gms)",
+   "3706003": "Inches (in)",
+   "3706005": "International Units (IU)",
+   "3706007": "Keep Vein Open (kvo)",
+   "3706009": "Liters (l)",
+   "3706013": "Metered Dose (MDI)",
+   "3706015": "Micrograms (mcg)",
+   "3706017": "Micrograms per Kilogram per Minute (mcg/kg/min)",
+   "3706019": "Milliequivalents (mEq)",
+   "3706021": "Milligrams (mg)",
+   "3706023": "Milligrams per Kilogram Per Minute (mg/kg/min)",
+   "3706025": "Milliliters (ml)",
+   "3706027": "Milliliters per Hour (ml/hr)",
+   "3706029": "Other",
+   "3706031": "Centimeters (cm)",
+   "3706033": "Drops (gtts)",
+   "3706035": "Liters Per Minute (LPM [gas])",
+   "3706037": "Micrograms per Minute (mcg/min)",
+   "3706039": "Milligrams per Kilogram (mg/kg)",
+   "3706041": "Milligrams per Minute (mg/min)",
+   "3706043": "Puffs",
+   "3706045": "Units per Hour (units/hr)",
+   "3706047": "Micrograms per Kilogram (mcg/kg)",
+   "3706049": "Units",
+   "3706051": "Units per Kilogram per Hour (units/kg/hr)",
+   "3706053": "Units per Kilogram (units/kg)",
+   "3706055": "Milligrams per Hour (mg/hr)"
+  }
+ }
+}

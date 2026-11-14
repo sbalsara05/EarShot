@@ -1,0 +1,1859 @@
+{
+ "version": "1.0.0",
+ "generated_by": "core/tools/build_dictionary.py",
+ "terms": [
+  {
+   "term": "bp",
+   "expansion": "blood pressure",
+   "category": "vital"
+  },
+  {
+   "term": "hr",
+   "expansion": "heart rate",
+   "category": "vital"
+  },
+  {
+   "term": "pulse",
+   "expansion": "heart rate",
+   "category": "vital"
+  },
+  {
+   "term": "rr",
+   "expansion": "respiratory rate",
+   "category": "vital"
+  },
+  {
+   "term": "resps",
+   "expansion": "respirations",
+   "category": "vital"
+  },
+  {
+   "term": "respirations",
+   "expansion": "respiratory rate",
+   "category": "vital"
+  },
+  {
+   "term": "spo2",
+   "expansion": "oxygen saturation",
+   "category": "vital"
+  },
+  {
+   "term": "sat",
+   "expansion": "oxygen saturation",
+   "category": "vital"
+  },
+  {
+   "term": "sats",
+   "expansion": "oxygen saturation",
+   "category": "vital"
+  },
+  {
+   "term": "pulse ox",
+   "expansion": "pulse oximetry",
+   "category": "vital"
+  },
+  {
+   "term": "o2 sat",
+   "expansion": "oxygen saturation",
+   "category": "vital"
+  },
+  {
+   "term": "etco2",
+   "expansion": "end-tidal carbon dioxide",
+   "category": "vital"
+  },
+  {
+   "term": "end tidal",
+   "expansion": "end-tidal carbon dioxide",
+   "category": "vital"
+  },
+  {
+   "term": "capno",
+   "expansion": "capnography",
+   "category": "vital"
+  },
+  {
+   "term": "bgl",
+   "expansion": "blood glucose level",
+   "category": "vital"
+  },
+  {
+   "term": "cbg",
+   "expansion": "capillary blood glucose",
+   "category": "vital"
+  },
+  {
+   "term": "sugar",
+   "expansion": "blood glucose",
+   "category": "vital"
+  },
+  {
+   "term": "glucose",
+   "expansion": "blood glucose",
+   "category": "vital"
+  },
+  {
+   "term": "d stick",
+   "expansion": "blood glucose check",
+   "category": "vital"
+  },
+  {
+   "term": "dextro",
+   "expansion": "blood glucose check",
+   "category": "vital"
+  },
+  {
+   "term": "gcs",
+   "expansion": "Glasgow Coma Scale",
+   "category": "vital"
+  },
+  {
+   "term": "temp",
+   "expansion": "temperature",
+   "category": "vital"
+  },
+  {
+   "term": "map",
+   "expansion": "mean arterial pressure",
+   "category": "vital"
+  },
+  {
+   "term": "pain scale",
+   "expansion": "pain score 0-10",
+   "category": "vital"
+  },
+  {
+   "term": "pain score",
+   "expansion": "pain score 0-10",
+   "category": "vital"
+  },
+  {
+   "term": "orthostatics",
+   "expansion": "orthostatic vital signs",
+   "category": "vital"
+  },
+  {
+   "term": "vitals",
+   "expansion": "vital signs",
+   "category": "vital"
+  },
+  {
+   "term": "v s",
+   "expansion": "vital signs",
+   "category": "vital"
+  },
+  {
+   "term": "palp",
+   "expansion": "by palpation",
+   "category": "vital"
+  },
+  {
+   "term": "by palp",
+   "expansion": "by palpation",
+   "category": "vital"
+  },
+  {
+   "term": "a&o",
+   "expansion": "alert and oriented",
+   "category": "assessment"
+  },
+  {
+   "term": "a and o",
+   "expansion": "alert and oriented",
+   "category": "assessment"
+  },
+  {
+   "term": "aox4",
+   "expansion": "alert and oriented to person, place, time and event",
+   "category": "assessment"
+  },
+  {
+   "term": "a&ox4",
+   "expansion": "alert and oriented to person, place, time and event",
+   "category": "assessment"
+  },
+  {
+   "term": "a and o times four",
+   "expansion": "alert and oriented to person, place, time and event",
+   "category": "assessment"
+  },
+  {
+   "term": "a and o by four",
+   "expansion": "alert and oriented to person, place, time and event",
+   "category": "assessment"
+  },
+  {
+   "term": "a and o times three",
+   "expansion": "alert and oriented to person, place and time",
+   "category": "assessment"
+  },
+  {
+   "term": "avpu",
+   "expansion": "alert, verbal, pain, unresponsive",
+   "category": "assessment"
+  },
+  {
+   "term": "loc",
+   "expansion": "level of consciousness / loss of consciousness",
+   "category": "assessment"
+  },
+  {
+   "term": "perrl",
+   "expansion": "pupils equal, round, reactive to light",
+   "category": "assessment"
+  },
+  {
+   "term": "perrla",
+   "expansion": "pupils equal, round, reactive to light and accommodation",
+   "category": "assessment"
+  },
+  {
+   "term": "cms",
+   "expansion": "circulation, motor, sensation",
+   "category": "assessment"
+  },
+  {
+   "term": "pms",
+   "expansion": "pulse, motor, sensation",
+   "category": "assessment"
+  },
+  {
+   "term": "dcap-btls",
+   "expansion": "deformities, contusions, abrasions, punctures, burns, tenderness, lacerations, swelling",
+   "category": "assessment"
+  },
+  {
+   "term": "opqrst",
+   "expansion": "onset, provocation, quality, region/radiation, severity, time",
+   "category": "assessment"
+  },
+  {
+   "term": "sample",
+   "expansion": "signs/symptoms, allergies, medications, past history, last oral intake, events",
+   "category": "assessment"
+  },
+  {
+   "term": "jvd",
+   "expansion": "jugular venous distension",
+   "category": "assessment"
+  },
+  {
+   "term": "skin signs",
+   "expansion": "skin color, temperature, condition",
+   "category": "assessment"
+  },
+  {
+   "term": "pink warm dry",
+   "expansion": "normal skin signs",
+   "category": "assessment"
+  },
+  {
+   "term": "pwd",
+   "expansion": "pink, warm, dry skin",
+   "category": "assessment"
+  },
+  {
+   "term": "diaphoretic",
+   "expansion": "sweating profusely",
+   "category": "assessment"
+  },
+  {
+   "term": "cyanotic",
+   "expansion": "bluish skin color",
+   "category": "assessment"
+  },
+  {
+   "term": "pale cool clammy",
+   "expansion": "pale, cool, clammy skin",
+   "category": "assessment"
+  },
+  {
+   "term": "mottled",
+   "expansion": "blotchy skin discoloration",
+   "category": "assessment"
+  },
+  {
+   "term": "lung sounds",
+   "expansion": "breath sounds",
+   "category": "assessment"
+  },
+  {
+   "term": "clear bilaterally",
+   "expansion": "breath sounds clear on both sides",
+   "category": "assessment"
+  },
+  {
+   "term": "rales",
+   "expansion": "crackles in lungs",
+   "category": "assessment"
+  },
+  {
+   "term": "crackles",
+   "expansion": "crackles in lungs",
+   "category": "assessment"
+  },
+  {
+   "term": "rhonchi",
+   "expansion": "coarse lung sounds",
+   "category": "assessment"
+  },
+  {
+   "term": "wheezing",
+   "expansion": "wheezes",
+   "category": "assessment"
+  },
+  {
+   "term": "wheezes",
+   "expansion": "wheezes",
+   "category": "assessment"
+  },
+  {
+   "term": "stridor",
+   "expansion": "high-pitched upper airway sound",
+   "category": "assessment"
+  },
+  {
+   "term": "diminished",
+   "expansion": "decreased breath sounds",
+   "category": "assessment"
+  },
+  {
+   "term": "tripoding",
+   "expansion": "tripod positioning (respiratory distress)",
+   "category": "assessment"
+  },
+  {
+   "term": "accessory muscle use",
+   "expansion": "accessory muscle use",
+   "category": "assessment"
+  },
+  {
+   "term": "retractions",
+   "expansion": "chest wall retractions",
+   "category": "assessment"
+  },
+  {
+   "term": "cap refill",
+   "expansion": "capillary refill",
+   "category": "assessment"
+  },
+  {
+   "term": "facial droop",
+   "expansion": "facial droop",
+   "category": "assessment"
+  },
+  {
+   "term": "slurred speech",
+   "expansion": "slurred speech",
+   "category": "assessment"
+  },
+  {
+   "term": "arm drift",
+   "expansion": "arm drift",
+   "category": "assessment"
+  },
+  {
+   "term": "be fast",
+   "expansion": "balance, eyes, face, arms, speech, time stroke screen",
+   "category": "assessment"
+  },
+  {
+   "term": "cincinnati",
+   "expansion": "Cincinnati prehospital stroke scale",
+   "category": "assessment"
+  },
+  {
+   "term": "lams",
+   "expansion": "Los Angeles motor scale",
+   "category": "assessment"
+  },
+  {
+   "term": "race scale",
+   "expansion": "rapid arterial occlusion evaluation",
+   "category": "assessment"
+  },
+  {
+   "term": "lkw",
+   "expansion": "last known well",
+   "category": "assessment"
+  },
+  {
+   "term": "last known well",
+   "expansion": "last known well time",
+   "category": "assessment"
+  },
+  {
+   "term": "nsr",
+   "expansion": "normal sinus rhythm",
+   "category": "assessment"
+  },
+  {
+   "term": "sinus tach",
+   "expansion": "sinus tachycardia",
+   "category": "assessment"
+  },
+  {
+   "term": "sinus brady",
+   "expansion": "sinus bradycardia",
+   "category": "assessment"
+  },
+  {
+   "term": "afib",
+   "expansion": "atrial fibrillation",
+   "category": "assessment"
+  },
+  {
+   "term": "a fib",
+   "expansion": "atrial fibrillation",
+   "category": "assessment"
+  },
+  {
+   "term": "rvr",
+   "expansion": "rapid ventricular response",
+   "category": "assessment"
+  },
+  {
+   "term": "svt",
+   "expansion": "supraventricular tachycardia",
+   "category": "assessment"
+  },
+  {
+   "term": "vtach",
+   "expansion": "ventricular tachycardia",
+   "category": "assessment"
+  },
+  {
+   "term": "v tach",
+   "expansion": "ventricular tachycardia",
+   "category": "assessment"
+  },
+  {
+   "term": "vfib",
+   "expansion": "ventricular fibrillation",
+   "category": "assessment"
+  },
+  {
+   "term": "v fib",
+   "expansion": "ventricular fibrillation",
+   "category": "assessment"
+  },
+  {
+   "term": "pea",
+   "expansion": "pulseless electrical activity",
+   "category": "assessment"
+  },
+  {
+   "term": "asystole",
+   "expansion": "asystole",
+   "category": "assessment"
+  },
+  {
+   "term": "stemi",
+   "expansion": "ST-elevation myocardial infarction",
+   "category": "assessment"
+  },
+  {
+   "term": "st elevation",
+   "expansion": "ST-segment elevation",
+   "category": "assessment"
+  },
+  {
+   "term": "pvcs",
+   "expansion": "premature ventricular contractions",
+   "category": "assessment"
+  },
+  {
+   "term": "rosc",
+   "expansion": "return of spontaneous circulation",
+   "category": "status"
+  },
+  {
+   "term": "12 lead",
+   "expansion": "12-lead ECG",
+   "category": "procedure"
+  },
+  {
+   "term": "twelve lead",
+   "expansion": "12-lead ECG",
+   "category": "procedure"
+  },
+  {
+   "term": "ekg",
+   "expansion": "electrocardiogram",
+   "category": "procedure"
+  },
+  {
+   "term": "ecg",
+   "expansion": "electrocardiogram",
+   "category": "procedure"
+  },
+  {
+   "term": "sob",
+   "expansion": "shortness of breath",
+   "category": "assessment"
+  },
+  {
+   "term": "dib",
+   "expansion": "difficulty in breathing",
+   "category": "assessment"
+  },
+  {
+   "term": "doe",
+   "expansion": "dyspnea on exertion",
+   "category": "assessment"
+  },
+  {
+   "term": "cp",
+   "expansion": "chest pain",
+   "category": "assessment"
+  },
+  {
+   "term": "n/v",
+   "expansion": "nausea/vomiting",
+   "category": "assessment"
+  },
+  {
+   "term": "n v",
+   "expansion": "nausea/vomiting",
+   "category": "assessment"
+  },
+  {
+   "term": "ams",
+   "expansion": "altered mental status",
+   "category": "assessment"
+  },
+  {
+   "term": "syncope",
+   "expansion": "fainting",
+   "category": "assessment"
+  },
+  {
+   "term": "near syncope",
+   "expansion": "near fainting",
+   "category": "assessment"
+  },
+  {
+   "term": "etoh",
+   "expansion": "alcohol",
+   "category": "assessment"
+  },
+  {
+   "term": "loc negative",
+   "expansion": "no loss of consciousness",
+   "category": "assessment"
+  },
+  {
+   "term": "nad",
+   "expansion": "no acute distress",
+   "category": "assessment"
+  },
+  {
+   "term": "wnl",
+   "expansion": "within normal limits",
+   "category": "assessment"
+  },
+  {
+   "term": "unremarkable",
+   "expansion": "no abnormal findings",
+   "category": "assessment"
+  },
+  {
+   "term": "compensating",
+   "expansion": "compensated shock: maintaining perfusion via compensatory mechanisms",
+   "category": "status"
+  },
+  {
+   "term": "decompensating",
+   "expansion": "failing compensatory mechanisms; worsening perfusion",
+   "category": "status"
+  },
+  {
+   "term": "crashing",
+   "expansion": "rapidly deteriorating",
+   "category": "status"
+  },
+  {
+   "term": "circling the drain",
+   "expansion": "rapidly deteriorating",
+   "category": "status"
+  },
+  {
+   "term": "stable",
+   "expansion": "condition stable",
+   "category": "status"
+  },
+  {
+   "term": "unstable",
+   "expansion": "condition unstable",
+   "category": "status"
+  },
+  {
+   "term": "improving",
+   "expansion": "condition improving",
+   "category": "status"
+  },
+  {
+   "term": "worsening",
+   "expansion": "condition worsening",
+   "category": "status"
+  },
+  {
+   "term": "deteriorating",
+   "expansion": "condition worsening",
+   "category": "status"
+  },
+  {
+   "term": "no change",
+   "expansion": "condition unchanged",
+   "category": "status"
+  },
+  {
+   "term": "unchanged",
+   "expansion": "condition unchanged",
+   "category": "status"
+  },
+  {
+   "term": "guarded",
+   "expansion": "guarded condition",
+   "category": "status"
+  },
+  {
+   "term": "altered",
+   "expansion": "altered mental status",
+   "category": "status"
+  },
+  {
+   "term": "unresponsive",
+   "expansion": "unresponsive",
+   "category": "status"
+  },
+  {
+   "term": "responsive",
+   "expansion": "responsive",
+   "category": "status"
+  },
+  {
+   "term": "combative",
+   "expansion": "combative",
+   "category": "status"
+  },
+  {
+   "term": "agitated",
+   "expansion": "agitated",
+   "category": "status"
+  },
+  {
+   "term": "in arrest",
+   "expansion": "cardiac arrest",
+   "category": "status"
+  },
+  {
+   "term": "coding",
+   "expansion": "in cardiac arrest",
+   "category": "status"
+  },
+  {
+   "term": "code",
+   "expansion": "cardiac arrest",
+   "category": "status"
+  },
+  {
+   "term": "pulses back",
+   "expansion": "return of spontaneous circulation",
+   "category": "status"
+  },
+  {
+   "term": "lost pulses",
+   "expansion": "loss of pulses",
+   "category": "status"
+  },
+  {
+   "term": "apneic",
+   "expansion": "not breathing",
+   "category": "status"
+  },
+  {
+   "term": "posturing",
+   "expansion": "abnormal posturing",
+   "category": "status"
+  },
+  {
+   "term": "seizing",
+   "expansion": "actively seizing",
+   "category": "status"
+  },
+  {
+   "term": "postictal",
+   "expansion": "post-seizure state",
+   "category": "status"
+  },
+  {
+   "term": "hypotensive",
+   "expansion": "low blood pressure",
+   "category": "status"
+  },
+  {
+   "term": "hypertensive",
+   "expansion": "high blood pressure",
+   "category": "status"
+  },
+  {
+   "term": "tachy",
+   "expansion": "tachycardic",
+   "category": "status"
+  },
+  {
+   "term": "brady",
+   "expansion": "bradycardic",
+   "category": "status"
+  },
+  {
+   "term": "hypoxic",
+   "expansion": "low oxygen",
+   "category": "status"
+  },
+  {
+   "term": "hypoglycemic",
+   "expansion": "low blood sugar",
+   "category": "status"
+  },
+  {
+   "term": "load and go",
+   "expansion": "rapid transport",
+   "category": "status"
+  },
+  {
+   "term": "priority one",
+   "expansion": "highest priority",
+   "category": "status"
+  },
+  {
+   "term": "iv access",
+   "expansion": "intravenous access",
+   "category": "procedure"
+  },
+  {
+   "term": "iv established",
+   "expansion": "intravenous access established",
+   "category": "procedure"
+  },
+  {
+   "term": "18 gauge",
+   "expansion": "18-gauge IV catheter",
+   "category": "procedure"
+  },
+  {
+   "term": "20 gauge",
+   "expansion": "20-gauge IV catheter",
+   "category": "procedure"
+  },
+  {
+   "term": "22 gauge",
+   "expansion": "22-gauge IV catheter",
+   "category": "procedure"
+  },
+  {
+   "term": "16 gauge",
+   "expansion": "16-gauge IV catheter",
+   "category": "procedure"
+  },
+  {
+   "term": "ac",
+   "expansion": "antecubital",
+   "category": "anatomy"
+  },
+  {
+   "term": "left ac",
+   "expansion": "left antecubital",
+   "category": "anatomy"
+  },
+  {
+   "term": "right ac",
+   "expansion": "right antecubital",
+   "category": "anatomy"
+  },
+  {
+   "term": "io access",
+   "expansion": "intraosseous access",
+   "category": "procedure"
+  },
+  {
+   "term": "ez io",
+   "expansion": "EZ-IO intraosseous device",
+   "category": "procedure"
+  },
+  {
+   "term": "cpr",
+   "expansion": "cardiopulmonary resuscitation",
+   "category": "procedure"
+  },
+  {
+   "term": "compressions",
+   "expansion": "chest compressions",
+   "category": "procedure"
+  },
+  {
+   "term": "aed",
+   "expansion": "automated external defibrillator",
+   "category": "equipment"
+  },
+  {
+   "term": "shocked",
+   "expansion": "defibrillation delivered",
+   "category": "procedure"
+  },
+  {
+   "term": "shock",
+   "expansion": "defibrillation",
+   "category": "procedure"
+  },
+  {
+   "term": "defib",
+   "expansion": "defibrillation",
+   "category": "procedure"
+  },
+  {
+   "term": "cardioversion",
+   "expansion": "synchronized cardioversion",
+   "category": "procedure"
+  },
+  {
+   "term": "cardioverted",
+   "expansion": "synchronized cardioversion delivered",
+   "category": "procedure"
+  },
+  {
+   "term": "pacing",
+   "expansion": "transcutaneous pacing",
+   "category": "procedure"
+  },
+  {
+   "term": "tcp",
+   "expansion": "transcutaneous pacing",
+   "category": "procedure"
+  },
+  {
+   "term": "intubated",
+   "expansion": "endotracheal intubation",
+   "category": "procedure"
+  },
+  {
+   "term": "intubation",
+   "expansion": "endotracheal intubation",
+   "category": "procedure"
+  },
+  {
+   "term": "tubed",
+   "expansion": "endotracheal intubation",
+   "category": "procedure"
+  },
+  {
+   "term": "ett",
+   "expansion": "endotracheal tube",
+   "category": "equipment"
+  },
+  {
+   "term": "igel",
+   "expansion": "i-gel supraglottic airway",
+   "category": "procedure"
+  },
+  {
+   "term": "i gel",
+   "expansion": "i-gel supraglottic airway",
+   "category": "procedure"
+  },
+  {
+   "term": "king airway",
+   "expansion": "King LT supraglottic airway",
+   "category": "procedure"
+  },
+  {
+   "term": "sga",
+   "expansion": "supraglottic airway",
+   "category": "procedure"
+  },
+  {
+   "term": "opa",
+   "expansion": "oropharyngeal airway",
+   "category": "procedure"
+  },
+  {
+   "term": "npa",
+   "expansion": "nasopharyngeal airway",
+   "category": "procedure"
+  },
+  {
+   "term": "bvm",
+   "expansion": "bag-valve-mask ventilation",
+   "category": "procedure"
+  },
+  {
+   "term": "bagging",
+   "expansion": "bag-valve-mask ventilation",
+   "category": "procedure"
+  },
+  {
+   "term": "cpap",
+   "expansion": "continuous positive airway pressure",
+   "category": "procedure"
+  },
+  {
+   "term": "suction",
+   "expansion": "airway suctioning",
+   "category": "procedure"
+  },
+  {
+   "term": "suctioned",
+   "expansion": "airway suctioned",
+   "category": "procedure"
+  },
+  {
+   "term": "needle decompression",
+   "expansion": "needle chest decompression",
+   "category": "procedure"
+  },
+  {
+   "term": "needle d",
+   "expansion": "needle chest decompression",
+   "category": "procedure"
+  },
+  {
+   "term": "c collar",
+   "expansion": "cervical collar",
+   "category": "procedure"
+  },
+  {
+   "term": "c-collar",
+   "expansion": "cervical collar",
+   "category": "procedure"
+  },
+  {
+   "term": "collared",
+   "expansion": "cervical collar applied",
+   "category": "procedure"
+  },
+  {
+   "term": "smr",
+   "expansion": "spinal motion restriction",
+   "category": "procedure"
+  },
+  {
+   "term": "backboard",
+   "expansion": "long spine board",
+   "category": "equipment"
+  },
+  {
+   "term": "tourniquet",
+   "expansion": "tourniquet applied",
+   "category": "procedure"
+  },
+  {
+   "term": "tq",
+   "expansion": "tourniquet",
+   "category": "procedure"
+  },
+  {
+   "term": "splint",
+   "expansion": "splint applied",
+   "category": "procedure"
+  },
+  {
+   "term": "splinted",
+   "expansion": "splint applied",
+   "category": "procedure"
+  },
+  {
+   "term": "traction splint",
+   "expansion": "traction splint",
+   "category": "procedure"
+  },
+  {
+   "term": "pelvic binder",
+   "expansion": "pelvic binder",
+   "category": "procedure"
+  },
+  {
+   "term": "wound packing",
+   "expansion": "wound packing",
+   "category": "procedure"
+  },
+  {
+   "term": "pressure dressing",
+   "expansion": "pressure dressing",
+   "category": "procedure"
+  },
+  {
+   "term": "bleeding control",
+   "expansion": "hemorrhage control",
+   "category": "procedure"
+  },
+  {
+   "term": "cold pack",
+   "expansion": "cold pack applied",
+   "category": "procedure"
+  },
+  {
+   "term": "o2 applied",
+   "expansion": "oxygen applied",
+   "category": "procedure"
+  },
+  {
+   "term": "nrb",
+   "expansion": "non-rebreather mask",
+   "category": "equipment"
+  },
+  {
+   "term": "nc",
+   "expansion": "nasal cannula",
+   "category": "equipment"
+  },
+  {
+   "term": "lucas",
+   "expansion": "LUCAS mechanical CPR device",
+   "category": "equipment"
+  },
+  {
+   "term": "lifepak",
+   "expansion": "LIFEPAK monitor/defibrillator",
+   "category": "equipment"
+  },
+  {
+   "term": "zoll",
+   "expansion": "Zoll monitor/defibrillator",
+   "category": "equipment"
+  },
+  {
+   "term": "monitor",
+   "expansion": "cardiac monitor",
+   "category": "equipment"
+  },
+  {
+   "term": "pads on",
+   "expansion": "defibrillation pads applied",
+   "category": "procedure"
+  },
+  {
+   "term": "stair chair",
+   "expansion": "stair chair",
+   "category": "equipment"
+  },
+  {
+   "term": "stretcher",
+   "expansion": "stretcher",
+   "category": "equipment"
+  },
+  {
+   "term": "cot",
+   "expansion": "stretcher",
+   "category": "equipment"
+  },
+  {
+   "term": "pmh",
+   "expansion": "past medical history",
+   "category": "history"
+  },
+  {
+   "term": "hx",
+   "expansion": "history",
+   "category": "history"
+  },
+  {
+   "term": "pmhx",
+   "expansion": "past medical history",
+   "category": "history"
+  },
+  {
+   "term": "nkda",
+   "expansion": "no known drug allergies",
+   "category": "history"
+  },
+  {
+   "term": "nka",
+   "expansion": "no known allergies",
+   "category": "history"
+  },
+  {
+   "term": "meds",
+   "expansion": "medications",
+   "category": "history"
+  },
+  {
+   "term": "chf",
+   "expansion": "congestive heart failure",
+   "category": "history"
+  },
+  {
+   "term": "copd",
+   "expansion": "chronic obstructive pulmonary disease",
+   "category": "history"
+  },
+  {
+   "term": "htn",
+   "expansion": "hypertension",
+   "category": "history"
+  },
+  {
+   "term": "dm",
+   "expansion": "diabetes mellitus",
+   "category": "history"
+  },
+  {
+   "term": "iddm",
+   "expansion": "insulin-dependent diabetes",
+   "category": "history"
+  },
+  {
+   "term": "niddm",
+   "expansion": "non-insulin-dependent diabetes",
+   "category": "history"
+  },
+  {
+   "term": "cad",
+   "expansion": "coronary artery disease",
+   "category": "history"
+  },
+  {
+   "term": "mi",
+   "expansion": "myocardial infarction",
+   "category": "history"
+  },
+  {
+   "term": "cva",
+   "expansion": "stroke (cerebrovascular accident)",
+   "category": "history"
+  },
+  {
+   "term": "tia",
+   "expansion": "transient ischemic attack",
+   "category": "history"
+  },
+  {
+   "term": "esrd",
+   "expansion": "end-stage renal disease",
+   "category": "history"
+  },
+  {
+   "term": "dnr",
+   "expansion": "do not resuscitate",
+   "category": "history"
+  },
+  {
+   "term": "molst",
+   "expansion": "medical orders for life-sustaining treatment",
+   "category": "history"
+  },
+  {
+   "term": "polst",
+   "expansion": "physician orders for life-sustaining treatment",
+   "category": "history"
+  },
+  {
+   "term": "blood thinners",
+   "expansion": "anticoagulants",
+   "category": "history"
+  },
+  {
+   "term": "last oral intake",
+   "expansion": "last oral intake",
+   "category": "history"
+  },
+  {
+   "term": "lmp",
+   "expansion": "last menstrual period",
+   "category": "history"
+  },
+  {
+   "term": "g p",
+   "expansion": "gravida/para",
+   "category": "history"
+  },
+  {
+   "term": "ruq",
+   "expansion": "right upper quadrant",
+   "category": "anatomy"
+  },
+  {
+   "term": "luq",
+   "expansion": "left upper quadrant",
+   "category": "anatomy"
+  },
+  {
+   "term": "rlq",
+   "expansion": "right lower quadrant",
+   "category": "anatomy"
+  },
+  {
+   "term": "llq",
+   "expansion": "left lower quadrant",
+   "category": "anatomy"
+  },
+  {
+   "term": "loc head strike",
+   "expansion": "head strike with loss of consciousness",
+   "category": "general"
+  },
+  {
+   "term": "moi",
+   "expansion": "mechanism of injury",
+   "category": "general"
+  },
+  {
+   "term": "noi",
+   "expansion": "nature of illness",
+   "category": "general"
+  },
+  {
+   "term": "mva",
+   "expansion": "motor vehicle accident",
+   "category": "dispatch"
+  },
+  {
+   "term": "mvc",
+   "expansion": "motor vehicle collision",
+   "category": "dispatch"
+  },
+  {
+   "term": "ground level fall",
+   "expansion": "fall from standing",
+   "category": "dispatch"
+  },
+  {
+   "term": "glf",
+   "expansion": "ground level fall",
+   "category": "dispatch"
+  },
+  {
+   "term": "cc",
+   "expansion": "chief complaint",
+   "category": "general"
+  },
+  {
+   "term": "chief complaint",
+   "expansion": "chief complaint",
+   "category": "general"
+  },
+  {
+   "term": "pt",
+   "expansion": "patient",
+   "category": "general"
+  },
+  {
+   "term": "y o",
+   "expansion": "year old",
+   "category": "general"
+  },
+  {
+   "term": "yo",
+   "expansion": "year old",
+   "category": "general"
+  },
+  {
+   "term": "yom",
+   "expansion": "year-old male",
+   "category": "general"
+  },
+  {
+   "term": "yof",
+   "expansion": "year-old female",
+   "category": "general"
+  },
+  {
+   "term": "prn",
+   "expansion": "as needed",
+   "category": "general"
+  },
+  {
+   "term": "abc",
+   "expansion": "airway, breathing, circulation",
+   "category": "assessment"
+  },
+  {
+   "term": "xabc",
+   "expansion": "exsanguination, airway, breathing, circulation",
+   "category": "assessment"
+  },
+  {
+   "term": "march",
+   "expansion": "massive hemorrhage, airway, respiration, circulation, hypothermia",
+   "category": "assessment"
+  },
+  {
+   "term": "dispatched for",
+   "expansion": "dispatched for",
+   "category": "dispatch"
+  },
+  {
+   "term": "call came in as",
+   "expansion": "dispatched for",
+   "category": "dispatch"
+  },
+  {
+   "term": "turned out to be",
+   "expansion": "found to be",
+   "category": "dispatch"
+  },
+  {
+   "term": "on scene",
+   "expansion": "arrived on scene",
+   "category": "time"
+  },
+  {
+   "term": "en route",
+   "expansion": "en route",
+   "category": "time"
+  },
+  {
+   "term": "responding",
+   "expansion": "responding",
+   "category": "time"
+  },
+  {
+   "term": "10-4",
+   "expansion": "acknowledged",
+   "category": "radio"
+  },
+  {
+   "term": "copy",
+   "expansion": "acknowledged",
+   "category": "radio"
+  },
+  {
+   "term": "eta",
+   "expansion": "estimated time of arrival",
+   "category": "transport"
+  },
+  {
+   "term": "medcom",
+   "expansion": "medical communications / hospital notification",
+   "category": "radio"
+  },
+  {
+   "term": "patch",
+   "expansion": "radio patch to hospital",
+   "category": "radio"
+  },
+  {
+   "term": "medical control",
+   "expansion": "online medical control",
+   "category": "radio"
+  },
+  {
+   "term": "olmc",
+   "expansion": "online medical control",
+   "category": "radio"
+  },
+  {
+   "term": "als",
+   "expansion": "advanced life support",
+   "category": "general"
+  },
+  {
+   "term": "bls",
+   "expansion": "basic life support",
+   "category": "general"
+  },
+  {
+   "term": "intercept",
+   "expansion": "ALS intercept",
+   "category": "transport"
+  },
+  {
+   "term": "mutual aid",
+   "expansion": "mutual aid",
+   "category": "dispatch"
+  },
+  {
+   "term": "priority 1",
+   "expansion": "emergent response",
+   "category": "dispatch"
+  },
+  {
+   "term": "hot",
+   "expansion": "lights and sirens",
+   "category": "transport"
+  },
+  {
+   "term": "cold",
+   "expansion": "no lights and sirens",
+   "category": "transport"
+  },
+  {
+   "term": "code 3",
+   "expansion": "lights and sirens",
+   "category": "transport"
+  },
+  {
+   "term": "lights and sirens",
+   "expansion": "lights and sirens",
+   "category": "transport"
+  },
+  {
+   "term": "transporting",
+   "expansion": "transport initiated",
+   "category": "transport"
+  },
+  {
+   "term": "transport to",
+   "expansion": "transport to destination",
+   "category": "transport"
+  },
+  {
+   "term": "headed to",
+   "expansion": "transport to destination",
+   "category": "transport"
+  },
+  {
+   "term": "en route to",
+   "expansion": "transport to destination",
+   "category": "transport"
+  },
+  {
+   "term": "ed",
+   "expansion": "emergency department",
+   "category": "transport"
+  },
+  {
+   "term": "er",
+   "expansion": "emergency room",
+   "category": "transport"
+  },
+  {
+   "term": "trauma center",
+   "expansion": "trauma center",
+   "category": "transport"
+  },
+  {
+   "term": "cath lab",
+   "expansion": "cardiac catheterization lab",
+   "category": "transport"
+  },
+  {
+   "term": "stroke center",
+   "expansion": "stroke center",
+   "category": "transport"
+  },
+  {
+   "term": "stemi alert",
+   "expansion": "STEMI alert to receiving hospital",
+   "category": "transport"
+  },
+  {
+   "term": "stroke alert",
+   "expansion": "stroke alert to receiving hospital",
+   "category": "transport"
+  },
+  {
+   "term": "trauma alert",
+   "expansion": "trauma alert",
+   "category": "transport"
+  },
+  {
+   "term": "refusal",
+   "expansion": "patient refusal of care/transport",
+   "category": "transport"
+  },
+  {
+   "term": "ama",
+   "expansion": "against medical advice",
+   "category": "transport"
+  },
+  {
+   "term": "wall time",
+   "expansion": "time waiting at ED before transfer of care",
+   "category": "time"
+  },
+  {
+   "term": "offload",
+   "expansion": "transfer of patient to ED bed",
+   "category": "time"
+  },
+  {
+   "term": "triage",
+   "expansion": "ED triage",
+   "category": "transport"
+  },
+  {
+   "term": "bedside",
+   "expansion": "transfer at ED bedside",
+   "category": "transport"
+  },
+  {
+   "term": "transfer of care",
+   "expansion": "transfer of care to ED staff",
+   "category": "time"
+  },
+  {
+   "term": "report given",
+   "expansion": "verbal report to nurse",
+   "category": "time"
+  },
+  {
+   "term": "chest pain",
+   "expansion": "chest pain",
+   "category": "symptom"
+  },
+  {
+   "term": "chest pressure",
+   "expansion": "chest pressure",
+   "category": "symptom"
+  },
+  {
+   "term": "chest tightness",
+   "expansion": "chest tightness",
+   "category": "symptom"
+  },
+  {
+   "term": "shortness of breath",
+   "expansion": "shortness of breath",
+   "category": "symptom"
+  },
+  {
+   "term": "short of breath",
+   "expansion": "shortness of breath",
+   "category": "symptom"
+  },
+  {
+   "term": "difficulty breathing",
+   "expansion": "difficulty breathing",
+   "category": "symptom"
+  },
+  {
+   "term": "trouble breathing",
+   "expansion": "difficulty breathing",
+   "category": "symptom"
+  },
+  {
+   "term": "can't breathe",
+   "expansion": "difficulty breathing",
+   "category": "symptom"
+  },
+  {
+   "term": "nausea",
+   "expansion": "nausea",
+   "category": "symptom"
+  },
+  {
+   "term": "nauseous",
+   "expansion": "nausea",
+   "category": "symptom"
+  },
+  {
+   "term": "vomiting",
+   "expansion": "vomiting",
+   "category": "symptom"
+  },
+  {
+   "term": "threw up",
+   "expansion": "vomiting",
+   "category": "symptom"
+  },
+  {
+   "term": "dizzy",
+   "expansion": "dizziness",
+   "category": "symptom"
+  },
+  {
+   "term": "dizziness",
+   "expansion": "dizziness",
+   "category": "symptom"
+  },
+  {
+   "term": "lightheaded",
+   "expansion": "lightheadedness",
+   "category": "symptom"
+  },
+  {
+   "term": "headache",
+   "expansion": "headache",
+   "category": "symptom"
+  },
+  {
+   "term": "abdominal pain",
+   "expansion": "abdominal pain",
+   "category": "symptom"
+  },
+  {
+   "term": "belly pain",
+   "expansion": "abdominal pain",
+   "category": "symptom"
+  },
+  {
+   "term": "stomach pain",
+   "expansion": "abdominal pain",
+   "category": "symptom"
+  },
+  {
+   "term": "back pain",
+   "expansion": "back pain",
+   "category": "symptom"
+  },
+  {
+   "term": "neck pain",
+   "expansion": "neck pain",
+   "category": "symptom"
+  },
+  {
+   "term": "weakness",
+   "expansion": "weakness",
+   "category": "symptom"
+  },
+  {
+   "term": "numbness",
+   "expansion": "numbness",
+   "category": "symptom"
+  },
+  {
+   "term": "tingling",
+   "expansion": "tingling",
+   "category": "symptom"
+  },
+  {
+   "term": "palpitations",
+   "expansion": "palpitations",
+   "category": "symptom"
+  },
+  {
+   "term": "fever",
+   "expansion": "fever",
+   "category": "symptom"
+  },
+  {
+   "term": "chills",
+   "expansion": "chills",
+   "category": "symptom"
+  },
+  {
+   "term": "passed out",
+   "expansion": "syncope (reported)",
+   "category": "symptom"
+  },
+  {
+   "term": "fainted",
+   "expansion": "syncope (reported)",
+   "category": "symptom"
+  },
+  {
+   "term": "blacked out",
+   "expansion": "syncope (reported)",
+   "category": "symptom"
+  },
+  {
+   "term": "seizure",
+   "expansion": "seizure",
+   "category": "symptom"
+  },
+  {
+   "term": "bleeding",
+   "expansion": "bleeding",
+   "category": "symptom"
+  },
+  {
+   "term": "confusion",
+   "expansion": "confusion",
+   "category": "symptom"
+  },
+  {
+   "term": "confused",
+   "expansion": "confusion",
+   "category": "symptom"
+  },
+  {
+   "term": "radiating",
+   "expansion": "radiating pain",
+   "category": "symptom"
+  },
+  {
+   "term": "radiates",
+   "expansion": "radiating pain",
+   "category": "symptom"
+  },
+  {
+   "term": "jaw pain",
+   "expansion": "jaw pain",
+   "category": "symptom"
+  },
+  {
+   "term": "arm pain",
+   "expansion": "arm pain",
+   "category": "symptom"
+  },
+  {
+   "term": "hip pain",
+   "expansion": "hip pain",
+   "category": "symptom"
+  },
+  {
+   "term": "leg pain",
+   "expansion": "leg pain",
+   "category": "symptom"
+  },
+  {
+   "term": "swelling",
+   "expansion": "swelling",
+   "category": "symptom"
+  },
+  {
+   "term": "itching",
+   "expansion": "itching",
+   "category": "symptom"
+  },
+  {
+   "term": "hives",
+   "expansion": "hives",
+   "category": "symptom"
+  },
+  {
+   "term": "rash",
+   "expansion": "rash",
+   "category": "symptom"
+  },
+  {
+   "term": "throat tightness",
+   "expansion": "throat tightness",
+   "category": "symptom"
+  },
+  {
+   "term": "blurred vision",
+   "expansion": "blurred vision",
+   "category": "symptom"
+  },
+  {
+   "term": "anxious",
+   "expansion": "anxiety",
+   "category": "symptom"
+  },
+  {
+   "term": "sweaty",
+   "expansion": "diaphoresis",
+   "category": "symptom"
+  },
+  {
+   "term": "cough",
+   "expansion": "cough",
+   "category": "symptom"
+  },
+  {
+   "term": "administered",
+   "expansion": "administered",
+   "category": "med_admin"
+  },
+  {
+   "term": "gave",
+   "expansion": "administered",
+   "category": "med_admin"
+  },
+  {
+   "term": "given",
+   "expansion": "administered",
+   "category": "med_admin"
+  },
+  {
+   "term": "pushed",
+   "expansion": "IV push given",
+   "category": "med_admin"
+  },
+  {
+   "term": "hung",
+   "expansion": "IV fluid started",
+   "category": "med_admin"
+  },
+  {
+   "term": "spiked",
+   "expansion": "IV bag prepared",
+   "category": "med_admin"
+  },
+  {
+   "term": "repeat",
+   "expansion": "repeat dose",
+   "category": "med_admin"
+  },
+  {
+   "term": "second dose",
+   "expansion": "repeat dose",
+   "category": "med_admin"
+  },
+  {
+   "term": "titrate",
+   "expansion": "titrate to effect",
+   "category": "med_admin"
+  },
+  {
+   "term": "kvo",
+   "expansion": "keep vein open",
+   "category": "med_admin"
+  },
+  {
+   "term": "tko",
+   "expansion": "to keep open",
+   "category": "med_admin"
+  },
+  {
+   "term": "wide open",
+   "expansion": "fluids at maximum rate",
+   "category": "med_admin"
+  },
+  {
+   "term": "bolus",
+   "expansion": "fluid bolus",
+   "category": "med_admin"
+  },
+  {
+   "term": "amp",
+   "expansion": "ampule",
+   "category": "med_admin"
+  }
+ ],
+ "initial_prompt_core": [
+  "BP",
+  "heart rate",
+  "SpO2",
+  "sats",
+  "resps",
+  "GCS",
+  "A and O",
+  "PERRL",
+  "BGL",
+  "EtCO2",
+  "12-lead",
+  "STEMI",
+  "compensating",
+  "aspirin",
+  "nitro sublingual",
+  "Narcan",
+  "Zofran",
+  "fentanyl",
+  "Versed",
+  "ketamine",
+  "epi",
+  "albuterol",
+  "DuoNeb",
+  "D10",
+  "glucagon",
+  "amiodarone",
+  "Solu-Medrol",
+  "Benadryl",
+  "normal saline",
+  "IV",
+  "IO",
+  "IM",
+  "intranasal",
+  "gauge left AC",
+  "non-rebreather",
+  "nasal cannula",
+  "CPAP",
+  "BVM",
+  "i-gel",
+  "C-collar",
+  "tourniquet",
+  "ROSC",
+  "afib",
+  "sinus tach",
+  "NKDA",
+  "PMH",
+  "CHF",
+  "COPD",
+  "LKW",
+  "dispatched for"
+ ],
+ "initial_prompt": "EMS call. Patient A&O, GCS. BP 61/127, HR 913, resps 113, sats 113%, BGL 913, ETCO2 213. Aspirin mg PO, nitro mg SL, Narcan mg IN, D10, glucagon, albuterol, DuoNeb, epi mg IM, Benadryl, Solu-Medrol, Zofran mg IV, fentanyl mcg, Versed, Ativan, amiodarone, adenosine, TXA. 12-lead, STEMI, IV, IO, CPAP, BVM, c-collar."
+}

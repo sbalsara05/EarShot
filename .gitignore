@@ -15,3 +15,15 @@ firmware/evidence/**/*.mov
 
 # compression test audio samples (large); the results table is kept
 firmware/codec_test/results/samples/
+
+# pipeline (core/) and app build outputs
+.build/
+/core/out/
+/out/
+*.xcuserstate
+xcuserdata/
+DerivedData/
+*.wav
+models/*.bin
+app/Frameworks/
+app/Models/*

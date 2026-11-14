@@ -1,0 +1,481 @@
+{
+ "note": "Proposed additions for shared/formulary.json (pipeline schema). Append-only: add asr_variants/aliases to existing drugs; new_drugs are absent entirely. Evidence counts = times stock whisper small.en produced the variant on our test/dev audio.",
+ "asr_variants_observed": {
+  "famotidine": [
+   {
+    "variant": "famitating",
+    "count": 2
+   },
+   {
+    "variant": "famitidine",
+    "count": 1
+   }
+  ],
+  "fentanyl": [
+   {
+    "variant": "now",
+    "count": 1
+   }
+  ],
+  "glucose": [
+   {
+    "variant": "sugars",
+    "count": 3
+   }
+  ],
+  "ipratropium": [
+   {
+    "variant": "epitropium",
+    "count": 4
+   }
+  ],
+  "levetiracetam": [
+   {
+    "variant": "capra",
+    "count": 4
+   }
+  ],
+  "metoprolol": [
+   {
+    "variant": "metaprolol",
+    "count": 3
+   },
+   {
+    "variant": "officer",
+    "count": 1
+   }
+  ],
+  "tranexamic acid": [
+   {
+    "variant": "exa",
+    "count": 1
+   }
+  ]
+ },
+ "aliases_missing": {
+  "adenosine": [
+   "a denosine"
+  ],
+  "albuterol": [
+   "albuterol's"
+  ],
+  "amiodarone": [
+   "amioderone",
+   "amy oderone"
+  ],
+  "aspirin": [
+   "bayer"
+  ],
+  "atropine": [
+   "a tropine"
+  ],
+  "dextrose": [
+   "d10w",
+   "dextros",
+   "dextrose 10%",
+   "dextrose 50%"
+  ],
+  "diltiazem": [
+   "cardi zem",
+   "dil tiazem"
+  ],
+  "diphenhydramine": [
+   "bena dril",
+   "diphen hydramine"
+  ],
+  "epinephrine": [
+   "epi 1 to 1000",
+   "epi 1:10,000",
+   "epi 1:1000",
+   "epi pin"
+  ],
+  "fentanyl": [
+   "fenta nil",
+   "fentenyl"
+  ],
+  "glucagon": [
+   "gluca gone",
+   "glucogon"
+  ],
+  "ipratropium": [
+   "albuterol/ipratropium",
+   "atro vent",
+   "do neb",
+   "dual neb",
+   "ipratropeum"
+  ],
+  "lorazepam": [
+   "adivan",
+   "ativen"
+  ],
+  "magnesium sulfate": [
+   "mag sulphate"
+  ],
+  "methylprednisolone": [
+   "sol you medrol",
+   "solu-medrol's",
+   "soul medrol"
+  ],
+  "midazolam": [
+   "midazolom",
+   "ver said"
+  ],
+  "morphine": [
+   "morphin"
+  ],
+  "naloxone": [
+   "nasal narcan",
+   "now loxone"
+  ],
+  "normal saline": [
+   "0.9% sodium chloride"
+  ],
+  "ondansetron": [
+   "zofran's",
+   "zofrin"
+  ],
+  "oral glucose": [
+   "glucose tube",
+   "oral glucos"
+  ],
+  "rocuronium": [
+   "rocc"
+  ],
+  "sodium bicarbonate": [
+   "amp of bicarb"
+  ],
+  "terbutaline": [
+   "terb"
+  ]
+ },
+ "new_drugs": [
+  {
+   "generic": "furosemide",
+   "brands": [
+    "Lasix"
+   ],
+   "aliases": [
+    "lasix"
+   ],
+   "asr_variants": [],
+   "class": "loop diuretic",
+   "routes": [
+    "IV",
+    "PO"
+   ],
+   "typical_doses": [
+    {
+     "amount": "40",
+     "unit": "mg"
+    },
+    {
+     "amount": "20",
+     "unit": "mg"
+    }
+   ],
+   "source": "data-agent seed (NASEMSO model guidelines drug list)"
+  }
+ ],
+ "home_meds_missing": [
+  "metformin",
+  "lisinopril",
+  "amlodipine",
+  "atorvastatin",
+  "Lipitor",
+  "simvastatin",
+  "levothyroxine",
+  "Synthroid",
+  "apixaban",
+  "Eliquis",
+  "rivaroxaban",
+  "Xarelto",
+  "warfarin",
+  "Coumadin",
+  "carvedilol",
+  "losartan",
+  "hydrochlorothiazide",
+  "HCTZ",
+  "furosemide",
+  "Lasix",
+  "gabapentin",
+  "sertraline",
+  "Zoloft",
+  "fluoxetine",
+  "Prozac",
+  "oxycodone",
+  "Percocet",
+  "hydrocodone",
+  "Norco",
+  "tramadol",
+  "alprazolam",
+  "Xanax",
+  "clonazepam",
+  "Klonopin",
+  "phenytoin",
+  "Dilantin",
+  "lamotrigine",
+  "Lamictal",
+  "Depakote",
+  "valproic acid",
+  "prednisone",
+  "montelukast",
+  "Singulair",
+  "Advair",
+  "Symbicort",
+  "fluticasone",
+  "omeprazole",
+  "pantoprazole",
+  "digoxin",
+  "Entresto",
+  "sildenafil",
+  "Viagra",
+  "tamsulosin",
+  "donepezil",
+  "Aricept",
+  "Suboxone",
+  "buprenorphine",
+  "methadone"
+ ],
+ "real_transcript_drug_terms_unknown": [
+  {
+   "term": "dolo",
+   "count": 19
+  },
+  {
+   "term": "tablet",
+   "count": 9
+  },
+  {
+   "term": "allegra",
+   "count": 7
+  },
+  {
+   "term": "pantop dsr",
+   "count": 6
+  },
+  {
+   "term": "sun pharmaceutical industries limited",
+   "count": 6
+  },
+  {
+   "term": "thyroxine",
+   "count": 5
+  },
+  {
+   "term": "cipla limited",
+   "count": 5
+  },
+  {
+   "term": "azithromycin",
+   "count": 5
+  },
+  {
+   "term": "calpol",
+   "count": 4
+  },
+  {
+   "term": "mankind pharma limited",
+   "count": 4
+  },
+  {
+   "term": "sanofi india limited",
+   "count": 4
+  },
+  {
+   "term": "glycomet trio",
+   "count": 4
+  },
+  {
+   "term": "abbott",
+   "count": 4
+  },
+  {
+   "term": "intas pharmaceuticals limited",
+   "count": 4
+  },
+  {
+   "term": "usv limited",
+   "count": 4
+  },
+  {
+   "term": "alkem laboratories limited",
+   "count": 3
+  },
+  {
+   "term": "zincovit",
+   "count": 3
+  },
+  {
+   "term": "j b chemicals and pharmaceuticals limited",
+   "count": 3
+  },
+  {
+   "term": "aflapin",
+   "count": 3
+  },
+  {
+   "term": "folitrax tablet",
+   "count": 3
+  },
+  {
+   "term": "systopic laboratories private limited",
+   "count": 3
+  },
+  {
+   "term": "antibiotic",
+   "count": 3
+  },
+  {
+   "term": "levocarnitine",
+   "count": 3
+  },
+  {
+   "term": "etoshift  tablet",
+   "count": 3
+  },
+  {
+   "term": "volini",
+   "count": 3
+  },
+  {
+   "term": "ipca laboratories limited",
+   "count": 3
+  },
+  {
+   "term": "macleods pharmaceuticals private limited",
+   "count": 3
+  },
+  {
+   "term": "dr reddy s laboratories limited",
+   "count": 3
+  },
+  {
+   "term": "crocin",
+   "count": 3
+  },
+  {
+   "term": "lupin limited",
+   "count": 3
+  },
+  {
+   "term": "herbodil syrup",
+   "count": 2
+  },
+  {
+   "term": "hydrocortisone",
+   "count": 2
+  },
+  {
+   "term": "glimisave mv",
+   "count": 2
+  },
+  {
+   "term": "glimepiride",
+   "count": 2
+  },
+  {
+   "term": "glenmark pharmaceuticals limited",
+   "count": 2
+  },
+  {
+   "term": "formoflo",
+   "count": 2
+  },
+  {
+   "term": "xenadom tablet",
+   "count": 2
+  },
+  {
+   "term": "bifolate tablet",
+   "count": 2
+  },
+  {
+   "term": "sederom tablet",
+   "count": 2
+  },
+  {
+   "term": "thyronorm  tablet",
+   "count": 2
+  },
+  {
+   "term": "rosuvas f tablet",
+   "count": 2
+  },
+  {
+   "term": "rabium tablet",
+   "count": 2
+  },
+  {
+   "term": "dexlansoprazole",
+   "count": 2
+  },
+  {
+   "term": "roseday tablet",
+   "count": 2
+  },
+  {
+   "term": "gentamicin",
+   "count": 2
+  },
+  {
+   "term": "rozalet tablet",
+   "count": 2
+  },
+  {
+   "term": "vertistar md",
+   "count": 2
+  },
+  {
+   "term": "eris lifesciences limited",
+   "count": 2
+  },
+  {
+   "term": "ondero  tablet",
+   "count": 2
+  },
+  {
+   "term": "telvas h by tablet",
+   "count": 2
+  },
+  {
+   "term": "accord pharmaceuticals",
+   "count": 2
+  },
+  {
+   "term": "kivi labs limited",
+   "count": 2
+  },
+  {
+   "term": "bayer pharmaceuticals private limited",
+   "count": 2
+  },
+  {
+   "term": "isotroin capsule",
+   "count": 2
+  },
+  {
+   "term": "carbimazole",
+   "count": 2
+  },
+  {
+   "term": "trysoft vitamin e cream",
+   "count": 2
+  },
+  {
+   "term": "patent dsr  by",
+   "count": 2
+  },
+  {
+   "term": "metformin",
+   "count": 2
+  },
+  {
+   "term": "sompraz d",
+   "count": 2
+  },
+  {
+   "term": "febustat tablet",
+   "count": 2
+  }
+ ]
+}
