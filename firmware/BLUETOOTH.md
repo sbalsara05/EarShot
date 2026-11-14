@@ -3,8 +3,9 @@
 How the iPad app finds the clip, connects to it, receives audio, and stays connected. The
 firmware side of this is built (firmware 0.6.0, `src/ble_link.cpp`). The app side is not.
 
-Status: the firmware compiles and its logic is unit tested, but it has **not yet run on a
-board**, so nothing here has been tried over the air.
+Status: tried once over the air, on 13 Nov 2026, between an ESP32-S3 Feather and a Mac running
+`tools/ble_receiver.py`: 652 of 652 audio packets arrived, none lost, and the decoded audio
+transcribed word for word. It has not been tried with iOS or an iPad yet.
 
 ## Who does what
 
@@ -94,6 +95,8 @@ The clip does its half: it starts advertising again the instant a connection dro
 - **On disconnect, reconnect at once.** In `didDisconnectPeripheral`, call `connect` on the same
   peripheral. That request does not time out, so the link returns by itself when the clip is
   back in range or powered again.
+- **Subscribe again after every connect.** Nothing carries over from the last connection. In
+  `didConnect`, repeat step 5: look up the service and channels and turn notifications back on.
 - **Remember the clip.** Save `peripheral.identifier`. On launch, get it back with
   `retrievePeripherals(withIdentifiers:)` and connect without scanning.
 - **Treat `hello` as "start of a connection".** It arrives after every connect, including

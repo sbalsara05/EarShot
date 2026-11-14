@@ -7,8 +7,9 @@ board until the Atom arrives.
 The clip sends to the tablet over Bluetooth LE. [BLUETOOTH.md](BLUETOOTH.md) is the app-side
 guide: how to find the clip, connect, read the packets and stay connected.
 
-Not yet run on a board: the Bluetooth link and the Feather build compile and are unit tested,
-but nothing has been flashed.
+Run on hardware once so far (13 Nov 2026): flashed to the Feather and received on a Mac over
+Bluetooth with no audio packets lost. Not yet tried: the Atom VoiceS3R, an iPad, and the
+physical button and light.
 
 ## What the clip does
 
@@ -82,6 +83,7 @@ Wi-Fi.
 | `include/config.example.h` | Link choice, Wi-Fi details, pins |
 | `BLUETOOTH.md` | App-side guide to the Bluetooth link |
 | `tools/ble_receiver.py` | Mac stand-in for the app: connects over Bluetooth, saves and transcribes the audio |
+| `tools/flash_feather.sh` | Builds and flashes the Feather |
 | `tools/make_voice_clip.py`, `tools/check_voice_clip.py` | Build the voice recording; check it transcribes correctly end to end |
 | `host_tests/` | Unit tests for the core, run on the laptop |
 | `sim/sim_clip.cpp` | Simulated clip: the same core with a keyboard/UI button, generated audio and a real socket |
@@ -203,20 +205,27 @@ The Feather has the same chip as the Atom but no microphone, so this build plays
 and the onboard NeoPixel is the light. No `config.h` is needed for Bluetooth.
 
 1. Plug the Feather into the laptop with a USB-C data cable.
-2. Flash it: `pio run -e feather-s3 -t upload`. If the upload cannot find the board, hold BOOT,
-   tap RESET, release BOOT, and run it again; press RESET when it finishes.
-3. Watch the log: `pio device monitor`. It should say `link: Bluetooth, advertising as Earshot-XXXX`.
+2. Flash it: `tools/flash_feather.sh`. It builds, puts the board into flashing mode, writes the
+   firmware and restarts the board. (PlatformIO's own `pio run -e feather-s3 -t upload` does not
+   complete on this board: it gives up after the reset, and the board then stays in flashing
+   mode.) If the script says the board did not enter flashing mode, hold BOOT, tap RESET,
+   release BOOT, and run it again.
+3. Watch the log: `pio device monitor`. Every 5 seconds it prints a status line, which should
+   include `bluetooth=advertising-as-Earshot-XXXX`. (The start-up lines are usually missed,
+   because the monitor connects after the board has booted; press RESET to see them.)
 4. Receive on the Mac, from Terminal (macOS asks once to let Terminal use Bluetooth):
    `build/codec-test-venv/bin/python tools/ble_receiver.py --start --seconds 13 --transcribe`
    It should print the events, about 50 packets a second, 0 lost, and the recording's words.
 5. Or press BOOT to start, hold it 1.5 s to stop, double tap for a marker, and watch with the
    iPad app, nRF Connect or LightBlue.
 
-The status line every 5 seconds shows the slowest Opus encode so far. It must stay well under
-20 ms. This is the first place that figure can be measured, and it applies to the Atom too.
+The status line every 5 seconds shows the slowest Opus encode so far, which must stay under
+20 ms. The first run measured 16.5 ms at worst: it kept up with nothing dropped, but with
+little to spare. The Atom has the same chip, so expect the same there.
 
-The build is for the 4 MB flash / 2 MB PSRAM Feather; it also runs on the 8 MB no-PSRAM one.
-For the Feather with a screen, change `board` in `platformio.ini` to
+The build is for the Feather that names itself "Feather ESP32-S3 No PSRAM" when plugged in
+(`pio device list`): 8 MB flash, no PSRAM. For another Feather, change `board` in
+`platformio.ini`: `adafruit_feather_esp32s3` (4 MB flash, 2 MB PSRAM),
 `adafruit_feather_esp32s3_tft` or `adafruit_feather_esp32s3_reversetft`.
 
 ### Atom VoiceS3R (the real clip)

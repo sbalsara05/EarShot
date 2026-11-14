@@ -320,7 +320,7 @@ void loop() {
                g_app->linkOpen() ? "open" : "closed", (unsigned)g_ble.packetBytes(),
                g_ble.intervalMs(), (unsigned long)g_ble.failedSends());
     else
-      snprintf(link, sizeof link, "bluetooth=advertising link=closed");
+      snprintf(link, sizeof link, "bluetooth=advertising-as-%s link=closed", g_name);
 #else
     snprintf(link, sizeof link, "wifi=%s link=%s",
              WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "down",

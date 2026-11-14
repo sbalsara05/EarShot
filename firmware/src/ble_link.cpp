@@ -49,12 +49,13 @@ bool BleLink::begin(const char* name) {
   commands_->setCallbacks(this);
   if (!server_->start()) return false;
 
-  // The advertising packet carries the service ID (what the tablet scans for); the name does
-  // not fit beside it and goes in the scan response, which the tablet asks for automatically.
+  // The advertising packet carries the service ID (what the tablet scans for). The name does
+  // not fit beside it, so it goes in the scan response, which a scanning tablet asks for
+  // automatically. The scan response must be switched on before the name is set: otherwise the
+  // library tries the main packet, finds no room and drops the name.
   NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
-  adv->addServiceUUID(earshot::kBleServiceUuid);
-  adv->setName(name);
   adv->enableScanResponse(true);
+  if (!adv->addServiceUUID(earshot::kBleServiceUuid) || !adv->setName(name)) return false;
   adv->setMinInterval(160);  // 100 ms (units of 0.625 ms): found within a second or two
   adv->setMaxInterval(240);  // 150 ms
   return adv->start();
