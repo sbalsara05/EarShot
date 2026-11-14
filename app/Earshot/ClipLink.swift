@@ -14,6 +14,30 @@ struct ClipEvent: Decodable {
     struct Audio: Decodable { var codec: String }
 }
 
+/// What a message from the clip asks of the app. The clip's wire format is turned into intents here and
+/// nowhere else, so a change to a payload is a change to this one initialiser.
+enum ClipIntent: Equatable {
+    case hello(codec: String?)   // the start of a connection
+    case started                 // the clip began capturing, from its button or because the app asked
+    case stopped                 // the clip ended the capture
+    case listening(Bool)         // the clip's own account of whether it is capturing, said after every connect
+    case mark                    // the medic marked this moment on the clip
+    case toggleRecording         // one press on the clip: end the recording if one is running, otherwise begin one
+
+    init?(_ event: ClipEvent) {
+        switch (event.type, event.event) {
+        case ("hello", _): self = .hello(codec: event.audio?.codec)
+        case ("consent", "granted"): self = .started
+        case ("consent", "stopped"): self = .stopped
+        case ("state", _): self = .listening(event.listening == true)
+        case ("marker", _) where event.source == "button": self = .mark   // one the app asked for is already in the transcript
+        // STUB: the firmware's payload for this is not settled. Until it is, {"type":"toggle"} stands in for it.
+        case ("toggle", _): self = .toggleRecording
+        default: return nil
+        }
+    }
+}
+
 /// The Bluetooth link to the clip. The clip advertises; this side scans, connects, subscribes, and then
 /// receives one packet per message. IDs and packet layouts are the firmware's: see firmware/BLUETOOTH.md.
 ///

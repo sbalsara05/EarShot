@@ -64,7 +64,13 @@ struct Call: Identifiable, Codable {
 
 @Observable final class Model {
     var tab = Tab.home
-    var clip = false                       // a clip is connected and ready; recordings then use its audio, not the microphone
+    var clip = false                       // a clip is connected and ready
+    /// FEATURE GATE. While true, a connected clip only controls the recording (start, stop, marks) and the audio
+    /// comes from this device's own microphone. It is on because the stand-in board has no microphone and plays
+    /// a stored voice. Turn it off, on the Clip tab, once a clip with a real microphone is in use.
+    var micStandIn = UserDefaults.standard.object(forKey: "micStandIn") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(micStandIn, forKey: "micStandIn") }
+    }
     var clipName: String?                  // the last clip that said hello, like "Earshot-A3F2"
     var clipState = ClipLink.State.idle
     var clipsNearby: [ClipLink.Found] = []   // clips heard while searching, for the medic to pick from
@@ -83,6 +89,7 @@ struct Call: Identifiable, Codable {
     @ObservationIgnored private let transcriber = Transcriber()
     @ObservationIgnored private let link = ClipLink()
     @ObservationIgnored private var source = Transcriber.Source.mic   // where the current recording's audio comes from
+    @ObservationIgnored private var viaClip = false                   // the current recording runs on the clip too, so stop and marks go to it
     @ObservationIgnored private var lastClipAudio = Date()
     @ObservationIgnored private var silenceTimer: Timer?
     @ObservationIgnored private var droppedAt = Date()                // when the link was lost, while clipReconnecting
@@ -141,7 +148,7 @@ struct Call: Identifiable, Codable {
 
     func record() {
         Task { @MainActor in
-            problem = await Transcriber.authorize(microphone: !clip)
+            problem = await Transcriber.authorize(microphone: audioSource == .mic)
             guard problem == nil, live != .listening else { return }
             if clip {
                 // Nothing is shown as recording until the clip confirms, in clipSaid. If it never does, say so.
@@ -157,16 +164,32 @@ struct Call: Identifiable, Codable {
                     problem = "The clip did not start recording. Check that it is on and close by, then try again."
                 }
             } else {
-                begin(from: .mic)
+                begin(from: .mic, viaClip: false)
             }
         }
     }
 
-    private func begin(from source: Transcriber.Source) {
+    /// Ends the recording if one is running, otherwise begins one. With no call open it does nothing.
+    func toggleRecording() {
+        switch live {
+        case .listening: stop()
+        case .ready, .between, .cutShort: record()
+        case .none: break
+        }
+    }
+
+    /// Where the next recording's audio will come from: the clip, unless there is none or the gate holds it to the microphone.
+    var audioSource: Transcriber.Source { clip && !micStandIn ? .clip : .mic }
+
+    /// The audio source in words, for the screen: the running recording's, or the next one's.
+    var audioLabel: String { (live == .listening ? source : audioSource) == .clip ? "Clip audio" : "\(deviceName) mic" }
+
+    private func begin(from source: Transcriber.Source, viaClip: Bool) {
         guard live != .listening, live != .none else { return }
         do {
             try transcriber.start(from: source)
             self.source = source
+            self.viaClip = viaClip
             call.recordings.append(Recording())
             live = .listening
             startAsked = nil
@@ -174,13 +197,13 @@ struct Call: Identifiable, Codable {
             if source == .clip { watchForSilence() }
         } catch {
             problem = error.localizedDescription
-            if source == .clip { link.send("stop") }
+            if viaClip { link.send("stop") }
         }
     }
 
     func stop(as next: Live = .between) {
         guard live == .listening else { return }
-        if source == .clip && !link.send("stop") { stopOwed = true }   // the clip is away and may still be capturing
+        if viaClip && !link.send("stop") { stopOwed = true }   // the clip is away and may still be capturing
         finish(as: next)
     }
 
@@ -212,7 +235,7 @@ struct Call: Identifiable, Codable {
 
     func mark() {
         guard live == .listening else { return }
-        if source == .clip { link.send("marker") }   // so the clip logs it too; its echo is ignored in clipSaid
+        if viaClip { link.send("marker") }   // so the clip logs it too; its echo never becomes an intent
         addMark()
     }
 
@@ -303,14 +326,13 @@ struct Call: Identifiable, Codable {
     }
 
     private func clipSaid(_ event: ClipEvent) {
-        switch (event.type, event.event) {
-        case ("hello", _):
-            if let codec = event.audio?.codec, codec != "opus" {
-                problem = "This clip sends \(codec) audio, which Earshot cannot read yet."
-            }
-        case ("consent", "granted"):
+        guard let intent = ClipIntent(event) else { return }
+        switch intent {
+        case .hello(let codec):
+            if let codec, codec != "opus" { problem = "This clip sends \(codec) audio, which Earshot cannot read yet." }
+        case .started:
             clipStarted()
-        case ("state", _) where event.listening == true:
+        case .listening(true):
             // Said after every connect. The clip kept capturing through a drop: carry on, or pick it up afresh.
             if stopOwed {
                 stopOwed = false
@@ -320,17 +342,16 @@ struct Call: Identifiable, Codable {
             } else {
                 clipStarted()
             }
-        case ("state", _) where event.listening == false && stopOwed:
-            stopOwed = false   // the clip had stopped by itself
-        case ("consent", "stopped"):
-            if source == .clip { finish(as: .between) }
-        case ("state", _) where event.listening == false:
-            // The clip says it is not capturing, so the app must not go on showing a recording.
-            if live == .listening && source == .clip { finish(as: .between) }
-        case ("marker", _) where event.source == "button":
-            if live == .listening && source == .clip { addMark() }
-        default:
-            break   // a marker the app asked for is already in the transcript
+        case .listening(false):
+            stopOwed = false   // nothing left to stop
+            // The clip says it is not capturing, so the app must not go on showing a recording that runs on it.
+            if live == .listening && viaClip { finish(as: .between) }
+        case .stopped:
+            if viaClip { finish(as: .between) }
+        case .mark:
+            if live == .listening { addMark() }
+        case .toggleRecording:
+            toggleRecording()
         }
     }
 
@@ -342,8 +363,9 @@ struct Call: Identifiable, Codable {
             return
         }
         Task { @MainActor in
-            problem = await Transcriber.authorize(microphone: false)
-            if problem == nil { begin(from: .clip) } else { link.send("stop") }
+            let source = audioSource
+            problem = await Transcriber.authorize(microphone: source == .mic)
+            if problem == nil { begin(from: source, viaClip: true) } else { link.send("stop") }
         }
     }
 
@@ -487,6 +509,9 @@ struct Call: Identifiable, Codable {
         assert(hello?.device == "Earshot-A3F2" && hello?.audio?.codec == "opus")
         let marker = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"marker","id":1,"source":"button","t_ms":47781,"audio_seq":327}"#.utf8))
         assert(marker?.type == "marker" && marker?.source == "button")
+        assert(hello.flatMap(ClipIntent.init) == .hello(codec: "opus") && marker.flatMap(ClipIntent.init) == .mark)
+        let toggle = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"toggle"}"#.utf8))
+        assert(toggle.flatMap(ClipIntent.init) == .toggleRecording)   // the stub payload; change both together
         assert(ClipLink.frameNumber(of: Data([0x47, 0x01, 0, 0, 9, 9, 9, 9])) == 327)   // 0x0147, least significant byte first
     }
     #endif
@@ -578,9 +603,10 @@ struct Header: View {
             HStack(spacing: 10) {
                 BlinkDot(size: 10)
                 Text("Recording").font(geist(15, 600)).foregroundStyle(Color.red)
+                Text(model.audioLabel)   // which microphone this recording is using
             }
         } else {
-            Text("Call started \(clock(model.call.start))")
+            Text("Call started \(clock(model.call.start)), \(model.audioLabel)")
         }
     }
 }
@@ -828,7 +854,11 @@ struct ClipScreen: View {
                 }
             }
             row("Link") { Text("Bluetooth") }
-            row("Records from") { Text("Clip") }
+            row("Audio from") {
+                Button(model.micStandIn ? "\(deviceName) mic" : "Clip") { model.micStandIn.toggle() }
+                    .buttonStyle(.plain).underline()
+                    .accessibilityHint("Switches between this \(deviceName)'s microphone and the clip's audio for the next recording")
+            }
             Text("Press the clip to start a recording once a call is open. Hold it to stop. Double tap to mark.")
                 .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 18)
             Spacer(minLength: 16)
