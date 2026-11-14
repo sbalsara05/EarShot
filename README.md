@@ -63,4 +63,4 @@ Whisper (needs `models/ggml-base.en.bin`, PlatformIO's Opus sources and `pip ins
 - Biasing and confidence flags: built and measured; next steps in `docs/BIASING.md`.
 - App: wired to the pipeline but **never compiled** (written without Xcode). Run
   `app/scripts/fetch_deps.sh` on a Mac to build whisper.cpp for iOS and regenerate the Xcode project.
-- Bluetooth in the app: being written separately; it plugs into `app/Earshot/Pipeline/ClipLink.swift`.
+- Bluetooth in the app: `app/Earshot/ClipLink.swift`; its decoded audio goes to `app/Earshot/Pipeline/CallEngine.swift`.

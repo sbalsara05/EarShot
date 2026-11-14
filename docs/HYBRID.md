@@ -26,9 +26,9 @@ iPad mic (no clip connected) ───────┴─► CallEngine decodes o
 | Cross-check | `core/Sources/EarshotCore/Hybrid/CrossCheck.swift` | no: needs live words | `HybridTests` |
 | Grounding | `core/Sources/EarshotCore/Hybrid/Grounding.swift` | no: needs a writer | `HybridTests` |
 | Live words | `app/Earshot/Recorder.swift` (`LiveRecognizer`) | no | needs a device |
-| Opus on iOS | `app/Earshot/Pipeline/OpusDecoder.swift` | yes, with a clip | needs a device |
+| Opus on iOS | `app/Earshot/ClipLink.swift` (swift-opus) | yes, with a clip | needs a device |
 | Narrative writer | `app/Earshot/Pipeline/NoteWriter.swift` (Apple's model today) | no | needs a device |
-| Bluetooth | `ClipLink` (being written separately) | with a clip | |
+| Bluetooth | `app/Earshot/ClipLink.swift` | with a clip | run on an iPad with the Feather stand-in |
 
 ## Rules of the record
 

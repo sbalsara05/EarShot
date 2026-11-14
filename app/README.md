@@ -1,8 +1,7 @@
 # Earshot app
 
-The iPhone and iPad app. It records a call from the clip (or the device microphone when no clip is
-connected), shows a live transcript with marks, then drafts a nurse handoff and a PCR for the medic
-to edit and sign.
+The iPhone and iPad app. It records a call, shows a live transcript with marks, then drafts a nurse
+handoff and a PCR for the medic to edit and sign.
 
 How it hears (see `docs/HYBRID.md`):
 
@@ -16,6 +15,32 @@ How it hears (see `docs/HYBRID.md`):
 - **The narrative** is written by a language model only if one is available (Apple Intelligence
   today; any model can be added behind `NoteWriter`). Optional: without it, every other line is
   still filled from the record.
+
+It connects to the clip over Bluetooth, following [`firmware/BLUETOOTH.md`](../firmware/BLUETOOTH.md).
+The link lives in `Earshot/ClipLink.swift`. It has been run against the ESP32-S3 Feather stand-in on an
+iPad, not yet against the Atom VoiceS3R.
+
+## Using a clip
+
+1. Power the clip. On the Clip tab, tap **Find my clip** and allow Bluetooth. Clips in range are
+   listed with their signal strength; tap yours to connect. The app remembers it and reconnects by
+   itself from then on. **Find clip** makes a connected clip blink.
+2. The clip's button then drives the call:
+
+| On the clip | In the app |
+|---|---|
+| Click | Drops a mark |
+| Double click | Pauses the recording, or resumes it |
+| Click and hold | Completes the open call. With no call open, starts one and begins recording |
+
+**Audio from** on the Clip tab chooses the microphone. It is set to this device's microphone for now,
+because the stand-in board has none and plays a stored voice. Switch it to **Clip** once a clip with a
+microphone is in use. The Live Call header always names the microphone in use.
+
+The app only shows a clip as connected once the clip has confirmed every step, and names the step if
+one fails. If the link drops during a recording made from the clip's audio, the recording is held open
+for 30 seconds while the clip reconnects, then ends as "cut short". Bluetooth needs a real iPhone or
+iPad; the simulator has none.
 
 ## What you need
 
@@ -68,13 +93,17 @@ To keep your team and bundle identifier between regenerations, set `DEVELOPMENT_
 ## Using it
 
 1. **New call**, then **Start recording**. Speak; each pause starts a new line with its clock time.
-2. **Mark** drops a numbered mark at that moment. The red button stops the recording.
-3. Record again for another segment, or tap **Analyze** to draft the handoff and PCR.
-4. Fix any line. Yellow lines are ones the AI did not hear.
-5. **Sign off** by drawing a signature or typing your name. The call moves to Past calls on Home.
+2. **Mark** drops a numbered mark at that moment. The red button pauses; **Resume recording** carries
+   on in the same recording. A recording keeps going when the app is not on screen.
+3. **Complete**, and confirm, closes the recording for good. The call moves to the AI Drafts tab under
+   **Needs sign-off**, where its handoff and PCR are drafted, and a new call can start straight away.
+4. Open a waiting call to fix any line. Yellow lines are ones the AI did not hear.
+5. **Sign off** by drawing a signature or typing your name. The call moves to **Signed**.
 
-A call that is not signed stays open, even if the app is closed. To throw one away, use
-**Discard call** on Home. Past calls open with a tap and delete with a swipe.
+The AI Drafts tab shows how many calls are waiting for sign-off, and lists every signed call below
+them. Home lists three calls: those waiting for sign-off first, then the most recent signed ones. Signed calls open with a tap and delete with a swipe; **Edit**
+on one sends it back to be signed again. To throw away the call being recorded, use **Discard call**
+on Home.
 
 ## Messages you may see
 
@@ -83,7 +112,7 @@ A call that is not signed stays open, even if the app is closed. To throw one aw
 | "No Whisper model is installed" | Run `scripts/fetch_deps.sh`, or copy `ggml-small.en.bin` into the app's Documents folder |
 | "N item(s) need you to confirm them" | The two recognisers disagreed, or a value was suggested by the language model. Check the yellow lines |
 | "Left out of the narrative because the record does not support them" | The language model wrote a number or drug that was not heard. It was removed |
-| "This device cannot decode the clip's audio" | The system Opus decoder failed. See `Pipeline/OpusDecoder.swift` |
+| "Transcription stopped" | The microphone was taken by a phone call or Siri and could not be taken back. Record again |
 
 ## Changing the project
 
@@ -114,9 +143,8 @@ xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS
 | `Earshot/EarshotApp.swift` | App state, saving to disk, the header and tabs, Home, Clip |
 | `Earshot/CallScreens.swift` | Live Call, AI Drafts, and the past-call screen |
 | `Earshot/Recorder.swift` | The live recogniser (Apple, optional) and the microphone input |
-| `Earshot/Pipeline/CallEngine.swift` | One call through the pipeline: clip or mic in, record and draft out |
-| `Earshot/Pipeline/ClipLink.swift` | The interface the clip connection (Bluetooth) plugs into |
-| `Earshot/Pipeline/OpusDecoder.swift` | The clip's Opus audio to samples |
+| `Earshot/ClipLink.swift` | The Bluetooth link to the clip: find, connect, receive (Opus decoded here), send |
+| `Earshot/Pipeline/CallEngine.swift` | Transcription: clip or mic audio in, the record and the drafts out. One pipeline session per call |
 | `Earshot/Pipeline/NoteWriter.swift`, `AppleNoteWriter.swift` | Optional narrative writer, any model |
 | `../core/` | The pipeline (Swift package EarshotCore), shared with the eval tool and its tests |
 | `Earshot/Signature.swift` | The sign-off sheet and signature drawing |
@@ -125,15 +153,14 @@ xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS
 
 ## Not built yet
 
-- **The clip's Bluetooth connection.** Being written separately. It only needs to implement
-  `ClipLink` (pass packets through untouched) and be set on `Model.link`; `CallEngine` does the
-  rest. Until then the Clip tab is a stand-in and recordings use the microphone.
-- **The clip's button under firmware 0.11.** `firmware/APP_AGENT_PROMPT.md` specifies how the app
-  must answer it: `toggle` "recording" (double click) is answered with start/stop, `toggle` "call"
-  (hold) ends or opens a call, and clip marks are timed by a clock offset. The pipeline parses
-  these (`ClipMessage.toggle`), but `CallEngine` and `Model` do not act on toggles yet, and the
-  on-screen Mark button still sends `{"cmd":"marker"}`, which the spec says not to do.
-- **Not yet built or run on a device.** The app code for the pipeline was written without Xcode.
+- **The clip.** It reports no battery level, and the link has no pairing or encryption. Audio spoken
+  while the link is down is lost: the clip does not store it.
+- **Older systems.** The app also builds for iOS 18 (set `IPHONEOS_DEPLOYMENT_TARGET=18.0`), where
+  everything works except the written narrative, which needs Apple Intelligence on iOS 26.
+- **Background transcription.** Recording carries on in the background; whether Whisper and the
+  live recogniser keep up there has not been confirmed.
+- **Not yet built with the pipeline.** The pipeline's app code was written without Xcode and merged
+  into the Bluetooth app without a device build. Regenerate the project (`xcodegen`) and build it.
   The pipeline itself is tested (`cd core && swift test`), including against the firmware simulator.
 - **Sign-in and audit trail.** Anyone holding the device can open the app and read past calls.
 - **Audio.** Only the transcript is kept. No audio file is saved.

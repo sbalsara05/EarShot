@@ -139,11 +139,30 @@ final class MicInput {
     var onBuffer: (AVAudioPCMBuffer) -> Void = { _ in }
     var onFrame: ([Int16]) -> Void = { _ in }
     var onLevel: (Int) -> Void = { _ in }
+    var onResumed: () -> Void = {}              // the mic came back after an interruption; the next words start a new line
+    var onProblem: (String) -> Void = { _ in }  // listening cannot continue
 
     private let engine = AVAudioEngine()
     private var converter: AVAudioConverter?
     private var carry: [Int16] = []
+    private var running = false
     private let target = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true)!
+
+    init() {
+        // A phone call or Siri takes the microphone away for a while. When it is given back, carry on.
+        NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, self.running,
+                  let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  AVAudioSession.InterruptionType(rawValue: raw) == .ended else { return }
+            do {
+                try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+                try self.engine.start()
+                self.onResumed()
+            } catch {
+                self.onProblem("The microphone could not be taken back after an interruption. \(error.localizedDescription)")
+            }
+        }
+    }
 
     static func authorize() async -> String? {
         guard await AVAudioApplication.requestRecordPermission() else { return "The microphone is off for Earshot. Turn it on in Settings." }
@@ -173,9 +192,11 @@ final class MicInput {
         }
         engine.prepare()
         try engine.start()
+        running = true
     }
 
     func stop() {
+        running = false
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         carry.removeAll()

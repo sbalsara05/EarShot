@@ -7,8 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		12BED601B5A2FBAA83CEE7C9 /* ClipLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1C4DF6D9C6C2838DCE2131 /* ClipLink.swift */; };
 		2B776581A3212DEB28068FB6 /* Signature.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18D9A4B70409523880ADDFC /* Signature.swift */; };
 		2E556F79F578B919FF9E53D5 /* Geist.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7A685C4A23F84CC7A60156D5 /* Geist.ttf */; };
+		30CEFA5FD86855E6A4D334D0 /* Opus in Frameworks */ = {isa = PBXBuildFile; productRef = DBB1AB318544ADCB7B997967 /* Opus */; };
 		3A435505B7D0B4A4AA3BFCA4 /* CallScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06F5CBCC5993083EA36925D /* CallScreens.swift */; };
 		5EA0B41AFDD9F5C0689BA5CC /* Recorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082FE432C47C08908302588B /* Recorder.swift */; };
 		878D9EE1C03D34879ABDA544 /* Doto.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3B54A6FD7A9CDD5B33581F98 /* Doto.ttf */; };
@@ -23,10 +25,22 @@
 		65190926CE10F1D5F4E2A146 /* EarshotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarshotApp.swift; sourceTree = "<group>"; };
 		7A685C4A23F84CC7A60156D5 /* Geist.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Geist.ttf; sourceTree = "<group>"; };
 		A18D9A4B70409523880ADDFC /* Signature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Signature.swift; sourceTree = "<group>"; };
+		CA1C4DF6D9C6C2838DCE2131 /* ClipLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipLink.swift; sourceTree = "<group>"; };
 		D417CBEB2EF403CE505CD8E9 /* Earshot.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Earshot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EEAF53ABFAEC8D34367ACFED /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		F06F5CBCC5993083EA36925D /* CallScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallScreens.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		ABD18C9466C9307CA598348F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				30CEFA5FD86855E6A4D334D0 /* Opus in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		373449AA16D97653E16A2BF2 /* Products */ = {
@@ -41,6 +55,7 @@
 			isa = PBXGroup;
 			children = (
 				F06F5CBCC5993083EA36925D /* CallScreens.swift */,
+				CA1C4DF6D9C6C2838DCE2131 /* ClipLink.swift */,
 				EEAF53ABFAEC8D34367ACFED /* Components.swift */,
 				65190926CE10F1D5F4E2A146 /* EarshotApp.swift */,
 				49877C5566DBC8D8D8440C52 /* Info.plist */,
@@ -77,6 +92,7 @@
 			buildPhases = (
 				5D13E956E409F7051DBFD895 /* Sources */,
 				7CFCE4E4E5D99BE35181A59E /* Resources */,
+				ABD18C9466C9307CA598348F /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -84,6 +100,7 @@
 			);
 			name = Earshot;
 			packageProductDependencies = (
+				DBB1AB318544ADCB7B997967 /* Opus */,
 			);
 			productName = Earshot;
 			productReference = D417CBEB2EF403CE505CD8E9 /* Earshot.app */;
@@ -113,6 +130,9 @@
 			);
 			mainGroup = 993B8D204E4E7B3167DF2E35;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8AAD084B90EC5FFC0067D78E /* XCRemoteSwiftPackageReference "swift-opus" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 373449AA16D97653E16A2BF2 /* Products */;
 			projectDirPath = "";
@@ -141,6 +161,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3A435505B7D0B4A4AA3BFCA4 /* CallScreens.swift in Sources */,
+				12BED601B5A2FBAA83CEE7C9 /* ClipLink.swift in Sources */,
 				8A68780E5B2AB6DD36343945 /* Components.swift in Sources */,
 				F99AAED5F7FFCD762B42F0A1 /* EarshotApp.swift in Sources */,
 				5EA0B41AFDD9F5C0689BA5CC /* Recorder.swift in Sources */,
@@ -334,6 +355,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		8AAD084B90EC5FFC0067D78E /* XCRemoteSwiftPackageReference "swift-opus" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/alta/swift-opus";
+			requirement = {
+				kind = exactVersion;
+				version = 0.0.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		DBB1AB318544ADCB7B997967 /* Opus */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8AAD084B90EC5FFC0067D78E /* XCRemoteSwiftPackageReference "swift-opus" */;
+			productName = Opus;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9FB774AEE0DC1581E53209CF /* Project object */;
 }

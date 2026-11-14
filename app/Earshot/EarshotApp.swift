@@ -2,7 +2,6 @@ import SwiftUI
 
 enum Tab: String, CaseIterable { case home = "Home", live = "Live Call", drafts = "AI Drafts", clip = "Clip" }
 enum Live { case none, ready, listening, between, cutShort }
-enum Drafts { case none, analyzing, ready, signed }
 
 /// One row of the transcript: something said, or a mark the medic dropped.
 struct Item: Identifiable, Codable {
@@ -15,11 +14,13 @@ struct Item: Identifiable, Codable {
     var record: Bool? = nil
 }
 
+/// One stretch of a call's audio as text. Pausing and resuming carries on in the same recording.
 struct Recording: Codable {
     var start = Date()
-    var end: Date? = nil
+    var end: Date? = nil            // set while paused or finished, nil while audio is being taken
     var items: [Item] = []
-    var seconds: Int { Int((end ?? Date()).timeIntervalSince(start)) }
+    var paused: TimeInterval? = nil   // time spent paused so far, left out of the length
+    var seconds: Int { Int((end ?? Date()).timeIntervalSince(start) - (paused ?? 0)) }
     var marks: Int { items.filter { $0.mark != nil }.count }
 }
 
@@ -29,7 +30,7 @@ struct Call: Identifiable, Codable {
     var start = Date()
     var recordings: [Recording] = []
     var draft = Draft.blank
-    var drafted = false               // Analyze has run, so the paperwork exists
+    var drafted = false               // the call was completed, so the paperwork exists
     var draftNote: String?            // why nothing was drafted, when that happens
     var markNotes: [Int: String] = [:]
     var signedAt: Date?
@@ -69,50 +70,71 @@ struct Call: Identifiable, Codable {
 
 @Observable final class Model {
     var tab = Tab.home
-    var clip = false   // a clip is connected (CallEngine.link); without one, recordings come from the microphone
+    var clip = false                       // a clip is connected and ready
+    /// FEATURE GATE. While true, a connected clip only controls the recording (start, stop, marks) and the audio
+    /// comes from this device's own microphone. It is on because the stand-in board has no microphone and plays
+    /// a stored voice. Turn it off, on the Clip tab, once a clip with a real microphone is in use.
+    var micStandIn = UserDefaults.standard.object(forKey: "micStandIn") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(micStandIn, forKey: "micStandIn") }
+    }
+    var clipName: String?                  // the last clip that said hello, like "Earshot-A3F2"
+    var clipState = ClipLink.State.idle
+    var clipsNearby: [ClipLink.Found] = []   // clips heard while searching, for the medic to pick from
+    var clipSignal: ClipLink.Signal?       // how strongly the connected clip is heard, refreshed every two seconds
+    var clipReconnecting = false           // the link dropped mid-recording; the recording is held open while the clip comes back
+    var clipSilent = false                 // recording from the clip, but no audio has arrived for a few seconds
     var live = Live.none
-    var drafts = Drafts.none
 
     var call = Call()                              // the call being worked on
+    var review: [Call] = []                        // completed calls waiting for sign-off, newest first; their reports are drafted or being drafted
     var past: [Call] = []                          // signed calls, newest first
     var liveLine: UUID?                            // the line still being spoken
     var levels = [Int](repeating: 0, count: 30)    // recent loudness, oldest first
     var problem: String?
 
     @ObservationIgnored private let engine = CallEngine()
-    @ObservationIgnored private var retired = Set<UUID>()   // live lines already replaced by the record
-
-    /// The clip connection. Set this once the Bluetooth module exists; until then the microphone is used.
-    var link: ClipLink? {
-        get { engine.link }
-        set { engine.link = newValue; clip = newValue?.isConnected ?? false }
-    }
+    @ObservationIgnored private var retired = Set<UUID>()             // live lines already replaced by the record
+    @ObservationIgnored private let link = ClipLink()
+    @ObservationIgnored private var source = CallEngine.Source.mic   // where the current recording's audio comes from
+    @ObservationIgnored private var viaClip = false                   // the current recording runs on the clip too, so stop and marks go to it
+    @ObservationIgnored private var lastClipAudio = Date()
+    @ObservationIgnored private var silenceTimer: Timer?
+    @ObservationIgnored private var droppedAt = Date()                // when the link was lost, while clipReconnecting
+    @ObservationIgnored private var dropTimer: Timer?
+    @ObservationIgnored private var stopOwed = false                  // a stop could not reach the clip; send it when the clip is back
+    @ObservationIgnored private var startAsked: Date?                 // when the clip was last told to start, until it answers
 
     init() {
+        link.onState = { [weak self] state in self?.clipChanged(to: state) }
+        link.onFound = { [weak self] clips in self?.clipsNearby = clips }
+        link.onEvent = { [weak self] event in self?.clipSaid(event) }
+        link.onProblem = { [weak self] message in self?.problem = message }
+        link.onSignal = { [weak self] signal in self?.clipSignal = signal }
+        link.onAudio = { [weak self] buffer in
+            self?.lastClipAudio = Date()
+            self?.engine.push(buffer)
+        }
         engine.onLevel = { [weak self] level in
             self?.levels.removeFirst()
             self?.levels.append(level)
         }
         engine.onLiveText = { [weak self] id, text in self?.heard(id, text) }
+        engine.onRecord = { [weak self] id, lines in self?.recorded(id, lines) }
         engine.onCut = { [weak self] in
             self?.liveLine = nil
             self?.save()   // each finished line is on disk before the next one starts
         }
-        engine.onRecord = { [weak self] lines in self?.recorded(lines) }
-        engine.onCapture = { [weak self] on in self?.captureChanged(on) }
-        engine.onMarker = { [weak self] in self?.marked() }
-        engine.onClipConnected = { [weak self] up in
-            self?.clip = up
-            if !up, self?.live == .listening { self?.live = .cutShort }
+        engine.onProblem = { [weak self] message in
+            self?.problem = "Transcription stopped. \(message)"
+            self?.stop()
         }
-        engine.onProblem = { [weak self] message in self?.problem = message }
         load()
-        engine.beginCall(at: call.start)
+        link.resume()
     }
 
     private func heard(_ id: UUID, _ text: String) {
         guard !retired.contains(id) else { return }
-        liveLine = id
+        if id == engine.segment { liveLine = id }
         for r in call.recordings.indices {
             if let i = call.recordings[r].items.firstIndex(where: { $0.id == id }) {
                 call.recordings[r].items[i].text = text
@@ -122,8 +144,21 @@ struct Call: Identifiable, Codable {
         if !call.recordings.isEmpty { call.recordings[call.recordings.count - 1].items.append(Item(id: id, text: text)) }
     }
 
-    /// Whisper caught up: its lines replace the live words they cover. Marks stay where they are.
-    private func recorded(_ lines: [RecordLine]) {
+    /// Whisper caught up on a call (the open one, or one waiting for sign-off): its lines replace the
+    /// live words they cover. Marks stay where they are.
+    private func recorded(_ id: Call.ID, _ lines: [RecordLine]) {
+        if call.id == id {
+            Self.place(lines, in: &call, retiring: &retired)
+        } else if let i = review.firstIndex(where: { $0.id == id }) {
+            Self.place(lines, in: &review[i], retiring: &retired)
+        } else {
+            return
+        }
+        if let l = liveLine, retired.contains(l) { liveLine = nil }
+        save()
+    }
+
+    private static func place(_ lines: [RecordLine], in call: inout Call, retiring retired: inout Set<UUID>) {
         guard let lastEnd = lines.last?.end else { return }
         for r in call.recordings.indices {
             let rec = call.recordings[r]
@@ -138,153 +173,346 @@ struct Call: Identifiable, Codable {
             items += mine.map { Item(time: $0.start, text: $0.text, record: true) }
             call.recordings[r].items = items.sorted { $0.time < $1.time }
         }
-        if let l = liveLine, retired.contains(l) { liveLine = nil }
-        save()
-    }
-
-    /// The clip's button (or the app) started or ended a capture.
-    private func captureChanged(_ on: Bool) {
-        if on {
-            guard live != .listening else { return }
-            if live == .none { newCall() }
-            call.recordings.append(Recording())
-            live = .listening
-        } else {
-            guard live == .listening, !call.recordings.isEmpty else { return }
-            call.recordings[call.recordings.count - 1].end = Date()
-            live = .between
-        }
-        save()
-    }
-
-    private func marked() {
-        guard live == .listening, !call.recordings.isEmpty else { return }
-        call.recordings[call.recordings.count - 1].items.append(Item(mark: call.markCount + 1))
     }
 
     // MARK: The call
 
     func newCall() {
         call = Call()
-        engine.beginCall(at: call.start)
+        engine.beginCall(call.id, at: call.start)
         problem = nil
         live = .ready
-        drafts = .none
         tab = .live
         save()
     }
 
     func record() {
         Task { @MainActor in
-            guard live != .listening else { return }
-            problem = nil
-            engine.ensureCall(at: call.start)
-            do {
-                try await engine.startCapture()   // the clip answers with consent; the mic starts at once
-            } catch {
-                problem = error.localizedDescription
+            problem = await CallEngine.authorize(microphone: audioSource == .mic)
+            guard problem == nil, live != .listening else { return }
+            if clip {
+                // Nothing is shown as recording until the clip confirms, in clipSaid. If it never does, say so.
+                guard link.send("start") else {
+                    problem = "The clip is not connected, so the recording did not start."
+                    return
+                }
+                let asked = Date()
+                startAsked = asked
+                try? await Task.sleep(for: .seconds(3))
+                if startAsked == asked && live != .listening {
+                    startAsked = nil
+                    problem = "The clip did not start recording. Check that it is on and close by, then try again."
+                }
+            } else {
+                begin(from: .mic, viaClip: false)
             }
+        }
+    }
+
+    /// Pause and play: pauses the recording if it is running, otherwise carries it on (or begins it).
+    /// With no call open it does nothing.
+    func toggleRecording() {
+        switch live {
+        case .listening: stop()
+        case .ready, .between, .cutShort: record()
+        case .none: break
+        }
+    }
+
+    /// Where the next recording's audio will come from: the clip, unless there is none or the gate holds it to the microphone.
+    var audioSource: CallEngine.Source { clip && !micStandIn ? .clip : .mic }
+
+    /// The audio source in words, for the screen: the running recording's, or the next one's.
+    var audioLabel: String { (live == .listening ? source : audioSource) == .clip ? "Clip audio" : "\(deviceName) mic" }
+
+    private func begin(from source: CallEngine.Source, viaClip: Bool) {
+        guard live != .listening, live != .none else { return }
+        do {
+            engine.beginCall(call.id, at: call.start)   // a call reopened after the app closed gets a fresh record
+            try engine.start(from: source)
+            self.source = source
+            self.viaClip = viaClip
+            if let last = call.recordings.indices.last, let pausedAt = call.recordings[last].end {
+                // Play after pause: carry on in the same recording, so the call reads as one transcript.
+                call.recordings[last].paused = (call.recordings[last].paused ?? 0) + Date().timeIntervalSince(pausedAt)
+                call.recordings[last].end = nil
+            } else {
+                call.recordings.append(Recording())
+            }
+            live = .listening
+            startAsked = nil
+            if source == .clip { watchForSilence() }
+        } catch {
+            problem = error.localizedDescription
+            if viaClip { link.send("stop") }
         }
     }
 
     func stop(as next: Live = .between) {
         guard live == .listening else { return }
-        engine.stopCapture()
-        call.recordings[call.recordings.count - 1].end = Date()
+        if viaClip && !link.send("stop") { stopOwed = true }   // the clip is away and may still be capturing
+        finish(as: next)
+    }
+
+    private func finish(as next: Live) {
+        guard live == .listening else { return }
+        engine.stop()
+        // A recording that ends while the clip is away ended when the clip was last heard, not now.
+        call.recordings[call.recordings.count - 1].end = clipReconnecting ? droppedAt : Date()
+        clipReconnecting = false
+        dropTimer?.invalidate()
         live = next
+        silenceTimer?.invalidate()
+        clipSilent = false
         save()
     }
 
+    /// While recording from the clip, checks that audio keeps arriving. A link can stay up with nothing coming through it.
+    private func watchForSilence() {
+        lastClipAudio = Date()
+        clipSilent = false
+        silenceTimer?.invalidate()
+        silenceTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let silent = Date().timeIntervalSince(self.lastClipAudio) > 2.5
+            if silent != self.clipSilent { self.clipSilent = silent }
+        }
+    }
+
     func mark() {
-        engine.mark()   // the mark row appears when the clip (or the mic stand-in) confirms it
+        guard live == .listening else { return }
+        if viaClip { link.send("marker") }   // so the clip logs it too; its echo never becomes an intent
+        addMark(fromClip: false)
     }
 
+    private func addMark(fromClip: Bool) {
+        engine.mark(fromClip: fromClip)
+        call.recordings[call.recordings.count - 1].items.append(Item(mark: call.markCount + 1))
+    }
+
+    // MARK: The clip
+
+    /// What the clip is called on screen: its own name once it has said hello.
+    var clipTitle: String { clipName ?? "Earshot clip" }
+
+    /// One short line on where the link stands.
+    var clipStatus: String {
+        switch clipState {
+        case .ready: "Connected"
+        case .connecting: "Connecting"
+        case .trouble: "Clip not working"
+        case .searching: "Searching"
+        case .idle: "Not connected"
+        case .off: "Bluetooth unavailable"
+        }
+    }
+
+    /// Starts looking for clips. The ones in range show up in `clipsNearby`.
     func connect() {
-        clip = true
-        if live == .cutShort { live = .between }
+        link.connect()
     }
 
+    /// Connects to the clip the medic picked from `clipsNearby`.
+    func connect(to clip: ClipLink.Found) {
+        link.connect(to: clip.id)
+    }
+
+    /// Makes the clip blink (and beep, if it has a speaker) for about three seconds.
+    func findClip() {
+        link.send("find")
+    }
+
+    /// Lets go of the clip and stops looking for it. A recording in progress ends there.
     func disconnect() {
-        clip = false
         stop(as: .cutShort)
+        link.forget()
+    }
+
+    private func clipChanged(to state: ClipLink.State) {
+        clipState = state
+        if case .ready(let name) = state {
+            clip = true
+            clipName = name
+            if live == .cutShort { live = .between }
+        } else {
+            clip = false
+            if live == .listening && source == .clip && !clipReconnecting { holdForReconnect() }   // the link dropped mid-recording
+        }
+    }
+
+    /// How long a recording waits for a dropped clip before it is ended as cut short.
+    private static let grace: TimeInterval = 30
+
+    /// The link dropped mid-recording. Most drops last a second or two, so the recording stays open and the
+    /// header says the clip is reconnecting. If the clip is not back within the grace period, it ends as cut short.
+    private func holdForReconnect() {
+        engine.stop()   // the line being spoken closes; the next words start a new one
+        silenceTimer?.invalidate()
+        clipSilent = false
+        droppedAt = Date()
+        clipReconnecting = true
+        dropTimer?.invalidate()
+        dropTimer = Timer.scheduledTimer(withTimeInterval: Self.grace, repeats: false) { [weak self] _ in
+            guard let self, self.clipReconnecting else { return }
+            self.finish(as: .cutShort)
+        }
+    }
+
+    /// The clip is back and still capturing: carry on in the same recording.
+    private func resumeAfterDrop() {
+        do {
+            try engine.start(from: .clip)
+            clipReconnecting = false
+            dropTimer?.invalidate()
+            watchForSilence()
+        } catch {
+            problem = error.localizedDescription
+            finish(as: .cutShort)
+        }
+    }
+
+    private func clipSaid(_ event: ClipEvent) {
+        guard let intent = ClipIntent(event) else {
+            #if DEBUG
+            print("clip link: no action for a \"\(event.type)\" event")
+            #endif
+            return
+        }
+        switch intent {
+        case .hello(let codec):
+            if let codec, codec != "opus" { problem = "This clip sends \(codec) audio, which Earshot cannot read yet." }
+        case .started:
+            clipStarted()
+        case .listening(true):
+            // Said after every connect. The clip kept capturing through a drop: carry on, or pick it up afresh.
+            if stopOwed {
+                stopOwed = false
+                link.send("stop")   // the medic stopped this recording while the clip was away
+            } else if clipReconnecting {
+                resumeAfterDrop()
+            } else {
+                clipStarted()
+            }
+        case .listening(false):
+            stopOwed = false   // nothing left to stop
+            // The clip says it is not capturing, so the app must not go on showing a recording that runs on it.
+            if live == .listening && viaClip { finish(as: .between) }
+        case .stopped:
+            if viaClip { finish(as: .between) }
+        case .mark:
+            if live == .listening { addMark(fromClip: true) }
+        case .toggleRecording:
+            toggleRecording()
+        case .toggleCall:
+            toggleCall()
+        }
+    }
+
+    /// The clip began capturing, from its button or because the app asked.
+    private func clipStarted() {
+        guard live != .listening else { return }
+        guard live != .none else {
+            link.send("stop")   // no call is open to record on, so nothing is recorded and the clip's light goes dark again
+            return
+        }
+        Task { @MainActor in
+            let source = audioSource
+            problem = await CallEngine.authorize(microphone: source == .mic)
+            if problem == nil { begin(from: source, viaClip: true) } else { link.send("stop") }
+        }
     }
 
     // MARK: The paperwork
 
-    func analyze() {
+    /// The clip's click and hold. With a call open it completes it. With none open it begins one and starts recording.
+    func toggleCall() {
+        if live == .none {
+            newCall()
+            record()
+        } else {
+            complete(show: false)   // the medic's hands are on the patient, so the screen stays where it is
+        }
+    }
+
+    /// Completes the open call: its recording is closed for good and it joins the calls waiting for sign-off, where
+    /// its nurse handoff and PCR are drafted. The Live Call tab is free for a new call straight away.
+    func complete(show: Bool = true) {
         stop()
-        drafts = .analyzing
-        tab = .drafts
-        call.draftNote = nil
-        call.markNotes = [:]
+        guard live != .none else { return }
+        guard !call.recordings.isEmpty else {   // nothing was recorded, so there is nothing to report on
+            discard()
+            return
+        }
+        var done = call
+        done.draft = .blank
+        done.draftNote = nil
+        done.markNotes = [:]
+        done.drafted = false
+        review.insert(done, at: 0)
+        call = Call()
+        live = .none
+        problem = nil   // any recording trouble belonged to the call that just ended
+        if show { tab = .drafts }
+        save()
+        draft(done.id)
+    }
+
+    /// Writes the reports for a call waiting for sign-off. Until it finishes, the call shows as "Writing reports".
+    private func draft(_ id: Call.ID) {
+        guard review.contains(where: { $0.id == id }) else { return }
         Task { @MainActor in
-            let out = await engine.finish()
-            call.draft = out.draft
-            call.docs = out.docs
-            call.reviewNotes = out.notes
-            call.draftNote = out.notes.isEmpty ? nil : out.notes.joined(separator: " ")
-            guard drafts == .analyzing else { return }
-            call.drafted = true
-            drafts = .ready
+            let out = await engine.finish(id)   // waits for Whisper to finish the call, then drafts from the record
+            guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // signed or removed meanwhile
+            review[i].draft = out.draft
+            review[i].docs = out.docs
+            review[i].reviewNotes = out.notes
+            review[i].draftNote = out.notes.isEmpty ? nil : out.notes.joined(separator: " ")
+            review[i].drafted = true
             save()
         }
     }
 
-    /// Signing off ends the call: it moves to the past calls and a new one can start.
-    func signOff(_ signature: Signature) {
-        engine.endCall()   // audio and the working record are wiped; the signed paperwork is kept
-        call.signature = signature
-        call.signedAt = Date()
-        past.insert(call, at: 0)
-        problem = nil   // any recording trouble belonged to the call that just ended
-        live = .none
-        drafts = .signed
+    /// Signing off moves a call from the ones waiting to the signed ones.
+    func signOff(_ id: Call.ID, _ signature: Signature) {
+        guard let i = review.firstIndex(where: { $0.id == id }) else { return }
+        var signed = review.remove(at: i)
+        signed.signature = signature
+        signed.signedAt = Date()
+        past.insert(signed, at: 0)
         save()
     }
 
-    /// Edit, after signing: the call comes back out of the past calls until it is signed again.
-    func reopen() {
-        past.removeAll { $0.id == call.id }
-        call.signedAt = nil
-        call.signature = nil   // an edited call has to be signed again
-        live = call.recordings.isEmpty ? .ready : .between
-        drafts = .ready
+    /// Edit, after signing: the call goes back to waiting until it is signed again.
+    func reopen(_ id: Call.ID) {
+        guard let i = past.firstIndex(where: { $0.id == id }) else { return }
+        var edited = past.remove(at: i)
+        edited.signedAt = nil
+        edited.signature = nil   // an edited call has to be signed again
+        review.insert(edited, at: 0)
         save()
     }
 
-    /// Throws away a call that has not been signed, with its recordings and drafts.
+    /// Throws away the call being recorded, with its recording.
     func discard() {
         stop()
-        engine.endCall()
+        engine.discard(call.id)
         call = Call()
         problem = nil
         live = .none
-        drafts = .none
         save()
     }
 
-    func closeCall() {
-        call = Call()
-        live = .none
-        drafts = .none
-        tab = .home
-    }
-
     func delete(at offsets: IndexSet) {
-        let showing = offsets.contains { past[$0].id == call.id }
         past.remove(atOffsets: offsets)
-        if showing && drafts == .signed {   // the deleted call was still open on the drafts tab
-            call = Call()
-            drafts = .none
-        }
         save()
     }
 
     // MARK: On disk
 
     private struct Saved: Codable {
-        var open: Call?     // a call that is not signed yet
+        var open: Call?       // the call being recorded
         var past: [Call]
+        var review: [Call]?   // completed, not signed. Optional so files written before it existed still load
     }
 
     private static let file = URL.applicationSupportDirectory.appending(path: "calls.json")
@@ -292,11 +520,12 @@ struct Call: Identifiable, Codable {
     /// Writes the open call and the past calls. Called whenever either changes, and when the app leaves the screen.
     /// ponytail: one file rewritten whole. Move to a file per call, or SwiftData, when the history grows past a few hundred calls.
     func save() {
-        let unsigned = live != .none || drafts == .ready || drafts == .analyzing
         do {
             try FileManager.default.createDirectory(at: Self.file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            // Calls hold patient information: encrypted while the device is locked, and kept out of iCloud backups.
-            try JSONEncoder().encode(Saved(open: unsigned ? call : nil, past: past)).write(to: Self.file, options: [.atomic, .completeFileProtection])
+            // Calls hold patient information: encrypted on disk and kept out of iCloud backups. The file has to stay
+            // writable while the device is locked, since a recording carries on then, so it is protected until the
+            // device is first unlocked after a restart, not every time it locks.
+            try JSONEncoder().encode(Saved(open: live != .none ? call : nil, past: past, review: review)).write(to: Self.file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
             var file = Self.file, values = URLResourceValues()
             values.isExcludedFromBackup = true
             try file.setResourceValues(values)
@@ -310,14 +539,21 @@ struct Call: Identifiable, Codable {
         do {
             let saved = try JSONDecoder().decode(Saved.self, from: data)
             past = saved.past
-            guard var open = saved.open else { return }
-            // A recording that was still running when the app closed ends at its last line.
-            for i in open.recordings.indices where open.recordings[i].end == nil {
-                open.recordings[i].end = open.recordings[i].items.last?.time ?? open.recordings[i].start
+            review = saved.review ?? []
+            if var open = saved.open {
+                // A recording that was still running when the app closed ends at its last line.
+                for i in open.recordings.indices where open.recordings[i].end == nil {
+                    open.recordings[i].end = open.recordings[i].items.last?.time ?? open.recordings[i].start
+                }
+                if open.drafted {
+                    review.insert(open, at: 0)   // saved by an older build, which kept a completed call open until it was signed
+                } else {
+                    call = open
+                    live = open.recordings.isEmpty ? .ready : .between
+                }
             }
-            call = open
-            live = open.recordings.isEmpty ? .ready : .between
-            drafts = open.drafted ? .ready : .none
+            // Drafting that was cut off when the app closed is started again.
+            for waiting in review where !waiting.drafted { draft(waiting.id) }
         } catch {
             // Never overwrite a file that could not be read: set it aside so its calls can be recovered.
             let aside = Self.file.deletingLastPathComponent().appending(path: "calls-unreadable-\(Int(Date().timeIntervalSince1970)).json")
@@ -343,6 +579,17 @@ struct Call: Identifiable, Codable {
         let copy = try? JSONDecoder().decode(Call.self, from: JSONEncoder().encode(call))
         assert(copy?.id == call.id && copy?.transcript == call.transcript && copy?.markNotes[2] == "Moved to stretcher")
         if case .typed("A. Medic")? = copy?.signature {} else { assertionFailure("the signature was lost on disk") }
+        // The clip's messages must be readable exactly as firmware/BLUETOOTH.md gives them.
+        let hello = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"hello","device":"Earshot-A3F2","fw":"0.6.0","audio":{"codec":"opus","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}"#.utf8))
+        assert(hello?.device == "Earshot-A3F2" && hello?.audio?.codec == "opus")
+        let marker = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"marker","id":1,"source":"button","t_ms":47781,"audio_seq":327}"#.utf8))
+        assert(marker?.type == "marker" && marker?.source == "button")
+        assert(hello.flatMap(ClipIntent.init) == .hello(codec: "opus") && marker.flatMap(ClipIntent.init) == .mark)
+        let toggle = { (target: String) in
+            (try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"toggle","target":"\#(target)","source":"button","t_ms":204759}"#.utf8))).flatMap(ClipIntent.init)
+        }
+        assert(toggle("recording") == .toggleRecording && toggle("call") == .toggleCall)   // as firmware 0.11.0 sends them
+        assert(ClipLink.frameNumber(of: Data([0x47, 0x01, 0, 0, 9, 9, 9, 9])) == 327)   // 0x0147, least significant byte first
     }
     #endif
 }
@@ -389,8 +636,8 @@ struct EarshotApp: App {
             .preferredColorScheme(.dark)
             .environment(model)
             .onChange(of: scenePhase) { _, phase in
-                // The microphone stops when the app leaves the screen, so the recording ends there too.
-                if phase == .background { model.stop() }
+                // A recording carries on when the app leaves the screen or the device locks: the app is allowed to
+                // keep the microphone and the clip link in the background. Only its state is saved here.
                 if phase != .active { model.save() }
             }
         }
@@ -425,13 +672,18 @@ struct Header: View {
     @ViewBuilder private var status: some View {
         if model.tab != .live || model.live == .none {
             Color.clear.frame(height: 1)
+        } else if model.live == .listening && model.clipReconnecting {
+            Text("Reconnecting to the clip").font(geist(15, 600)).foregroundStyle(Color.yellow)
+        } else if model.live == .listening && model.clipSilent {
+            Text("No audio from the clip").font(geist(15, 600)).foregroundStyle(Color.yellow)
         } else if model.live == .listening {
             HStack(spacing: 10) {
                 BlinkDot(size: 10)
                 Text("Recording").font(geist(15, 600)).foregroundStyle(Color.red)
+                Text(model.audioLabel)   // which microphone this recording is using
             }
         } else {
-            Text("Call started \(clock(model.call.start))")
+            Text(model.live == .between ? "Paused, \(model.audioLabel)" : "Call started \(clock(model.call.start)), \(model.audioLabel)")
         }
     }
 }
@@ -448,6 +700,12 @@ struct Tabs: View {
                     HStack(spacing: fit(8, 6)) {
                         if tab == .clip { clipDot(selected: on) }
                         Text(tab.rawValue).lineLimit(1)
+                        if tab == .drafts && !model.review.isEmpty {
+                            // How many completed calls still need a person to check and sign them.
+                            Text("\(model.review.count)").font(geist(13, 700)).foregroundStyle(Color.bg)
+                                .frame(minWidth: 20, minHeight: 20).background(Color.yellow, in: Capsule())
+                                .accessibilityLabel("\(model.review.count) waiting for sign-off")
+                        }
                     }
                     .font(geist(15, 600))
                     .foregroundStyle(on ? Color.bg : .dim)
@@ -481,7 +739,8 @@ struct Tabs: View {
 
 struct HomeScreen: View {
     @Environment(Model.self) var model
-    @State var opened: Call?   // the past call being read
+    @State var opened: Call?      // the signed call being read
+    @State var reviewing: Call?   // the call waiting for sign-off that is open in its sheet
     @State private var discarding = false
 
     var body: some View {
@@ -505,7 +764,10 @@ struct HomeScreen: View {
                     Text(model.call.recordings.isEmpty ? "No recordings yet" : "\(plural(model.call.recordings.count, "recording")), \(plural(model.call.markCount, "mark"))").font(geist(22)).foregroundStyle(Color.dim)
                     let actions = phone ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 16))
                     actions {
-                        Button("Resume call") { model.tab = .live }.buttonStyle(Pill(height: fit(76, 68), size: 22, minWidth: fit(260, nil), grow: phone))
+                        Button(model.live == .listening ? "Live call →" : "Resume call") {
+                            model.tab = .live
+                            if model.live != .listening { model.record() }   // resuming means recording again, not only showing the call
+                        }.buttonStyle(Pill(height: fit(76, 68), size: 22, minWidth: fit(260, nil), grow: phone))
                         Button("Discard call") { discarding = true }.buttonStyle(Pill(fill: nil, height: fit(76, 56), size: fit(22, 17), grow: phone))
                             .confirmationDialog("Discard this call?", isPresented: $discarding, titleVisibility: .visible) {
                                 Button("Discard call", role: .destructive) { model.discard() }
@@ -516,14 +778,14 @@ struct HomeScreen: View {
                     }
                 }
                 if let problem = model.problem { Text(problem).font(geist(17, 500)).foregroundStyle(Color.red) }
-                if !model.past.isEmpty { pastCalls }
+                if hasCalls { recentCalls }
             }
-            .padding(.leading, fit(24, 4)).padding(.top, model.past.isEmpty ? 0 : fit(12, 0))
+            .padding(.leading, fit(24, 4)).padding(.top, hasCalls ? fit(12, 0) : 0)
             // With no past calls the headline sits centred, as designed. With some, it moves up and the list fills the rest.
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: model.past.isEmpty ? .leading : .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: hasCalls ? .topLeading : .leading)
 
             Button {
-                model.connect()
+                if model.clipState == .idle { model.connect() }
                 model.tab = .clip
             } label: {
                 // A tall card beside the headline on iPad, a short row under it on iPhone.
@@ -532,7 +794,7 @@ struct HomeScreen: View {
                     ClipModel(ghost: !model.clip, scale: fit(0.95, 0.42), sway: true).frame(width: fit(215, 96), height: fit(290, 124))
                     VStack(alignment: phone ? .leading : .center, spacing: fit(28, 12)) {
                         VStack(alignment: phone ? .leading : .center, spacing: fit(10, 6)) {
-                            Text("Earshot-A3F2").font(doto(fit(30, 24)))
+                            Text(model.clipTitle).font(doto(fit(30, 24)))
                             if model.clip {
                                 HStack(spacing: 8) {
                                     Circle().frame(width: 9, height: 9)
@@ -540,15 +802,10 @@ struct HomeScreen: View {
                                 }
                                 .font(geist(17, 500)).foregroundStyle(Color.green)
                             } else {
-                                Text("Nearby, not connected").font(geist(17, 500)).foregroundStyle(Color.dim)
+                                Text(model.clipStatus).font(geist(17, 500)).foregroundStyle(Color.dim)
                             }
                         }
-                        if model.clip {
-                            HStack(spacing: 12) {
-                                LevelDots(lit: 8, of: 10)
-                                Text("82%").font(geist(15)).foregroundStyle(Color.dim)
-                            }
-                        } else {
+                        if model.clipState == .idle {
                             Text("Connect").font(geist(fit(19, 16), 600)).padding(.horizontal, fit(32, 22)).frame(height: fit(52, 40))
                                 .overlay(Capsule().strokeBorder(Color.outline, lineWidth: 1.5))
                         }
@@ -562,43 +819,41 @@ struct HomeScreen: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(model.clip ? "Clip Earshot-A3F2, connected, battery 82 percent" : "Connect clip Earshot-A3F2")
+            .accessibilityLabel("Clip \(model.clipTitle), \(model.clipStatus)")
         }
         .sheet(item: $opened) { PastCallView(call: $0).presentationSizing(.page).presentationDragIndicator(.visible) }
+        .sheet(item: $reviewing) { ReviewSheet(id: $0.id).presentationSizing(.page).presentationDragIndicator(.visible) }
     }
 }
 
 extension HomeScreen {
-    /// The big word shrinks on iPhone once there are past calls to make room for.
-    var headline: CGFloat { fit(176, model.past.isEmpty ? 104 : 72) }
+    /// Whether there is any completed call to list.
+    var hasCalls: Bool { !model.review.isEmpty || !model.past.isEmpty }
 
-    /// Signed calls, newest first. Tap a row to read it, swipe it left to delete it.
-    var pastCalls: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Past calls").font(geist(15, 600)).foregroundStyle(Color.dim)
-            List {
-                ForEach(model.past) { call in
-                    Button { opened = call } label: {
-                      HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(call.draft.patient.isEmpty ? "Patient not recorded" : call.draft.patient)
-                                .font(geist(19, 500)).foregroundStyle(Color.ink).lineLimit(1)
-                            Text("\(day(call.start)), \(plural(call.recordings.count, "recording")), \(span(call.seconds))")
-                                .font(geist(15)).foregroundStyle(Color.dim).lineLimit(1)
-                        }
-                        Spacer()
-                        Text("Signed \(clock(call.signedAt ?? call.start))").font(geist(15, 500).monospacedDigit()).foregroundStyle(Color.green)
-                      }
-                      .padding(.vertical, 12)
-                      .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-                    .listRowSeparatorTint(Color.line)
-                    .accessibilityElement(children: .combine)
+    /// The big word shrinks on iPhone once there are calls to make room for.
+    var headline: CGFloat { fit(176, hasCalls ? 72 : 104) }
+
+    /// Three calls at most. The ones still waiting for sign-off come first, since they need the medic; any room
+    /// left goes to the most recent signed calls. The rest are on the AI Drafts tab.
+    var recentCalls: some View {
+        let waiting = Array(model.review.prefix(3))
+        let signed = Array(model.past.prefix(3 - waiting.count))
+        let total = model.review.count + model.past.count
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(waiting.isEmpty ? "Past calls" : "\(plural(model.review.count, "call")) to sign off")
+                    .font(geist(15, 600)).foregroundStyle(waiting.isEmpty ? Color.dim : .yellow)
+                Spacer()
+                if total > 3 {
+                    Button("All \(total) calls") { model.tab = .drafts }
+                        .font(geist(15, 600)).foregroundStyle(Color.ink).buttonStyle(.plain).frame(minHeight: 44)
                 }
-                .onDelete { model.delete(at: $0) }
+            }
+            List {
+                ForEach(waiting) { call in CallRow(call: call, waiting: true) { reviewing = call } }
+                // The signed calls shown are the first rows of `model.past`, so a swiped row's position is its position there too.
+                ForEach(signed) { call in CallRow(call: call, waiting: false) { opened = call } }
+                    .onDelete { model.delete(at: $0) }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -667,29 +922,37 @@ struct ClipScreen: View {
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Earshot-A3F2").font(doto(fit(46, 34)))
+            Text(model.clipTitle).font(doto(fit(46, 34)))
             HStack(spacing: 10) {
                 Circle().frame(width: 10, height: 10)
                 Text("Connected")
             }
             .font(geist(19, 500)).foregroundStyle(Color.green).padding(.top, 6).padding(.bottom, 18)
-            row("Battery") {
-                LevelDots(lit: 8, of: 10)
-                Text("82%")
-            }
+            // ponytail: the clip reports no battery or signal yet. Add those rows when the firmware sends them.
             row("Signal") {
-                LevelDots(lit: 4, of: 5)
-                Text("Strong")
+                if let signal = model.clipSignal {
+                    LevelDots(lit: signal.bars, of: 4)
+                    Text(["Weak", "Fair", "Good", "Strong"][signal.bars - 1])
+                    Text("\(signal.dBm) dBm").font(geist(15)).foregroundStyle(Color.dim)
+                } else {
+                    Text("Measuring").foregroundStyle(Color.dim)
+                }
             }
-            row("Mic check") {
-                Ticker(fps: 10) { t in Dots.meter(cols: 10, rows: 3, lit: .ink) { meterLevel($0, at: t, max: 3) } }
+            row("Link") { Text("Bluetooth") }
+            row("Audio from") {
+                Button(model.micStandIn ? "\(deviceName) mic" : "Clip") { model.micStandIn.toggle() }
+                    .buttonStyle(.plain).underline()
+                    .accessibilityHint("Switches between this \(deviceName)'s microphone and the clip's audio for the next recording")
             }
+            Text("Press the clip to start a recording once a call is open. Hold it to stop. Double tap to mark.")
+                .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 18)
             Spacer(minLength: 16)
             VStack(spacing: 14) {
-                Button(finding ? "Blinking and buzzing" : "Find clip") {
+                Button(finding ? "Blinking" : "Find clip") {
+                    model.findClip()
                     finding = true
                     Task {
-                        try? await Task.sleep(for: .seconds(3.2))
+                        try? await Task.sleep(for: .seconds(3.2))   // how long the clip blinks
                         finding = false
                     }
                 }
@@ -701,6 +964,27 @@ struct ClipScreen: View {
         .padding(.top, fit(36, 24)).padding(.horizontal, fit(32, 20)).padding(.bottom, fit(32, 20))
         .side()
         .panel()
+    }
+
+    /// The headline while no clip is usable. It names the real state, never a hoped-for one.
+    private var heading: String {
+        switch model.clipState {
+        case .searching: "Looking for clips"
+        case .connecting: "Connecting"
+        case .trouble: "Clip not working"
+        case .off: "Bluetooth unavailable"
+        case .idle, .ready: "No clip connected"
+        }
+    }
+
+    /// What to tell the medic while no clip is connected.
+    private var waiting: String {
+        switch model.clipState {
+        case .off(let why), .trouble(let why): why
+        case .searching: "Power the clip on and keep it close. Until it connects, calls record on the \(deviceName) mic."
+        case .connecting: "Waiting for \(model.clipTitle) to answer. It reconnects by itself when it is on and in range."
+        case .idle, .ready: "Calls record on the \(deviceName) mic until a clip connects."
+        }
     }
 
     private func row(_ name: String, @ViewBuilder value: () -> some View) -> some View {
@@ -728,7 +1012,7 @@ struct ClipScreen: View {
                     }
                 }
                 .clipped()
-            Text("Looking for clips nearby").font(geist(18, 500)).foregroundStyle(Color.dim)
+            Text(model.clipState == .searching ? "Looking for clips nearby" : model.clipStatus).font(geist(18, 500)).foregroundStyle(Color.dim)
         }
         .padding(.vertical, fit(0, 24))
         .frame(maxWidth: .infinity, maxHeight: phone ? nil : .infinity)
@@ -737,22 +1021,37 @@ struct ClipScreen: View {
 
     private var nearby: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("No clip connected").font(doto(fit(46, 34)))
-            Text("Calls record on the \(deviceName) mic until a clip connects.")
+            Text(heading).font(doto(fit(46, 34)))
+            Text(waiting)
                 .font(geist(19)).lineSpacing(5).foregroundStyle(Color.dim).padding(.top, 10).padding(.bottom, 22)
-            Text("Nearby").font(geist(15, 600)).foregroundStyle(Color.dim)
-            VStack(spacing: 0) {
-                Color.line.frame(height: 1)
-                HStack(spacing: 16) {
-                    Dots(clipArt, pitch: 3, r: 1.08, palette: ["w": .ink, "m": .mid, "g": .green])
-                    Text("Earshot-A3F2").font(doto(24))
-                    Spacer()
+            if model.clipState == .searching {
+                Text(model.clipsNearby.isEmpty ? "Nearby: none yet" : "Nearby: tap a clip to connect").font(geist(15, 600)).foregroundStyle(Color.dim)
+                ForEach(model.clipsNearby) { clip in
+                    Button { model.connect(to: clip) } label: {
+                        VStack(spacing: 0) {
+                            Color.line.frame(height: 1)
+                            HStack(spacing: 16) {
+                                Dots(clipArt, pitch: 3, r: 1.08, palette: ["w": .ink, "m": .mid, "g": .green])
+                                Text(clip.name).font(doto(24)).lineLimit(1)
+                                Spacer()
+                                LevelDots(lit: clip.bars, of: 4)
+                            }
+                            .frame(height: 86)
+                            .contentShape(Rectangle())
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Connect \(clip.name), signal \(clip.bars) of 4")
                 }
-                .frame(height: 86)
                 Color.line.frame(height: 1)
             }
             Spacer(minLength: 16)
-            Button("Connect Earshot-A3F2") { model.connect() }.buttonStyle(Pill(grow: true))
+            switch model.clipState {
+            case .idle: Button("Find my clip") { model.connect() }.buttonStyle(Pill(grow: true))
+            case .searching: Button("Stop looking") { model.disconnect() }.buttonStyle(Pill(fill: nil, grow: true))
+            case .connecting, .trouble: Button("Forget this clip") { model.disconnect() }.buttonStyle(Pill(fill: nil, grow: true))
+            case .ready, .off: EmptyView()
+            }
         }
         .padding(.top, fit(36, 24)).padding(.horizontal, fit(32, 20)).padding(.bottom, fit(32, 20))
         .side()

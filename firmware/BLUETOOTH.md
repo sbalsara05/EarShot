@@ -133,10 +133,9 @@ The clip does its half: it starts advertising again the instant a connection dro
 
 ## Using the audio
 
-The app side is ready for the packets: implement `ClipLink` (`app/Earshot/Pipeline/ClipLink.swift`)
-by passing each events packet as text and each audio packet as raw bytes, untouched, and set it on
-`Model.link`. `CallEngine` parses the messages, decodes the Opus, and feeds the same audio to Whisper
-and the live recogniser.
+`ClipLink` (`app/Earshot/ClipLink.swift`) decodes each Opus frame to 16 kHz mono PCM, fills lost
+frames with silence, and hands the audio to `CallEngine` (`app/Earshot/Pipeline/CallEngine.swift`),
+which feeds the same samples to Whisper and the live recogniser.
 
 For decoding, iOS has an Opus decoder in AudioToolbox (`kAudioFormatOpus`, through
 `AVAudioConverter`), and libopus is available as Swift packages. Neither has been tried here.

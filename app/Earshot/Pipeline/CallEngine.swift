@@ -32,46 +32,49 @@ struct CallOutput {
     var notes: [String]
 }
 
-/// Runs one call through the pipeline (core/, EarshotCore):
+/// Runs calls through the pipeline (core/, EarshotCore):
 ///
-///   clip (ClipLink) or microphone
+///   clip audio (ClipLink, decoded there) or the microphone
 ///     ├─► live recogniser (Apple, optional) ─► words on screen + second opinion
 ///     └─► LiveSession: Whisper ─► rules ─► events ─► chart, SOAP, NEMSIS
 ///                                    ▲ cross-check: where the two recognisers disagree on a drug,
 ///                                      dose or vital, the event is "please confirm"
 ///   finish ─► Draft from the events, plus an optional NoteWriter for prose, held to the transcript
 ///
-/// The clip drives captures with its button; the app can also start, stop and mark through it.
-/// Without a clip the microphone stands in, using the same messages.
+/// The app (Model) decides when a recording starts, pauses, resumes and is marked, and talks to the
+/// clip; this only transcribes. Each call has its own session, so a completed call can finish
+/// drafting while the next one records.
 final class CallEngine {
+    enum Source { case mic, clip }
+
     // Callbacks, always on the main queue.
     var onLevel: (Int) -> Void = { _ in }
     var onLiveText: (UUID, String) -> Void = { _, _ in }
     var onCut: () -> Void = {}
-    var onRecord: ([RecordLine]) -> Void = { _ in }
-    var onCapture: (Bool) -> Void = { _ in }        // a capture started (true) or ended (false), from the clip or the app
-    var onMarker: () -> Void = {}
-    var onClipConnected: (Bool) -> Void = { _ in }
-    var onProblem: (String) -> Void = { _ in }
+    var onRecord: (UUID, [RecordLine]) -> Void = { _, _ in }   // a call's record so far, by call id
+    var onProblem: (String) -> Void = { _ in }                 // listening cannot continue
 
-    /// The clip connection, once the Bluetooth module exists. Nil: the microphone is used.
-    var link: ClipLink? { didSet { attach() } }
-    var clipConnected: Bool { link?.isConnected ?? false }
+    /// The live line being spoken.
+    var segment: UUID { live.segment }
     /// Set when Whisper could not load: the record cannot be written, only live words.
     private(set) var recordProblem: String?
 
     private let dict: EMSDictionary?
-    private var transcriber: Transcriber?
-    private var session: LiveSession?
-    private var callStart = Date()
+    private var whisper: Transcriber?            // loaded once, shared by every call's session
+    private var sessions: [UUID: (session: LiveSession, start: Date)] = [:]
+    private var current: UUID?                   // the call being recorded
+    private var source: Source?                  // set while audio is being taken
     private let live = LiveRecognizer()
     private let mic = MicInput()
-    private var usingMic = false
-    private let clipQueue = DispatchQueue(label: "earshot.clip")   // decoding and ordering of clip messages
-    private var clipDecoder: ClipFrameDecoder = PCMFrameDecoder()
     private let pcmDecoder = PCMFrameDecoder()
-    private var micSeq: UInt32 = 0
+
+    // The pipeline's clock for this device's audio. Touched only on `audioQueue`.
+    private let audioQueue = DispatchQueue(label: "earshot.audio")
+    private var seq: UInt32 = 0
+    private var clipMs: UInt32 = 0               // where the next 20 ms frame starts
+    private var carry: [Int16] = []
     private let boot = Date()
+    private var levelFrames = 0, levelPeak = 0   // clip audio: loudness about twelve times a second, as the mic does
 
     init() {
         dict = EMSDictionary.bundled()
@@ -84,87 +87,106 @@ final class CallEngine {
         }
         live.onCut = { [weak self] in self?.onCut() }
         mic.onBuffer = { [weak self] b in self?.live.append(b) }
-        mic.onFrame = { [weak self] pcm in
-            guard let self else { return }
-            self.clipQueue.async {
-                self.session?.handleDecodedAudio(seq: self.micSeq, clipMs: self.micClock(), pcm: pcm)
-                self.micSeq &+= 1
-            }
-        }
+        mic.onFrame = { [weak self] pcm in self?.audioQueue.async { self?.frame(pcm) } }
         mic.onLevel = { [weak self] l in self?.onLevel(l) }
+        mic.onResumed = { [weak self] in self?.live.cut() }
+        mic.onProblem = { [weak self] message in self?.onProblem(message) }
+    }
+
+    private var session: LiveSession? { current.flatMap { sessions[$0]?.session } }
+
+    /// Asks for speech access, and for the microphone unless the audio comes from the clip.
+    /// Live words are optional, so refusing speech recognition only turns them off. Returns what to
+    /// tell the user if the microphone is refused.
+    static func authorize(microphone: Bool) async -> String? {
+        await LiveRecognizer.requestAuthorization()
+        return microphone ? await MicInput.authorize() : nil
     }
 
     // MARK: The call
 
-    /// Starts a new call. Whisper loads once and is kept for later calls.
-    func beginCall(at start: Date) {
-        session?.wipe()
-        callStart = start
-        guard let dict else { return }
-        if transcriber == nil { transcriber = Self.loadWhisper(&recordProblem, dict: dict) }
+    /// Opens a call's session. Whisper loads once and is kept for later calls.
+    func beginCall(_ id: UUID, at start: Date) {
+        current = id
+        guard sessions[id] == nil, let dict else { return }
+        if whisper == nil { whisper = Self.loadWhisper(&recordProblem, dict: dict).map { SerialTranscriber($0) } }
         let s = LiveSession(dict: dict, config: PipelineConfig(), callId: "c\(Int(start.timeIntervalSince1970))",
                             startEpochMs: Int64(start.timeIntervalSince1970 * 1000), tzOffsetSeconds: TimeZone.current.secondsFromGMT(),
-                            transcriber: transcriber)
+                            transcriber: whisper)
         s.callbackQueue = .main
         s.onSegments = { [weak self] segs in
-            guard let self else { return }
-            self.onRecord(segs.map { RecordLine(start: self.date($0.startMs), end: self.date($0.endMs), text: $0.text) })
+            self?.onRecord(id, segs.map {
+                RecordLine(start: start.addingTimeInterval(Double($0.startMs) / 1000), end: start.addingTimeInterval(Double($0.endMs) / 1000), text: $0.text)
+            })
         }
-        session = s
+        sessions[id] = (s, start)
     }
 
-    /// Starts a call's pipeline only if none is running (after a signed call is reopened, say).
-    func ensureCall(at start: Date) {
-        if session == nil { beginCall(at: start) }
-    }
-
-    /// Start listening: through the clip when connected (it answers with consent, which starts the
-    /// capture), else through the microphone.
-    @MainActor func startCapture() async throws {
-        await LiveRecognizer.requestAuthorization()
-        if clipConnected {
-            link?.send(ClipProtocol.command(.start))
-            return
+    /// Starts taking audio for the current call: from the microphone here, or from the clip through `push`.
+    func start(from source: Source) throws {
+        guard self.source == nil else { return }
+        if source == .mic { try mic.start() }
+        self.source = source
+        let s = session
+        let t = Self.ms(since: boot)
+        audioQueue.sync {
+            clipMs = max(clipMs, t)   // a new capture picks up the clock where the wall is, never going back
+            seq = 0
+            carry = []
+            s?.handle(.consent(granted: true, source: "tablet", clipMs: Int64(clipMs)), decoder: pcmDecoder)
         }
-        if let why = await MicInput.authorize() { throw Problem(why) }
-        try mic.start()
-        usingMic = true
-        let t = micClock()
-        clipQueue.async { self.session?.handle(.consent(granted: true, source: "tablet", clipMs: Int64(t)), decoder: self.pcmDecoder) }
         live.start()
-        onCapture(true)
     }
 
-    func stopCapture() {
-        if usingMic {
-            mic.stop()
-            usingMic = false
-            let t = micClock()
-            clipQueue.async { self.session?.handle(.consent(granted: false, source: "tablet", clipMs: Int64(t)), decoder: self.pcmDecoder) }
-            live.stop()
-            onCapture(false)
-        } else if clipConnected {
-            link?.send(ClipProtocol.command(.stop))
+    /// Audio from the clip (16 kHz mono float, in the order it was captured). Ignored unless taking clip audio.
+    func push(_ buffer: AVAudioPCMBuffer) {
+        guard source == .clip, let ch = buffer.floatChannelData else { return }
+        live.append(buffer)
+        let pcm = (0..<Int(buffer.frameLength)).map { Int16(max(-1, min(1, ch[0][$0])) * 32767) }
+        audioQueue.async { self.frame(pcm) }
+        levelFrames += pcm.count
+        levelPeak = max(levelPeak, Audio.level(pcm))
+        if levelFrames >= 1280 {
+            onLevel(levelPeak)
+            levelFrames = 0
+            levelPeak = 0
         }
     }
 
-    func mark() {
+    /// Stops taking audio. What was heard is still transcribed.
+    func stop() {
+        guard let was = source else { return }
+        source = nil
+        if was == .mic { mic.stop() }
+        let s = session
+        audioQueue.async { s?.handle(.consent(granted: false, source: "tablet", clipMs: Int64(self.clipMs)), decoder: self.pcmDecoder) }
+        live.stop()
+    }
+
+    /// Closes the line being spoken, so that what comes next lands after it.
+    func cut() { live.cut() }
+
+    /// A mark, from the app or the clip's button, at the audio heard so far.
+    func mark(fromClip: Bool) {
         live.cut()
-        if usingMic {
-            let t = micClock()
-            clipQueue.async { self.session?.handle(.marker(id: 0, source: "tablet", clipMs: Int64(t), audioSeq: -1), decoder: self.pcmDecoder) }
-            onMarker()
-        } else if clipConnected {
-            link?.send(ClipProtocol.command(.marker))   // the clip answers with a marker event
+        let s = session
+        audioQueue.async {
+            s?.handle(.marker(id: 0, source: fromClip ? "button" : "tablet", clipMs: Int64(self.clipMs), audioSeq: -1), decoder: self.pcmDecoder)
         }
     }
 
-    /// Ends listening, waits for Whisper to catch up, then drafts the paperwork from the record.
-    @MainActor func finish() async -> CallOutput {
-        stopCapture()
-        guard let s = session else { return CallOutput(draft: .blank, docs: [:], notes: [recordProblem ?? "Nothing was recorded."]) }
+    /// Waits for Whisper to catch up on a completed call, then drafts its paperwork from the record.
+    /// The call's session is let go: its audio and working record are wiped once this returns.
+    @MainActor func finish(_ id: UUID) async -> CallOutput {
+        if id == current { stop(); current = nil }
+        guard let s = sessions.removeValue(forKey: id)?.session else {
+            return CallOutput(draft: .blank, docs: [:], notes: [recordProblem
+                ?? "The record for this call was not kept when the app closed, so nothing was drafted. Fill in the lines yourself."])
+        }
+        await withCheckedContinuation { done in audioQueue.async { done.resume() } }   // audio already queued reaches the session
         s.endCapture()
         await Task.detached { s.drain() }.value
+        defer { s.wipe() }
         var notes: [String] = []
         if let p = recordProblem { notes.append(p) }
 
@@ -194,71 +216,29 @@ final class CallEngine {
         return CallOutput(draft: draft, docs: docs, notes: notes)
     }
 
-    /// Signed or discarded: everything held for the call is wiped.
-    func endCall() {
-        stopCapture()
-        session?.wipe()
-        session = nil
-    }
-
-    // MARK: The clip
-
-    private func attach() {
-        guard let link else { return }
-        link.onConnected = { [weak self] up in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                if !up && !self.usingMic { self.session?.endCapture(); self.live.stop(); self.onCapture(false) }
-                self.onClipConnected(up)
-            }
-        }
-        link.onText = { [weak self] text in self?.clipQueue.async { self?.clipText(text) } }
-        link.onAudio = { [weak self] bytes in self?.clipQueue.async { self?.clipAudio(bytes) } }
-    }
-
-    private func clipText(_ text: String) {
-        guard let m = ClipProtocol.parseText(text) else { return }
-        if case .hello(let h) = m {
-            if h.codec == "opus" {
-                if let d = try? OpusFrameDecoder() { clipDecoder = d }
-                else { DispatchQueue.main.async { self.onProblem("This device cannot decode the clip's audio.") } }
-            } else {
-                clipDecoder = PCMFrameDecoder()
-            }
-        }
-        session?.handle(m, decoder: clipDecoder)
-        switch m {
-        case .consent(let granted, _, _):
-            if granted { clipDecoder.reset() }
-            DispatchQueue.main.async {
-                if granted { self.live.start() } else { self.live.stop() }
-                self.onCapture(granted)
-            }
-        case .state(let listening, _):
-            DispatchQueue.main.async {
-                if listening && !self.live.running { self.live.start(); self.onCapture(true) }
-            }
-        case .marker:
-            DispatchQueue.main.async { self.live.cut(); self.onMarker() }
-        default:
-            break
-        }
-    }
-
-    private func clipAudio(_ bytes: [UInt8]) {
-        guard case .audio(let f)? = ClipProtocol.parseAudio(bytes), let pcm = try? clipDecoder.decode(f.payload) else { return }
-        session?.handleDecodedAudio(seq: f.seq, clipMs: f.clipMs, pcm: pcm)
-        if let b = Audio.buffer(pcm) { live.append(b) }
-        let level = Audio.level(pcm)
-        DispatchQueue.main.async { self.onLevel(level) }
+    /// Throws a call away: its audio and working record are wiped.
+    func discard(_ id: UUID) {
+        if id == current { stop(); current = nil }
+        sessions.removeValue(forKey: id)?.session.wipe()
     }
 
     // MARK: Helpers
 
-    private func micClock() -> UInt32 { UInt32(max(0, Date().timeIntervalSince(boot) * 1000)) }
-    private func date(_ tMs: Int64) -> Date { callStart.addingTimeInterval(Double(tMs) / 1000) }
+    /// One stretch of 16 kHz int16 audio, cut into the 20 ms frames the pipeline takes. On `audioQueue`.
+    private func frame(_ pcm: [Int16]) {
+        carry += pcm
+        let s = session
+        while carry.count >= 320 {
+            s?.handleDecodedAudio(seq: seq, clipMs: clipMs, pcm: Array(carry.prefix(320)))
+            carry.removeFirst(320)
+            seq &+= 1
+            clipMs &+= 20
+        }
+    }
 
-    private static func loadWhisper(_ problem: inout String?, dict: EMSDictionary) -> Transcriber? {
+    private static func ms(since d: Date) -> UInt32 { UInt32(max(0, Date().timeIntervalSince(d) * 1000)) }
+
+    private static func loadWhisper(_ problem: inout String?, dict: EMSDictionary) -> WhisperTranscriber? {
         let asr = PipelineConfig().asr
         for name in ["whisper-ems-small.en-q5", "ggml-small.en", "ggml-base.en", "ggml-tiny.en"] {
             if let url = ModelFiles.find(name, ext: "bin"),
@@ -327,5 +307,17 @@ extension EMSDictionary {
               let formulary = try? JSONDecoder().decode(FormularyFile.self, from: fd),
               let terms = try? JSONDecoder().decode(EMSTermsFile.self, from: td) else { return nil }
         return EMSDictionary(formulary: formulary, terms: terms)
+    }
+}
+
+/// Whisper shared by every call's session. A completed call can still be transcribing while the next
+/// one records, and whisper.cpp runs one decode at a time, so calls into it take turns.
+private final class SerialTranscriber: Transcriber {
+    private let inner: Transcriber
+    private let lock = NSLock()
+    init(_ inner: Transcriber) { self.inner = inner }
+    var modelName: String { inner.modelName }
+    func transcribe(_ pcm: [Float], prompt: String?) throws -> [ASRPiece] {
+        try lock.withLock { try inner.transcribe(pcm, prompt: prompt) }
     }
 }
