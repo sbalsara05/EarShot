@@ -507,6 +507,18 @@ struct TranscriptRows: View {
                 }
                 .accessibilityElement(children: .combine)
                 if let deleteMark { SwipeToDelete { deleteMark(item.id) } content: { row } } else { row }
+            } else if let place = item.place {
+                HStack(alignment: .firstTextBaseline, spacing: fit(16, 10)) {
+                    stamp(item.time)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "location.fill").font(.system(size: 13, weight: .semibold))
+                        Text(place.line).font(geist(fit(17, 15), 500)).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .foregroundStyle(Color.place)
+                    Spacer(minLength: 0)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Location at \(clock(item.time)): \(place.line)")
             } else if item.id == liveLine {
                 // The line being spoken: bright, with its newest word in red and a blinking dot.
                 let words = item.text.split(separator: " ")

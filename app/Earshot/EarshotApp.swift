@@ -1,15 +1,21 @@
 import AVFoundation
+import CoreLocation
 import SwiftUI
 
-enum Tab: String, CaseIterable { case home = "Home", live = "Live Call", drafts = "AI Drafts", clip = "Clip" }
+enum Tab: String {
+    case home = "Home", live = "Live Call", drafts = "AI Drafts", clip = "Clip", settings = "Settings"
+    /// The four in the tab bar. Settings sits apart from them, behind its own button.
+    static let main: [Tab] = [.home, .live, .drafts, .clip]
+}
 enum Live { case none, ready, listening, between, cutShort }
 
-/// One row of the transcript: something said, or a mark the medic dropped.
+/// One row of the transcript: something said, a mark the medic dropped, or a place the device moved to.
 struct Item: Identifiable, Codable {
     var id = UUID()
     var time = Date()
     var text = ""
-    var mark: Int? = nil   // set on a mark row, which has no text
+    var mark: Int? = nil     // set on a mark row, which has no text
+    var place: Place? = nil  // set on a location row, which has no text either
     /// true: a line of the record (Whisper). nil: live words, shown while the medic talks and
     /// replaced by the record once Whisper catches up.
     var record: Bool? = nil
@@ -51,8 +57,8 @@ struct Call: Identifiable, Codable {
 
     /// What the drafting model reads: one line per thing said or marked, each with its clock time.
     var transcript: String {
-        recordings.flatMap(\.items).filter { $0.mark != nil || !$0.text.isEmpty }
-            .map { "[\(clock($0.time))] " + ($0.mark.map { "MARK \($0)" } ?? $0.text) }
+        recordings.flatMap(\.items).filter { $0.mark != nil || $0.place != nil || !$0.text.isEmpty }
+            .map { "[\(clock($0.time))] " + ($0.mark.map { "MARK \($0)" } ?? $0.place.map { "LOCATION \($0.line) (\($0.coordinates))" } ?? $0.text) }
             .joined(separator: "\n")
     }
 
@@ -102,6 +108,12 @@ struct Call: Identifiable, Codable {
     /// FEATURE GATE. While true, a connected clip only controls the recording (start, stop, marks) and the audio
     /// comes from this device's own microphone. It is on because the stand-in board has no microphone and plays
     /// a stored voice. Turn it off, on the Clip tab, once a clip with a real microphone is in use.
+    /// Follows the device's location during a recording. `location` is how far the person has allowed it.
+    @ObservationIgnored let locator = Locator()
+    var location = Locator.Level.unasked
+
+    /// The values that are the same on every call for this crew and truck. Set once in Settings, stamped on every report.
+    var standing = Standing.load() { didSet { standing.save() } }
     var micStandIn = UserDefaults.standard.object(forKey: "micStandIn") as? Bool ?? true {
         didSet { UserDefaults.standard.set(micStandIn, forKey: "micStandIn") }
     }
@@ -166,8 +178,12 @@ struct Call: Identifiable, Codable {
             self?.problem = "Transcription stopped. \(message)"
             self?.stop()
         }
+        locator.onPlace = { [weak self] place, at in self?.addPlace(place, at: at) }
+        locator.onLevel = { [weak self] level in self?.location = level }
+        location = locator.level
         load()
         link.resume()
+        locator.ask()   // asked at first launch, before any call, so a recording never stops for the question
     }
 
     private func heard(_ id: UUID, _ text: String) {
@@ -215,7 +231,7 @@ struct Call: Identifiable, Codable {
         for r in call.recordings.indices {
             let mine = lines.filter { owner($0) == r }
             var items = call.recordings[r].items.filter { item in
-                if item.mark != nil { return true }
+                if item.mark != nil || item.place != nil { return true }
                 if item.record == true { return false }               // rebuilt below
                 if item.id == speaking { return true }                // still being spoken
                 if (ends[item.id] ?? item.time) <= covered.addingTimeInterval(liveLag) { retired.insert(item.id); return false }
@@ -231,12 +247,13 @@ struct Call: Identifiable, Codable {
     /// run), the live words are all there is, and they stay.
     static func settle(_ call: inout Call) {
         guard call.recordings.contains(where: { $0.items.contains { $0.record == true } }) else { return }
-        for r in call.recordings.indices { call.recordings[r].items.removeAll { $0.mark == nil && $0.record != true } }
+        for r in call.recordings.indices { call.recordings[r].items.removeAll { $0.mark == nil && $0.place == nil && $0.record != true } }
     }
 
     // MARK: The call
 
     func newCall() {
+        locator.reset()
         call = Call()
         engine.beginCall(call.id, at: call.start)
         recordedBy = engine.recordName
@@ -302,6 +319,7 @@ struct Call: Identifiable, Codable {
             }
             live = .listening
             startAsked = nil
+            locator.start()
             if source == .clip { watchForSilence() }
         } catch {
             problem = error.localizedDescription
@@ -318,6 +336,7 @@ struct Call: Identifiable, Codable {
     private func finish(as next: Live) {
         guard live == .listening else { return }
         engine.stop()
+        locator.stop()
         // A recording that ends while the clip is away ended when the clip was last heard, not now.
         call.recordings[call.recordings.count - 1].end = clipReconnecting ? droppedAt : Date()
         clipReconnecting = false
@@ -344,6 +363,18 @@ struct Call: Identifiable, Codable {
         guard live == .listening else { return }
         if viaClip { link.send("marker") }   // so the clip logs it too; its echo never becomes an intent
         addMark(fromClip: false)
+    }
+
+    /// Logs a place the device has moved to. It goes above the line still being spoken, so that line is not broken in two.
+    private func addPlace(_ place: Place, at time: Date) {
+        guard live == .listening, let r = call.recordings.indices.last else { return }
+        let row = Item(time: time, place: place)
+        if let speaking = liveLine, let i = call.recordings[r].items.firstIndex(where: { $0.id == speaking }) {
+            call.recordings[r].items.insert(row, at: i)
+        } else {
+            call.recordings[r].items.append(row)
+        }
+        save()
     }
 
     private func addMark(fromClip: Bool) {
@@ -740,6 +771,14 @@ struct Call: Identifiable, Codable {
         let marker = try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"marker","id":1,"source":"button","t_ms":47781,"audio_seq":327}"#.utf8))
         assert(marker?.type == "marker" && marker?.source == "button")
         assert(hello.flatMap(ClipIntent.init) == .hello(codec: "opus") && marker.flatMap(ClipIntent.init) == .mark)
+
+        // Location: under 50 metres from the last reported place is the same place; a location row reaches the drafting model.
+        let here = CLLocation(latitude: 42.3398, longitude: -71.0892)
+        assert(Locator.isNew(here, since: nil) && !Locator.isNew(CLLocation(latitude: 42.3400, longitude: -71.0892), since: here))
+        assert(Locator.isNew(CLLocation(latitude: 42.3410, longitude: -71.0892), since: here))
+        var located = Call()
+        located.recordings = [Recording(items: [Item(place: Place(latitude: 42.3398, longitude: -71.0892, accuracy: 8, street: "360 Huntington Ave", city: "Boston", state: "MA", zip: "02115"))])]
+        assert(located.transcript.contains("LOCATION 360 Huntington Ave, Boston, MA 02115 (42.33980, -71.08920)") && located.spoken.isEmpty)
         let toggle = { (target: String) in
             (try? JSONDecoder().decode(ClipEvent.self, from: Data(#"{"type":"toggle","target":"\#(target)","source":"button","t_ms":204759}"#.utf8))).flatMap(ClipIntent.init)
         }
@@ -773,12 +812,13 @@ struct EarshotApp: App {
                     case .live: LiveScreen().screenTransition()
                     case .drafts: DraftsScreen().screenTransition()
                     case .clip: ClipScreen().screenTransition()
+                    case .settings: SettingsScreen().screenTransition()
                     }
                 }
                 .smooth(model.tab)
                 .padding(.top, 8).padding(.horizontal, fit(32, 20)).padding(.bottom, fit(32, 12))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if phone { Tabs().padding(.horizontal, 20).padding(.bottom, 4) }
+                if phone { HStack(spacing: 8) { Tabs(); SettingsPill() }.padding(.horizontal, 20).padding(.bottom, 4) }
               }
               .frame(width: screen.size.width, height: screen.size.height)
             }
@@ -816,7 +856,7 @@ struct Header: View {
             .accessibilityLabel("Earshot home")
             Spacer()
             if !phone {
-                Tabs()
+                HStack(spacing: 10) { Tabs(); SettingsPill() }
                 Spacer()
             }
             status.font(geist(15, 500)).foregroundStyle(Color.dim).frame(width: fit(260, 170), alignment: .trailing)
@@ -851,7 +891,7 @@ struct Tabs: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(Tab.allCases, id: \.self) { tab in
+            ForEach(Tab.main, id: \.self) { tab in
                 let on = model.tab == tab
                 Button { model.tab = tab } label: {
                     HStack(spacing: fit(8, 6)) {
@@ -890,6 +930,26 @@ struct Tabs: View {
         } else {
             Circle().strokeBorder(selected ? Color.bg : .dim, lineWidth: 1.5).frame(width: 9, height: 9)
         }
+    }
+}
+
+/// The settings button. It stands beside the tab bar, not in it.
+struct SettingsPill: View {
+    @Environment(Model.self) private var model
+
+    var body: some View {
+        let on = model.tab == .settings
+        Button { model.tab = .settings } label: {
+            Image(systemName: "gearshape.fill").font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(on ? Color.bg : .dim)
+                .frame(width: 52, height: 52)
+                .background(on ? Color.ink : .panel, in: Circle())
+                .overlay(Circle().strokeBorder(Color.line))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Settings")
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 
@@ -1098,11 +1158,10 @@ struct ClipScreen: View {
             }
             row("Link") { Text("Bluetooth") }
             row("Audio from") {
-                Button(model.micStandIn ? "\(deviceName) mic" : "Clip") { model.micStandIn.toggle() }
+                Button(model.micStandIn ? "\(deviceName) mic" : "Clip") { model.tab = .settings }
                     .buttonStyle(.plain).underline()
-                    .accessibilityHint("Switches between this \(deviceName)'s microphone and the clip's audio for the next recording")
+                    .accessibilityHint("Opens Settings, where the microphone is chosen")
             }
-            whisperRow
             Color.line.frame(height: 1)
             ClipKey().padding(.top, 16)
             Spacer(minLength: 16)
@@ -1143,17 +1202,6 @@ struct ClipScreen: View {
         case .searching: "Power the clip on and keep it close. Until it connects, calls record on the \(deviceName) mic."
         case .connecting: "Waiting for \(model.clipTitle) to answer. It reconnects by itself when it is on and in range."
         case .idle, .ready: "Calls record on the \(deviceName) mic until a clip connects."
-        }
-    }
-
-    /// Which recogniser writes the record: Whisper, or this device's own. The name beside it is the one
-    /// the latest call actually used, so a fallback is seen and not mistaken for the setting.
-    private var whisperRow: some View {
-        row("Record by") {
-            Button(model.whisperEnabled ? "Whisper" : "\(deviceName)'s own") { model.whisperEnabled.toggle() }
-                .buttonStyle(.plain).underline()
-                .accessibilityHint("Switches the recogniser that writes the record, from the next call")
-            if let used = model.recordedBy { Text(used).font(geist(15)).foregroundStyle(Color.dim) }
         }
     }
 
@@ -1215,7 +1263,6 @@ struct ClipScreen: View {
                 }
                 Color.line.frame(height: 1)
             }
-            whisperRow
             Spacer(minLength: 16)
             switch model.clipState {
             case .idle: Button("Find my clip") { model.connect() }.buttonStyle(Pill(grow: true))

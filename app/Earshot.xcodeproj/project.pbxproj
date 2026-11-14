@@ -22,8 +22,10 @@
 		8B0D82104F53169D3CC0E274 /* Opus in Frameworks */ = {isa = PBXBuildFile; productRef = DBB1AB318544ADCB7B997967 /* Opus */; };
 		91D68ED5076A08DB6AC74871 /* CallEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9AD7B5C61508F17748297B0 /* CallEngine.swift */; };
 		9313EBB3EFB368A23C5432F2 /* WhisperTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4458FABC4535762089E889 /* WhisperTranscriber.swift */; };
+		98D9917AA5FEBB8DCBF2E47D /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6044FC5A766E4F76FE91669 /* Settings.swift */; };
 		9A36B0534058DD8C918AB0BB /* Models in Resources */ = {isa = PBXBuildFile; fileRef = 8B7EEB1F6E044A6EE116E165 /* Models */; };
 		A2633585A6B0408C6CA39B89 /* whisper.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 8828B7871645A563BC6F5AC5 /* whisper.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		D4CAEFADF2070B5754D7B127 /* Location.swift in Sources */ = {isa = PBXBuildFile; fileRef = F949E326EC948B2E81BC2143 /* Location.swift */; };
 		E9F0CF810639F26A3F9BC761 /* AppleTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = B58D12CE5B2253A74D49BE37 /* AppleTranscriber.swift */; };
 		F615DF88B63F82C95098F8CE /* whisper.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8828B7871645A563BC6F5AC5 /* whisper.xcframework */; };
 		F99AAED5F7FFCD762B42F0A1 /* EarshotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65190926CE10F1D5F4E2A146 /* EarshotApp.swift */; };
@@ -60,10 +62,12 @@
 		C9AD7B5C61508F17748297B0 /* CallEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallEngine.swift; sourceTree = "<group>"; };
 		CA1C4DF6D9C6C2838DCE2131 /* ClipLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipLink.swift; sourceTree = "<group>"; };
 		D417CBEB2EF403CE505CD8E9 /* Earshot.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Earshot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D6044FC5A766E4F76FE91669 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
 		DF4458FABC4535762089E889 /* WhisperTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WhisperTranscriber.swift; path = ../../../core/Sources/EarshotWhisper/WhisperTranscriber.swift; sourceTree = "<group>"; };
 		EEAF53ABFAEC8D34367ACFED /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		F06F5CBCC5993083EA36925D /* CallScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallScreens.swift; sourceTree = "<group>"; };
 		F91721CBC7A0DAE06DFAD8A1 /* AppleNoteWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleNoteWriter.swift; sourceTree = "<group>"; };
+		F949E326EC948B2E81BC2143 /* Location.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Location.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -108,7 +112,9 @@
 				EEAF53ABFAEC8D34367ACFED /* Components.swift */,
 				65190926CE10F1D5F4E2A146 /* EarshotApp.swift */,
 				49877C5566DBC8D8D8440C52 /* Info.plist */,
+				F949E326EC948B2E81BC2143 /* Location.swift */,
 				082FE432C47C08908302588B /* Recorder.swift */,
+				D6044FC5A766E4F76FE91669 /* Settings.swift */,
 				A18D9A4B70409523880ADDFC /* Signature.swift */,
 				625549ADE10661222DA18E2E /* Fonts */,
 				006038DBDAEA159D56BDC68A /* Pipeline */,
@@ -253,8 +259,10 @@
 				12BED601B5A2FBAA83CEE7C9 /* ClipLink.swift in Sources */,
 				8A68780E5B2AB6DD36343945 /* Components.swift in Sources */,
 				F99AAED5F7FFCD762B42F0A1 /* EarshotApp.swift in Sources */,
+				D4CAEFADF2070B5754D7B127 /* Location.swift in Sources */,
 				6854BFE12072F17474D75361 /* NoteWriter.swift in Sources */,
 				5EA0B41AFDD9F5C0689BA5CC /* Recorder.swift in Sources */,
+				98D9917AA5FEBB8DCBF2E47D /* Settings.swift in Sources */,
 				2B776581A3212DEB28068FB6 /* Signature.swift in Sources */,
 				9313EBB3EFB368A23C5432F2 /* WhisperTranscriber.swift in Sources */,
 			);

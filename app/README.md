@@ -37,9 +37,19 @@ The Clip tab and the Live Call screen show this as a **Clip button** key: one do
 double click, a bar for a hold. On Live Call it says what each does at that point in the call and dims the
 ones that do nothing.
 
-**Audio from** on the Clip tab chooses the microphone. It is set to this device's microphone for now,
+**Audio from** in Settings (the gear beside the tabs) chooses the microphone. It is set to this device's microphone for now,
 because the stand-in board has none and plays a stored voice. Switch it to **Clip** once a clip with a
 microphone is in use. The Live Call header always names the microphone in use.
+
+Settings also holds the values that are the same on every call: agency, unit, crew and usual area. Each is
+labelled with the NEMSIS 3.5.0 box it fills, and the choices use NEMSIS's own code lists. They are typed once
+and kept on the device. Nothing reads them yet: they are there for the NEMSIS report.
+
+**Location.** The app asks to use location when it is first opened, then asks to change that to Always, so
+places are still logged with the app off screen or the device locked. During a recording it checks the
+device's place once a minute and adds a location row to the transcript when it has moved 50 metres or more,
+so a call at one address logs it once. The row carries the address when one can be looked up (that needs a
+network) and the coordinates either way. Settings shows whether location is allowed.
 
 The app only shows a clip as connected once the clip has confirmed every step, and names the step if
 one fails. If the link drops during a recording made from the clip's audio, the recording is held open
@@ -159,6 +169,8 @@ xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS
 | `Earshot/Pipeline/CallEngine.swift` | Transcription: clip or mic audio in, the record and the drafts out. One pipeline session per call |
 | `Earshot/Pipeline/NoteWriter.swift`, `AppleNoteWriter.swift` | Optional narrative writer, any model |
 | `../core/` | The pipeline (Swift package EarshotCore), shared with the eval tool and its tests |
+| `Earshot/Settings.swift` | Settings: the audio source, and the values stamped on every report |
+| `Earshot/Location.swift` | The once-a-minute place check during a recording |
 | `Earshot/Signature.swift` | The sign-off sheet and signature drawing |
 | `Earshot/Components.swift` | Colours, fonts, dot-matrix drawing, shared controls |
 | `Earshot/Fonts/` | Doto and Geist, both under the Open Font License |

@@ -46,8 +46,11 @@ targets:
         NSMicrophoneUsageDescription: Earshot listens to the call so it can write the transcript.
         NSSpeechRecognitionUsageDescription: Earshot turns what is said on the call into text.
         NSBluetoothAlwaysUsageDescription: Earshot uses Bluetooth to connect to your clip.
+        NSLocationWhenInUseUsageDescription: Earshot notes where a call takes place, so the report can say where the patient was found and taken.
+        NSLocationAlwaysAndWhenInUseUsageDescription: Earshot keeps noting where a call takes place while the screen is off or another app is open, so the report can say where the patient was found and taken.
         # audio: a recording carries on when the app is not on screen. bluetooth-central: so does the link to the clip.
-        UIBackgroundModes: [audio, bluetooth-central]
+        # location: so does the once-a-minute place check.
+        UIBackgroundModes: [audio, bluetooth-central, location]
         UIStatusBarHidden: true
         UIFileSharingEnabled: true          # copy a Whisper model into Documents from Finder
         UIRequiresFullScreen: true
