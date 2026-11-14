@@ -121,9 +121,11 @@ public struct PipelineConfig: Codable, Sendable {
         public var biasNext: Double = 2.0
         /// A drug, dose or vital whose words include a token below this probability is "please confirm". 0 = off.
         public var minWordConfidence: Double = 0.3
+        /// Run Whisper on the GPU (Metal) when the build supports it.
+        public var gpu: Bool = false
         public init() {}
         enum CodingKeys: String, CodingKey { case engine, model, name, threads, useInitialPrompt = "use_initial_prompt", prompt, beamSize = "beam_size", temperatureFallback = "temperature_fallback"
-            case bias, biasFirst = "bias_first", biasNext = "bias_next", minWordConfidence = "min_word_confidence" }
+            case bias, biasFirst = "bias_first", biasNext = "bias_next", minWordConfidence = "min_word_confidence", gpu }
         public init(from d: Decoder) throws {
             let c = try d.container(keyedBy: CodingKeys.self)
             engine = try c.decodeIfPresent(String.self, forKey: .engine) ?? "whisper.cpp"
@@ -138,6 +140,7 @@ public struct PipelineConfig: Codable, Sendable {
             biasFirst = try c.decodeIfPresent(Double.self, forKey: .biasFirst) ?? 0.5
             biasNext = try c.decodeIfPresent(Double.self, forKey: .biasNext) ?? 2.0
             minWordConfidence = try c.decodeIfPresent(Double.self, forKey: .minWordConfidence) ?? 0.3
+            gpu = try c.decodeIfPresent(Bool.self, forKey: .gpu) ?? false
         }
     }
     public var callId: String = "c1"

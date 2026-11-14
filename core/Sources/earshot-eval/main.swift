@@ -42,6 +42,7 @@ OPTIONS
   --no-prompt             disable the EMS initial prompt for whisper
   --prompt-file <f>       use this initial prompt instead of the dictionary's
   --beam <n>              beam size (default 5); --greedy = beam 1, no temperature fallback (fastest)
+  --gpu                   run Whisper on the GPU (Metal on a Mac): much faster; results can differ slightly from CPU
   --no-bias               turn off biasing Whisper toward drug names
   --bias-first <x>        logit bonus for the first token of a drug name (default 0.5)
   --bias-next <x>         logit bonus for continuing a drug name (default 2.0)
@@ -152,6 +153,7 @@ if flag("--greedy") { config.asr.beamSize = 1; config.asr.temperatureFallback = 
 if let b = opt("--beam"), let n = Int(b) { config.asr.beamSize = n }
 if flag("--pii-scrub") { config.piiScrub = true }
 if flag("--no-bias") { config.asr.bias = false }
+if flag("--gpu") { config.asr.gpu = true }
 if let v = opt("--bias-first"), let x = Double(v) { config.asr.biasFirst = x }
 if let v = opt("--bias-next"), let x = Double(v) { config.asr.biasNext = x }
 if let v = opt("--min-conf"), let x = Double(v) { config.asr.minWordConfidence = x }
@@ -184,7 +186,7 @@ if ext != "json" {
     let model = config.asr.model ?? ProcessInfo.processInfo.environment["EARSHOT_ASR_MODEL"] ?? "models/ggml-small.en.bin"
     do {
         let w = try WhisperTranscriber(modelPath: model, name: config.asr.model == nil ? nil : config.asr.name, threads: config.asr.threads,
-                                       beamSize: config.asr.beamSize, temperatureFallback: config.asr.temperatureFallback)
+                                       beamSize: config.asr.beamSize, temperatureFallback: config.asr.temperatureFallback, useGPU: config.asr.gpu)
         if config.asr.bias { w.setBias(phrases: dict.biasPhrases(), firstBonus: config.asr.biasFirst, nextBonus: config.asr.biasNext) }
         transcriber = w
     }

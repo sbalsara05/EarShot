@@ -27,3 +27,6 @@ DerivedData/
 models/*.bin
 app/Frameworks/
 app/Models/*
+
+# eval outputs
+eval/runs/

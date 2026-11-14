@@ -34,9 +34,12 @@ public final class WhisperTranscriber: Transcriber {
         return bias?.phraseCount ?? 0
     }
 
-    public init(modelPath: String, name: String? = nil, threads: Int = 4, beamSize: Int = 5, temperatureFallback: Bool = true) throws {
+    /// - useGPU: Metal on Apple silicon (much faster). Off by default so CPU runs repeat exactly;
+    ///   GPU results can differ in the last digits, so compare runs made the same way.
+    public init(modelPath: String, name: String? = nil, threads: Int = 4, beamSize: Int = 5, temperatureFallback: Bool = true,
+                useGPU: Bool = false) throws {
         var cp = whisper_context_default_params()
-        cp.use_gpu = false
+        cp.use_gpu = useGPU
         guard let c = whisper_init_from_file_with_params(modelPath, cp) else {
             throw NSError(domain: "earshot.whisper", code: 1, userInfo: [NSLocalizedDescriptionKey: "cannot load whisper model at \(modelPath)"])
         }
