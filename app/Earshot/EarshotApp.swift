@@ -249,9 +249,75 @@ struct Call: Identifiable, Codable {
                     items.append(item)
                 }
             }
-            items += mine.map { Item(time: $0.start, text: $0.text, record: true) }
-            call.recordings[r].items = items.sorted { $0.time < $1.time }
+            // The record's rows: a row for each sentence with the time it was said, cut where a mark or a
+            // place was logged so those stay between the words they came between. A row that is the same
+            // as before keeps its identity, so only new rows appear and nothing else moves.
+            let before = Dictionary(call.recordings[r].items.filter { $0.record == true }.map { (RowKey(time: $0.time, text: $0.text), $0.id) }, uniquingKeysWith: { a, _ in a })
+            let cuts = items.filter { $0.mark != nil || $0.place != nil }.map(\.time)
+            for row in mine.flatMap({ rows(of: $0, cutAt: cuts) }) {
+                var item = Item(time: row.time, text: row.text, record: true)
+                if let id = before[RowKey(time: row.time, text: row.text)] { item.id = id }
+                items.append(item)
+            }
+            // In time order; rows at the same instant keep the order they were in.
+            call.recordings[r].items = items.enumerated().sorted { ($0.element.time, $0.offset) < ($1.element.time, $1.offset) }.map(\.element)
         }
+    }
+
+    private struct RowKey: Hashable { var time: Date; var text: String }
+
+    /// The shortest stretch of text given a row of its own, in characters. Shorter sentences ("Okay.") join the next.
+    static let shortestRow = 24
+
+    /// One line of the record as transcript rows. The recogniser writes a long stretch of speech as one
+    /// line with one start time; shown like that, a paragraph carries the time of its first word and
+    /// swallows the marks made during it. So the line is divided at the end of each sentence, and at
+    /// each time in `cuts` (a mark or a logged place), and each row gets the time its first word was said.
+    static func rows(of line: RecordLine, cutAt cuts: [Date]) -> [(time: Date, text: String)] {
+        let chars = Array(line.text)
+        guard !chars.isEmpty else { return [] }
+        let words = line.words.filter { $0.offset >= 0 && $0.offset < chars.count }.sorted { $0.offset < $1.offset }
+        let span = line.end.timeIntervalSince(line.start)
+        /// When the text at a character offset was said.
+        func time(at offset: Int) -> Date {
+            if words.isEmpty { return line.start.addingTimeInterval(span * Double(offset) / Double(chars.count)) }
+            let said = words.last { $0.offset <= offset }?.time ?? line.start
+            return min(max(said, line.start), line.end)
+        }
+        /// The start of the word at or after an offset, so a row never begins inside a word.
+        func wordStart(_ offset: Int) -> Int {
+            var o = min(max(offset, 0), chars.count)
+            while o < chars.count, chars[o] == " " { o += 1 }
+            while o > 0, o < chars.count, chars[o - 1] != " " { o -= 1 }
+            return o
+        }
+        var starts: [Int: Date?] = [0: nil]   // where each row begins, and the time it may not come before
+        // the end of a sentence, when the row so far is long enough to stand alone
+        var last = 0
+        for i in chars.indices where ".?!".contains(chars[i]) && i + 2 < chars.count && chars[i + 1] == " " {
+            if i + 2 - last >= shortestRow { starts[i + 2] = nil as Date?; last = i + 2 }
+        }
+        // a mark or a place logged while the line was being said
+        for cut in cuts where cut > line.start && cut < line.end {
+            let offset = words.isEmpty ? Int(Double(chars.count) * cut.timeIntervalSince(line.start) / max(span, 0.001))
+                                       : (words.first { $0.time >= cut }?.offset ?? chars.count)
+            let o = wordStart(offset)
+            if o > 0, o < chars.count { starts[o] = max(cut, (starts[o] ?? nil) ?? cut) }
+        }
+        let order = starts.keys.sorted()
+        var out: [(time: Date, text: String)] = []
+        var floor = line.start
+        for (n, from) in order.enumerated() {
+            let to = n + 1 < order.count ? order[n + 1] : chars.count
+            let text = String(chars[from..<to]).trimmingCharacters(in: .whitespaces)
+            guard !text.isEmpty else { continue }
+            var at = from == 0 ? line.start : time(at: from)
+            if let notBefore = starts[from] ?? nil { at = max(at, notBefore.addingTimeInterval(0.001)) }   // after the mark it follows
+            at = max(at, floor)   // rows of one line never go back in time
+            floor = at
+            out.append((at, text))
+        }
+        return out
     }
 
     /// The call is drafted, so the record is complete: any live words still not in it are marked
@@ -771,7 +837,7 @@ struct Call: Identifiable, Codable {
         // something for that stretch. Live words it went past with nothing written stay, marked.
         let t0 = Date(timeIntervalSince1970: 1000)
         let spoken = Item(time: t0.addingTimeInterval(1), text: "covered"), running = Item(time: t0.addingTimeInterval(4), text: "runs on"),
-            now = Item(time: t0.addingTimeInterval(5), text: "speaking"), flag = Item(time: t0.addingTimeInterval(2), mark: 1)
+            now = Item(time: t0.addingTimeInterval(5), text: "speaking"), flag = Item(time: t0.addingTimeInterval(0.2), mark: 1)   // a mark before the first word
         var talk = Call()
         talk.recordings = [Recording(start: t0, items: [spoken, flag, running, now])]
         var gone = Set<UUID>()
@@ -788,6 +854,23 @@ struct Call: Identifiable, Codable {
               ends: [running.id: t0.addingTimeInterval(20), now.id: t0.addingTimeInterval(5.5), quiet.id: t0.addingTimeInterval(31)])
         assert(talk.recordings[0].items.map(\.text) == ["the record", "", "more", "missed by the record", "after the gap"], "\(talk.recordings[0].items.map(\.text))")
         assert(talk.recordings[0].items.filter { $0.unrecorded == true }.map(\.text) == ["missed by the record"] && !gone.contains(quiet.id))
+        // A long line of the record becomes a row for each sentence, each with the time it was said, and a mark
+        // made in the middle of it stays between the words it came between. Rows that have not changed keep their identity.
+        let long = RecordLine(start: t0, end: t0.addingTimeInterval(90), text: "BP 150 over 90, heart rate 104. Okay. Gave 324 of aspirin chewed and the pain is easing now.",
+                              words: [(0, 0), (15, 20), (32, 40), (38, 70), (56, 76), (60, 80)].map { RecordLine.Word(offset: $0.0, time: t0.addingTimeInterval($0.1)) })
+        let split = rows(of: long, cutAt: [])
+        assert(split.map(\.text) == ["BP 150 over 90, heart rate 104.", "Okay. Gave 324 of aspirin chewed and the pain is easing now."], "\(split.map(\.text))")
+        assert(split.map { Int($0.time.timeIntervalSince(t0)) } == [0, 40], "\(split.map { $0.time.timeIntervalSince(t0) })")
+        let cut = rows(of: long, cutAt: [t0.addingTimeInterval(78)])
+        assert(cut.map(\.text) == ["BP 150 over 90, heart rate 104.", "Okay. Gave 324 of aspirin", "chewed and the pain is easing now."], "\(cut.map(\.text))")
+        assert(cut[2].time > t0.addingTimeInterval(78) && rows(of: RecordLine(start: t0, end: t0.addingTimeInterval(4), text: "No word times here."), cutAt: []).count == 1)
+        var sorted = Call()
+        sorted.recordings = [Recording(start: t0, items: [Item(time: t0.addingTimeInterval(78), mark: 1)])]
+        place([long], in: &sorted, retiring: &gone, speaking: nil, ends: [:])
+        assert(sorted.recordings[0].items.map { $0.mark == nil ? $0.text : "MARK" } == ["BP 150 over 90, heart rate 104.", "Okay. Gave 324 of aspirin", "MARK", "chewed and the pain is easing now."])
+        let ids = sorted.recordings[0].items.map(\.id)
+        place([long, RecordLine(start: t0.addingTimeInterval(95), end: t0.addingTimeInterval(99), text: "Transporting now.")], in: &sorted, retiring: &gone, speaking: nil, ends: [:])
+        assert(Array(sorted.recordings[0].items.map(\.id).prefix(4)) == ids && sorted.recordings[0].items.count == 5, "rows that did not change were rebuilt")
         talk.recordings[0].items.append(Item(time: t0.addingTimeInterval(60), text: "after the record ended"))
         assert(settle(&talk) == 2 && talk.recordings[0].items.count == 6 && talk.markCount == 1, "drafting must keep live words and mark them")
         // A mark dropped by accident can be deleted: the ones after it move up, and their notes with them.

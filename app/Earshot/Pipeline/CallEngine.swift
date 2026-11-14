@@ -21,6 +21,10 @@ struct RecordLine {
     var start: Date
     var end: Date
     var text: String
+    /// When each word was said: its place in `text` (a character offset) and the time. Empty when the
+    /// recogniser gave no word times; times inside the line are then spread evenly along it.
+    var words: [Word] = []
+    struct Word { var offset: Int; var time: Date }
 }
 
 /// What finishing a call produces.
@@ -137,8 +141,10 @@ final class CallEngine {
                             transcriber: recorder)
         s.callbackQueue = .main
         s.onSegments = { [weak self] segs in
-            self?.onRecord(id, segs.map {
-                RecordLine(start: start.addingTimeInterval(Double($0.startMs) / 1000), end: start.addingTimeInterval(Double($0.endMs) / 1000), text: $0.text)
+            self?.onRecord(id, segs.map { seg in
+                RecordLine(start: start.addingTimeInterval(Double(seg.startMs) / 1000), end: start.addingTimeInterval(Double(seg.endMs) / 1000), text: seg.text,
+                           words: (seg.wordTimes ?? []).filter { $0.count == 2 }
+                               .map { RecordLine.Word(offset: Int($0[0]), time: start.addingTimeInterval(Double($0[1]) / 1000)) })
             })
         }
         // The record is written to disk as it changes, so it is still there if the app closes.
