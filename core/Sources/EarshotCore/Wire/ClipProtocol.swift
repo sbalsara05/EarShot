@@ -14,6 +14,11 @@ public enum ClipMessage: Equatable, Sendable {
     /// stopped: the capture ended. Audio frames only arrive between the two.
     case consent(granted: Bool, source: String, clipMs: Int64)
     case marker(id: Int, source: String, clipMs: Int64, audioSeq: Int64)
+    /// Firmware 0.11+: the medic asked for something to be switched and the tablet decides.
+    /// target "recording" (double click): answer with start or stop. target "call" (1.5 s hold):
+    /// end the open call or open one; if the clip was listening it has already stopped (a
+    /// "stopped" consent event comes first). Never queued: a toggle always means "just now".
+    case toggle(target: String, source: String, clipMs: Int64)
     case audio(ClipAudioFrame)
 }
 
@@ -42,7 +47,8 @@ public struct ClipAudioFrame: Equatable, Sendable {
 }
 
 public enum ClipCommand: String, Sendable {
-    case start, stop, marker
+    /// find (firmware 0.11+): blink and beep so the clip can be found; only blinks while listening.
+    case start, stop, marker, find
 }
 
 public enum ClipProtocol {
@@ -74,6 +80,9 @@ public enum ClipProtocol {
         case "consent":
             guard let ev = o["event"] as? String, ev == "granted" || ev == "stopped" else { return nil }
             return .consent(granted: ev == "granted", source: o["source"] as? String ?? "button", clipMs: int("t_ms") ?? 0)
+        case "toggle":
+            // firmware 0.9-0.10 sent toggle with no target (a double click): treat it as "recording"
+            return .toggle(target: o["target"] as? String ?? "recording", source: o["source"] as? String ?? "button", clipMs: int("t_ms") ?? 0)
         case "marker":
             guard let t = int("t_ms") else { return nil }
             return .marker(id: Int(int("id") ?? 0), source: o["source"] as? String ?? "button", clipMs: t, audioSeq: int("audio_seq") ?? -1)

@@ -9,10 +9,14 @@ every message as it arrives: one JSON object per line,
 Then run the capture through the same live pipeline the iPad uses:
     swift run -c release earshot-eval out.clipcap --asr-model models/ggml-base.en.bin
 
+It also plays the tablet's part in firmware 0.11+ (firmware/APP_AGENT_PROMPT.md): a double click
+arrives as {"type":"toggle","target":"recording"} and is answered with {"cmd":"start"} or
+{"cmd":"stop"}; the clip only captures after that. A hold ("target":"call") is recorded, not answered.
+
 Two ways to use it:
   --sim firmware/build/sim_clip   start the firmware simulator (the real firmware core) with its
-                                  built-in voice, press start, double-tap a marker, hold to stop
-  (no --sim)                      wait for a real clip on Wi-Fi; press its button yourself, Ctrl-C to finish
+                                  built-in voice: double click to start, click a mark, double click to stop
+  (no --sim)                      wait for a real clip on Wi-Fi; use its button yourself, Ctrl-C to finish
 
 Needs: pip install websockets
 """
@@ -40,6 +44,7 @@ async def main():
     out = open(args.out, "w")
     hello = asyncio.Event()
     counts = {"text": 0, "bin": 0}
+    listening = {"on": False}
 
     async def handler(ws):
         if ws.request.path != "/clip":
@@ -48,6 +53,12 @@ async def main():
         try:
             async for msg in ws:
                 record(msg)
+                if isinstance(msg, str):
+                    m = json.loads(msg)
+                    if m.get("type") == "state":
+                        listening["on"] = bool(m.get("listening"))
+                    elif m.get("type") == "toggle" and m.get("target", "recording") == "recording":
+                        await ws.send(json.dumps({"cmd": "stop" if listening["on"] else "start"}))
         except ConnectionClosed:
             pass                                 # the clip went away; what arrived is kept
 
@@ -80,12 +91,12 @@ async def main():
 
         await asyncio.wait_for(hello.wait(), 10)
         await asyncio.sleep(0.5)
-        await say("short")                       # press: consent, capture starts
+        await say("double")                      # toggle recording -> we answer start -> consent, capture
         await asyncio.sleep(args.seconds / 2)
-        await say("double")                      # marker
+        await say("short")                       # single click: a mark
         await asyncio.sleep(args.seconds / 2)
-        await say("long")                        # hold 1.8 s: stop
-        await asyncio.sleep(3.0)
+        await say("double")                      # toggle recording -> we answer stop
+        await asyncio.sleep(2.0)
         await say("quit")
         await proc.wait()
     out.close()

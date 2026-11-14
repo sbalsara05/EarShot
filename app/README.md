@@ -128,6 +128,11 @@ xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS
 - **The clip's Bluetooth connection.** Being written separately. It only needs to implement
   `ClipLink` (pass packets through untouched) and be set on `Model.link`; `CallEngine` does the
   rest. Until then the Clip tab is a stand-in and recordings use the microphone.
+- **The clip's button under firmware 0.11.** `firmware/APP_AGENT_PROMPT.md` specifies how the app
+  must answer it: `toggle` "recording" (double click) is answered with start/stop, `toggle` "call"
+  (hold) ends or opens a call, and clip marks are timed by a clock offset. The pipeline parses
+  these (`ClipMessage.toggle`), but `CallEngine` and `Model` do not act on toggles yet, and the
+  on-screen Mark button still sends `{"cmd":"marker"}`, which the spec says not to do.
 - **Not yet built or run on a device.** The app code for the pipeline was written without Xcode.
   The pipeline itself is tested (`cd core && swift test`), including against the firmware simulator.
 - **Sign-in and audit trail.** Anyone holding the device can open the app and read past calls.

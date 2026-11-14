@@ -232,6 +232,8 @@ public final class LiveSession {
             // consent event (consent was given on the clip before we were listening).
             if listening && capture == nil { decoder.reset(); openCapture(clipMs: clipMs, at: receivedAt) }
             if !listening && capture != nil { closeCapture() }
+        case .toggle:
+            break   // the app decides what a toggle means and answers with start/stop; audio follows consent
         case .marker(_, let source, let clipMs, _):
             let t = capture?.tMs(clipMs) ?? callMs(receivedAt)
             taps.append(PlacedTap(tMs: t, source: source, gesture: "mark", clipMs: clipMs))

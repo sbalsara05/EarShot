@@ -11,6 +11,13 @@ final class ClipProtocolTests: XCTestCase {
         XCTAssertEqual(ClipProtocol.parseText(#"{"type":"consent","event":"granted","source":"button","t_ms":41230}"#), .consent(granted: true, source: "button", clipMs: 41230))
         XCTAssertEqual(ClipProtocol.parseText(#"{"type":"consent","event":"stopped","source":"tablet","t_ms":63010}"#), .consent(granted: false, source: "tablet", clipMs: 63010))
         XCTAssertEqual(ClipProtocol.parseText(#"{"type":"marker","id":1,"source":"button","t_ms":47781,"audio_seq":327}"#), .marker(id: 1, source: "button", clipMs: 47781, audioSeq: 327))
+        // firmware 0.11: toggles, from firmware/APP_AGENT_PROMPT.md
+        XCTAssertEqual(ClipProtocol.parseText(#"{"type":"toggle","target":"recording","source":"button","t_ms":52310}"#),
+                       .toggle(target: "recording", source: "button", clipMs: 52310))
+        XCTAssertEqual(ClipProtocol.parseText(#"{"type":"toggle","target":"call","source":"button","t_ms":91500}"#),
+                       .toggle(target: "call", source: "button", clipMs: 91500))
+        XCTAssertEqual(ClipProtocol.parseText(#"{"type":"toggle","source":"button","t_ms":5}"#), .toggle(target: "recording", source: "button", clipMs: 5))
+        XCTAssertEqual(ClipProtocol.command(.find), #"{"cmd":"find"}"#)
         XCTAssertNil(ClipProtocol.parseText(#"{"type":"unknown"}"#))
         XCTAssertNil(ClipProtocol.parseText("not json"))
         XCTAssertEqual(ClipProtocol.command(.start), #"{"cmd":"start"}"#)
@@ -30,6 +37,7 @@ final class ClipProtocolTests: XCTestCase {
             case .state: kinds["state", default: 0] += 1
             case .consent: kinds["consent", default: 0] += 1
             case .marker: kinds["marker", default: 0] += 1
+            case .toggle: kinds["toggle", default: 0] += 1
             case .audio: break
             }
         }
