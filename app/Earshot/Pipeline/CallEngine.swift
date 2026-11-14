@@ -305,6 +305,7 @@ final class CallEngine {
         carry += pcm
         let s = session
         while carry.count >= 320 {
+            LevelProbe.shared.frame(Array(carry.prefix(320)))   // diagnostic: levels only, no audio kept
             s?.handleDecodedAudio(seq: seq, clipMs: clipMs, pcm: Array(carry.prefix(320)))
             carry.removeFirst(320)
             seq &+= 1

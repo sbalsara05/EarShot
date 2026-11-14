@@ -245,6 +245,9 @@ struct Call: Identifiable, Codable {
                 if lines.contains(where: { $0.start <= end && $0.end >= item.time.addingTimeInterval(-liveLag) }) {
                     retired.insert(item.id)                                          // the record has this stretch
                 } else {
+                    if item.unrecorded != true {
+                        LevelProbe.shared.lineMarked(from: item.time.addingTimeInterval(-liveLag), to: end, chars: item.text.count, by: "place")
+                    }
                     item.unrecorded = true
                     items.append(item)
                 }
@@ -323,13 +326,16 @@ struct Call: Identifiable, Codable {
     /// The call is drafted, so the record is complete: any live words still not in it are marked
     /// `unrecorded`. Returns how many lines that is. If nothing at all was written to the record (no
     /// recogniser could run), the live words are all there is and are left as they are.
-    @discardableResult static func settle(_ call: inout Call) -> Int {
+    @discardableResult static func settle(_ call: inout Call, ends: [UUID: Date] = [:]) -> Int {
         guard call.recordings.contains(where: { $0.items.contains { $0.record == true } }) else { return 0 }
         var count = 0
         for r in call.recordings.indices {
             for i in call.recordings[r].items.indices {
                 let item = call.recordings[r].items[i]
                 guard item.mark == nil, item.place == nil, item.record != true, !item.text.isEmpty else { continue }
+                if item.unrecorded != true {
+                    LevelProbe.shared.lineMarked(from: item.time.addingTimeInterval(-liveLag), to: ends[item.id] ?? item.time, chars: item.text.count, by: "settle")
+                }
                 call.recordings[r].items[i].unrecorded = true
                 count += 1
             }
@@ -645,7 +651,7 @@ struct Call: Identifiable, Codable {
             let out = await engine.finish(id)   // waits for Whisper to finish the call, then drafts from the record
             guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // signed or removed meanwhile
             var notes = out.notes
-            let missed = Self.settle(&review[i])   // the record is complete: what it never took up is marked
+            let missed = Self.settle(&review[i], ends: liveEnds)   // the record is complete: what it never took up is marked
             if missed > 0 {
                 notes.append("\(plural(missed, "line")) heard live \(missed == 1 ? "is" : "are") not in the record, so not in the report. \(missed == 1 ? "It is" : "They are") marked in the transcript.")
             }

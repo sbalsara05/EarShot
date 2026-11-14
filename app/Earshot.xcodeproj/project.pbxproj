@@ -14,6 +14,7 @@
 		30CEFA5FD86855E6A4D334D0 /* EarshotCore in Frameworks */ = {isa = PBXBuildFile; productRef = 27F5E23D81A2B043B6809958 /* EarshotCore */; };
 		3A435505B7D0B4A4AA3BFCA4 /* CallScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06F5CBCC5993083EA36925D /* CallScreens.swift */; };
 		436DE914EAF343ECD605901E /* ems_terms.json in Resources */ = {isa = PBXBuildFile; fileRef = A5BD629C14912300EF0D102B /* ems_terms.json */; };
+		43AEFEC8857885D9A3454B78 /* LevelProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E5AD8093E8996EC320EA43A /* LevelProbe.swift */; };
 		4BF908B7ADF35B8139D9CD0D /* formulary.json in Resources */ = {isa = PBXBuildFile; fileRef = 1D4E417BCA27BC7AEEC2513B /* formulary.json */; };
 		5DE2023DF39C20B0FC26E323 /* AppleNoteWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F91721CBC7A0DAE06DFAD8A1 /* AppleNoteWriter.swift */; };
 		5EA0B41AFDD9F5C0689BA5CC /* Recorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082FE432C47C08908302588B /* Recorder.swift */; };
@@ -47,6 +48,7 @@
 
 /* Begin PBXFileReference section */
 		082FE432C47C08908302588B /* Recorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recorder.swift; sourceTree = "<group>"; };
+		0E5AD8093E8996EC320EA43A /* LevelProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LevelProbe.swift; sourceTree = "<group>"; };
 		1D4E417BCA27BC7AEEC2513B /* formulary.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = formulary.json; sourceTree = "<group>"; };
 		2CDF5E2D65D68EE31D1F4D88 /* core */ = {isa = PBXFileReference; lastKnownFileType = folder; name = core; path = ../core; sourceTree = SOURCE_ROOT; };
 		3B54A6FD7A9CDD5B33581F98 /* Doto.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Doto.ttf; sourceTree = "<group>"; };
@@ -90,6 +92,7 @@
 				F91721CBC7A0DAE06DFAD8A1 /* AppleNoteWriter.swift */,
 				B58D12CE5B2253A74D49BE37 /* AppleTranscriber.swift */,
 				C9AD7B5C61508F17748297B0 /* CallEngine.swift */,
+				0E5AD8093E8996EC320EA43A /* LevelProbe.swift */,
 				A400159EC9128FC9A85FE160 /* NoteWriter.swift */,
 				DF4458FABC4535762089E889 /* WhisperTranscriber.swift */,
 			);
@@ -293,6 +296,7 @@
 				12BED601B5A2FBAA83CEE7C9 /* ClipLink.swift in Sources */,
 				8A68780E5B2AB6DD36343945 /* Components.swift in Sources */,
 				F99AAED5F7FFCD762B42F0A1 /* EarshotApp.swift in Sources */,
+				43AEFEC8857885D9A3454B78 /* LevelProbe.swift in Sources */,
 				D4CAEFADF2070B5754D7B127 /* Location.swift in Sources */,
 				6854BFE12072F17474D75361 /* NoteWriter.swift in Sources */,
 				5EA0B41AFDD9F5C0689BA5CC /* Recorder.swift in Sources */,
