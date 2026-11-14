@@ -26,6 +26,10 @@
 // if the audio the tablet receives is too quiet.
 // #define MIC_MAGNIFICATION 4
 
+// "Find clip" beep on a board with no speaker (the Feather): wire a piezo buzzer between a free
+// pin and GND and name the pin here. The Atom uses its built-in speaker and ignores this.
+// #define BUZZER_PIN 5
+
 // ---- M5Stack Atom VoiceS3R pins. The Feather build ignores these and uses its own
 // (src/build_config.h).
 #define BUTTON_PIN 41      // USER_BUT, active low

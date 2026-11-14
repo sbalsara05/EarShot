@@ -51,6 +51,18 @@ async def main():
         check("tablet received 0 audio bytes", t.audio_bytes == 0, f"{t.audio_bytes} bytes")
         check("ring is dark", t.sim_led == "off", t.sim_led)
 
+        print("find clip")
+        await t.send_command("find")
+        check("clip beeps when the tablet asks to find it", await wait_for(lambda: t.sim_beeps >= 3, 2.0),
+              f"{t.sim_beeps} beeps")
+        check("find does not start a capture",
+              t.device_state == "not_listening" and t.audio_bytes == 0 and not consent_events(t))
+        await asyncio.sleep(2.6)
+        beeps = t.sim_beeps
+        await asyncio.sleep(1.0)
+        check("find stops by itself after about 3 seconds", t.sim_beeps == beeps and t.sim_led == "off",
+              f"{t.sim_beeps} beeps, ring {t.sim_led}")
+
         print("gestures that must not start a capture")
         await t.sim_input("double")
         await asyncio.sleep(0.9)

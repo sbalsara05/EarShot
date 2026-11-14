@@ -108,6 +108,7 @@ class Esp32Hal : public earshot::Hal {
 #if EARSHOT_MIC_M5
   bool micStart() override {
     if (mic_on_) return true;
+    beepDone();  // the speaker and the microphone share one audio chip: only one at a time
     auto cfg = M5.Mic.config();
     // Keep M5Unified's board defaults for the Atom VoiceS3R (stereo I2S input, pins, codec
     // clocking): the ES8311 derives its clock from the bit clock, so changing the input format
@@ -184,6 +185,38 @@ class Esp32Hal : public earshot::Hal {
   }
 #endif
 
+  // ---- the "find" beep
+#if EARSHOT_SPEAKER_M5
+  // The Atom's speaker goes through the same audio chip as its microphone, so it is started
+  // for a find and shut down again afterwards (and never used while the microphone is on).
+  void beep(bool on) override {
+    if (on) {
+      if (mic_on_) return;
+      if (!spk_on_) {
+        spk_on_ = M5.Speaker.begin();
+        M5.Speaker.setVolume(255);
+      }
+      if (spk_on_) M5.Speaker.tone(BEEP_HZ, 5000);  // until beep(false); 5 s is only a backstop
+    } else if (spk_on_) {
+      M5.Speaker.stop();
+    }
+  }
+  void beepDone() override {
+    if (!spk_on_) return;
+    M5.Speaker.stop();
+    M5.Speaker.end();
+    spk_on_ = false;
+  }
+#elif defined(BUZZER_PIN)
+  // A piezo buzzer on a spare pin.
+  void beep(bool on) override {
+    if (on) tone(BUZZER_PIN, BEEP_HZ);
+    else noTone(BUZZER_PIN);
+  }
+#else
+  void beep(bool) override {}  // no speaker on this board: "find" only blinks the light
+#endif
+
 #if LINK_BLUETOOTH
   bool networkUp() override { return true; }  // only the Wi-Fi link asks
 #else
@@ -198,6 +231,7 @@ class Esp32Hal : public earshot::Hal {
   uint8_t next_ = 0;
   uint8_t primed_ = 0;
   int16_t bufs_[3][earshot::kFrameSamples];
+  bool spk_on_ = false;
 #else
   uint32_t next_frame_ms_ = 0;
   uint32_t phase_ = 0;
@@ -238,7 +272,9 @@ void setup() {
   auto cfg = M5.config();
   cfg.serial_baudrate = 115200;
   cfg.internal_mic = true;
-  cfg.internal_spk = false;  // mic and speaker share the codec's I2S bus; we only capture
+  // Must be true even for capture alone: M5Unified sets up this board's microphone inside its
+  // speaker set-up, and skips both when the speaker is switched off here.
+  cfg.internal_spk = true;
   cfg.internal_imu = false;
   cfg.internal_rtc = false;
   M5.begin(cfg);
@@ -252,6 +288,11 @@ void setup() {
 #elif EARSHOT_MIC_VOICE
   Serial.printf("[clip] microphone: none on this board; playing a %.1f s voice recording instead\n",
                 (float)(kVoiceClipBytes * 2) / earshot::kSampleRate);
+#ifdef BUZZER_PIN
+  Serial.printf("[clip] find: blinks the light and beeps the buzzer on pin %d\n", (int)BUZZER_PIN);
+#else
+  Serial.println("[clip] find: blinks the light only (no speaker on this board; see BUZZER_PIN)");
+#endif
 #else
   Serial.println("[clip] microphone: none in Wokwi; using a 440 Hz tone instead");
 #endif
@@ -326,10 +367,10 @@ void loop() {
              WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "down",
              g_app->linkOpen() ? "open" : "closed");
 #endif
-    Serial.printf("[clip] state=%s %s captured=%lu sent=%lu dropped=%lu markers=%lu captures=%lu\n",
+    Serial.printf("[clip] state=%s %s captured=%lu sent=%lu dropped=%lu markers=%lu finds=%lu captures=%lu\n",
                   earshot::stateName(g_app->state()), link, (unsigned long)s.frames_captured,
                   (unsigned long)s.frames_sent, (unsigned long)s.frames_dropped,
-                  (unsigned long)s.markers, (unsigned long)s.captures);
+                  (unsigned long)s.markers, (unsigned long)s.finds, (unsigned long)s.captures);
 #if AUDIO_OPUS_KBPS > 0
     // Each frame is 20 ms long, so encoding one must take well under 20 ms to keep up.
     if (g_opus && s.frames_captured > 0)

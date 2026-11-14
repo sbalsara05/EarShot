@@ -13,6 +13,8 @@ static Transition go(ClipState s, Effect e) {
 }
 
 Transition step(ClipState state, Input input) {
+  if (input == Input::CmdFind) return go(state, Effect::Find);  // works in either state
+
   switch (state) {
     case ClipState::NotListening:
       if (input == Input::ShortPress || input == Input::CmdStart)

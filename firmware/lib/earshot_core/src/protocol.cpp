@@ -53,6 +53,7 @@ bool parseCommand(const std::string& json, Input& out) {
   if (cmd == "start") out = Input::CmdStart;
   else if (cmd == "stop") out = Input::CmdStop;
   else if (cmd == "marker") out = Input::CmdMarker;
+  else if (cmd == "find") out = Input::CmdFind;
   else return false;
   return true;
 }

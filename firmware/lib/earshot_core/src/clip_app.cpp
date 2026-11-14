@@ -32,6 +32,9 @@ void ClipApp::init() {
   audio_seq_ = 0;
   flashing_ = false;
   flash_start_ = 0;
+  finding_ = false;
+  find_start_ = 0;
+  beep_on_ = false;
   led_ = LedColor::Off;
   memset(frame_, 0, sizeof frame_);
   memset(packet_, 0, sizeof packet_);
@@ -48,6 +51,7 @@ void ClipApp::tick() {
   if (cfg_.poll_button) onButtonEvent(button_.update(hal_.buttonPressed(), now));
 
   serviceLink(now);
+  serviceFind(hal_.millis());
   serviceAudio(now);
   refreshLed(hal_.millis(), false);
 }
@@ -73,6 +77,10 @@ void ClipApp::apply(Input input, const char* source) {
       // Pressing start is the medic's confirmation of consent. It is logged first; only then
       // does the microphone start.
       emit(consentJson("granted", source, now));
+      if (finding_) {  // a find in progress goes quiet, and frees the speaker, before the mic turns on
+        setBeep(false);
+        hal_.beepDone();
+      }
       audio_seq_ = 0;
       enc_->reset();  // no codec state carries over from the previous capture
       ++stats_.captures;
@@ -89,6 +97,13 @@ void ClipApp::apply(Input input, const char* source) {
       flashing_ = true;
       flash_start_ = now;
       emit(markerJson(stats_.markers, source, now, audio_seq_));
+      return;  // state did not change
+    case Effect::Find:
+      ++stats_.finds;
+      finding_ = true;
+      find_start_ = now;  // asking again while it is running restarts the timer
+      hal_.log(state_ == ClipState::Listening ? "find: blinking (no beep while listening)"
+                                              : "find: blinking and beeping");
       return;  // state did not change
   }
   emit(stateJson(state_, now));
@@ -136,6 +151,27 @@ void ClipApp::serviceLink(uint32_t now) {
   }
 }
 
+void ClipApp::setBeep(bool on) {
+  if (on == beep_on_) return;
+  beep_on_ = on;
+  hal_.beep(on);
+}
+
+void ClipApp::serviceFind(uint32_t now) {
+  if (!finding_) return;
+  uint32_t elapsed = (uint32_t)(now - find_start_);
+  if (elapsed >= cfg_.find_ms) {
+    finding_ = false;
+    setBeep(false);
+    hal_.beepDone();
+    return;
+  }
+  // Short beeps, but only while the microphone is off: a beep must never end up in a
+  // recording, and on the real clip the speaker and microphone share one audio chip.
+  bool want = state_ != ClipState::Listening && (elapsed % cfg_.find_beep_period_ms) < cfg_.find_beep_ms;
+  setBeep(want);
+}
+
 void ClipApp::serviceAudio(uint32_t now) {
   if (state_ != ClipState::Listening) {
     hal_.sleepMs(10);  // mic is off: nothing to capture; avoid spinning
@@ -159,9 +195,14 @@ void ClipApp::serviceAudio(uint32_t now) {
 void ClipApp::refreshLed(uint32_t now, bool force) {
   LedColor want = state_ == ClipState::Listening ? LedColor::Green : LedColor::Off;
 
-  if (flashing_) {
-    if ((uint32_t)(now - flash_start_) < cfg_.marker_flash_ms) want = LedColor::White;
-    else flashing_ = false;
+  if (flashing_ && (uint32_t)(now - flash_start_) >= cfg_.marker_flash_ms) flashing_ = false;
+
+  if (finding_) {
+    // Fast white blink. Between blinks the light shows the state as usual, so a clip that is
+    // listening still reads as listening.
+    if ((((uint32_t)(now - find_start_)) / cfg_.find_blink_ms) % 2 == 0) want = LedColor::White;
+  } else if (flashing_) {
+    want = LedColor::White;
   } else if (cfg_.gateway_enabled && state_ != ClipState::NotListening && !linkOpen() &&
              ((now / 500) % 2) == 1) {
     want = LedColor::Off;  // blinking = listening, but not connected to the tablet

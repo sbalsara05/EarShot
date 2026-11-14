@@ -121,6 +121,7 @@
       <button data-cmd="start">Start</button>
       <button data-cmd="stop">Stop</button>
       <button data-cmd="marker">Add marker</button>
+      <button data-cmd="find">Find clip</button>
       <button id="reset">Clear ledger</button>
     </div>
     <div class="buttons" style="margin-top:0">
@@ -149,8 +150,28 @@ function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj))
 
 function setLed(color) { $('ring').className = 'ring ' + (color === 'off' ? '' : color); }
 
+// The clip's "find" beep, played through the laptop so it can be heard.
+let audioCtx = null, beepOsc = null;
+function setBeep(on) {
+  try {
+    if (on && !beepOsc) {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const gain = audioCtx.createGain();
+      gain.gain.value = 0.08;
+      beepOsc = audioCtx.createOscillator();
+      beepOsc.frequency.value = 2700;
+      beepOsc.connect(gain).connect(audioCtx.destination);
+      beepOsc.start();
+    } else if (!on && beepOsc) {
+      beepOsc.stop();
+      beepOsc = null;
+    }
+  } catch (e) { beepOsc = null; }  // no audio output: the blinking ring still shows it
+}
+
 function handle(m) {
   if (m.kind === 'led') return setLed(m.color);
+  if (m.kind === 'beep') return setBeep(m.on);
   if (m.kind === 'cleared') { $('log').textContent = ''; return; }
   if (m.kind === 'event') return logEvent(m);
   if (m.kind !== 'tablet') return;

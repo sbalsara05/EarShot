@@ -67,6 +67,7 @@ class MockTablet:
         self.sim = None           # simulated clip process
         self.sim_status = {}
         self.sim_led = "off"
+        self.sim_beeps = 0        # beeps the simulated clip has made ("find")
         self.server = None
         self._tasks = []
         self._wav = None
@@ -389,6 +390,9 @@ class MockTablet:
             if m.get("sim") == "led":
                 self.sim_led = m.get("color", "off")
                 self._broadcast({"kind": "led", "color": self.sim_led})
+            elif m.get("sim") == "beep":
+                self.sim_beeps += 1 if m.get("on") else 0
+                self._broadcast({"kind": "beep", "on": bool(m.get("on"))})
             elif m.get("sim") == "status":
                 m.pop("sim")
                 self.sim_status = m

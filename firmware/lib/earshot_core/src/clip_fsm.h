@@ -11,7 +11,9 @@
 // the medic's confirmation that consent was given: the press is logged as a consent event and
 // only then does capture start. If the patient says no, the medic does not press.
 // Double tap while Listening drops a timestamp marker.
-// The tablet can drive the same transitions with commands (see protocol.h).
+// The tablet can drive the same transitions with commands (see protocol.h). It can also ask
+// the clip to make itself findable ("find"): the clip blinks and beeps for a few seconds in
+// either state, without changing state.
 #pragma once
 #include <stdint.h>
 
@@ -19,13 +21,14 @@ namespace earshot {
 
 enum class ClipState : uint8_t { NotListening, Listening };
 
-enum class Input : uint8_t { ShortPress, LongPress, DoubleTap, CmdStart, CmdStop, CmdMarker };
+enum class Input : uint8_t { ShortPress, LongPress, DoubleTap, CmdStart, CmdStop, CmdMarker, CmdFind };
 
 enum class Effect : uint8_t {
   None,
   Started,  // consent logged, capture starts
   Stopped,  // capture ended
-  Marker
+  Marker,
+  Find      // blink and beep so the clip can be found; the state does not change
 };
 
 struct Transition {

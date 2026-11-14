@@ -10,6 +10,7 @@ reconnects by itself when the clip goes away and comes back, so it doubles as a 
     --start        tell the clip to start a capture as soon as it is connected (otherwise press
                    the clip's button)
     --seconds N    stop the capture and quit after N seconds of audio
+    --find         ask the clip to blink and beep ("Find clip"), wait for it to finish, and quit
     --wav FILE     where to save the decoded audio (default: build/ble_received.wav)
     --transcribe   transcribe the saved audio with Whisper at the end
 
@@ -136,6 +137,12 @@ async def run(args):
                 await client.start_notify(AUDIO, rx.on_audio)
                 await client.start_notify(EVENTS, rx.on_event)
                 await asyncio.wait_for(rx.hello.wait(), 5.0)
+                if args.find:
+                    await client.write_gatt_char(COMMANDS, b'{"cmd":"find"}', response=True)
+                    print(f"{stamp()}  sent find: the clip should blink (and beep, if it has a speaker) for about 3 seconds")
+                    await asyncio.sleep(4.0)
+                    done.set()
+                    break
                 if args.start and not rx.listening:
                     await client.write_gatt_char(COMMANDS, b'{"cmd":"start"}', response=True)
 
@@ -176,6 +183,7 @@ def main():
     ap = argparse.ArgumentParser(description="Receive the Earshot clip's Bluetooth stream on a Mac.")
     ap.add_argument("--start", action="store_true", help="start a capture as soon as connected")
     ap.add_argument("--seconds", type=float, default=0, help="quit after this much audio")
+    ap.add_argument("--find", action="store_true", help="make the clip blink and beep, then quit")
     ap.add_argument("--wav", default=str(ROOT / "build" / "ble_received.wav"))
     ap.add_argument("--transcribe", action="store_true")
     args = ap.parse_args()

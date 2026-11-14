@@ -362,6 +362,19 @@ class FakeHal : public Hal {
     now += 20;  // a real mic read blocks for one frame
     return samples;
   }
+  // "find" beep
+  bool beeping = false;
+  int beeps = 0;              // times a beep started
+  int beeps_with_mic_on = 0;  // must stay 0: a beep would land in the recording
+  int beep_dones = 0;
+  void beep(bool on) override {
+    if (on && !beeping) {
+      ++beeps;
+      if (mic_on) ++beeps_with_mic_on;
+    }
+    beeping = on;
+  }
+  void beepDone() override { ++beep_dones; }
   bool networkUp() override { return net; }
   void log(const char*) override {}
 };
@@ -933,6 +946,110 @@ static void test_voice_clip() {
   CHECK(frame[0] == 0 && frame[kFrameSamples - 1] == 0);
 }
 
+// ---------------------------------------------------------------- find clip
+
+static int ledChanges(const FakeHal& hal, size_t from, LedColor c) {
+  int n = 0;
+  for (size_t i = from; i < hal.led_history.size(); ++i) n += hal.led_history[i] == c;
+  return n;
+}
+
+static void test_find() {
+  printf("find clip: blink and beep\n");
+  Transition t;
+  t = step(ClipState::NotListening, Input::CmdFind);     // never changes the state
+  CHECK(t.next == ClipState::NotListening && t.effect == Effect::Find);
+  t = step(ClipState::Listening, Input::CmdFind);
+  CHECK(t.next == ClipState::Listening && t.effect == Effect::Find);
+  Input in;
+  CHECK(parseCommand("{\"cmd\":\"find\"}", in) && in == Input::CmdFind);
+
+  {  // not listening: blinks white and beeps for 3.2 s, then goes dark and quiet
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    CHECK(r.app.linkOpen());
+    size_t mark = r.hal.led_history.size();
+    r.command("find");                                   // runs 100 ms
+    CHECK(r.app.finding());
+    CHECK(r.app.state() == ClipState::NotListening);
+    CHECK_EQ(r.app.stats().finds, 1);
+    r.run(1400);
+    CHECK(r.app.finding());
+    CHECK(r.hal.beeps >= 3);                             // one beep every 400 ms
+    CHECK(ledChanges(r.hal, mark, LedColor::White) >= 5);   // 125 ms on, 125 ms off
+    r.run(2000);                                         // 3.5 s since the command
+    CHECK(!r.app.finding());
+    CHECK(!r.hal.beeping);
+    CHECK(r.hal.beeps >= 7 && r.hal.beeps <= 9);         // 3.2 s at one per 400 ms
+    CHECK_EQ(r.hal.beep_dones, 1);                       // the speaker is released once, at the end
+    CHECK(r.hal.led == LedColor::Off);
+    CHECK_EQ(r.hal.mic_starts, 0);                       // find never turns the microphone on
+    CHECK_EQ(r.audioFrames(), 0);
+    CHECK_EQ(r.textCount("\"type\":\"consent\""), 0);
+
+    r.command("find");                                   // asking again mid-find restarts the timer
+    r.run(2000);
+    r.command("find");
+    r.run(2000);
+    CHECK(r.app.finding());                              // 4.1 s after the first, 2.1 s after the second
+    r.run(1500);
+    CHECK(!r.app.finding());
+  }
+  {  // listening: blinks only. No beep, the capture carries on, and the light ends up green
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    r.shortPress();
+    CHECK(r.app.state() == ClipState::Listening);
+    int frames_before = r.audioFrames();
+    size_t mark = r.hal.led_history.size();
+    r.command("find");
+    r.run(1000);
+    CHECK(r.app.finding());
+    CHECK(r.app.state() == ClipState::Listening);
+    CHECK(ledChanges(r.hal, mark, LedColor::White) >= 3);
+    CHECK(ledChanges(r.hal, mark, LedColor::Green) >= 3);   // green shows between blinks
+    CHECK(r.audioFrames() >= frames_before + 40);        // audio kept flowing
+    r.run(2500);
+    CHECK(!r.app.finding());
+    CHECK_EQ(r.hal.beeps, 0);
+    CHECK_EQ(r.hal.beeps_with_mic_on, 0);
+    CHECK(r.hal.led == LedColor::Green);
+    CHECK(r.hal.mic_on);
+  }
+  {  // a capture that starts during a find silences it before the microphone turns on
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    r.command("find");
+    r.run(150);                                          // 250 ms in: between beeps
+    r.command("find");                                   // restart, so a beep is sounding right now
+    CHECK(r.hal.beeping);
+    r.app.onButtonEvent(ButtonEvent::ShortPress);
+    CHECK(r.app.state() == ClipState::Listening);
+    CHECK(!r.hal.beeping);
+    CHECK(r.hal.beep_dones >= 1);
+    int beeps = r.hal.beeps;
+    r.run(3500);
+    CHECK_EQ(r.hal.beeps, beeps);                        // no more beeps once listening
+    CHECK_EQ(r.hal.beeps_with_mic_on, 0);
+    CHECK(r.hal.led == LedColor::Green);
+  }
+  {  // stopping a capture mid-find lets the beeps begin
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    r.shortPress();
+    r.command("find");
+    r.app.onButtonEvent(ButtonEvent::LongPress);
+    CHECK(r.app.state() == ClipState::NotListening);
+    r.run(1500);
+    CHECK(r.hal.beeps >= 2);
+    CHECK_EQ(r.hal.beeps_with_mic_on, 0);
+  }
+}
+
 int main() {
   test_button();
   test_fsm();
@@ -946,6 +1063,7 @@ int main() {
   test_app_packet_link();
   test_message_sizes();
   test_voice_clip();
+  test_find();
   printf("\n%d checks, %d failed\n", g_checks, g_failed);
   return g_failed ? 1 : 0;
 }
