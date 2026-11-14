@@ -142,21 +142,36 @@ public final class RulesExtractor {
         return out.sorted { ($0.tMs, $0.type.rawValue) < ($1.tMs, $1.type.rawValue) }
     }
 
-    // MARK: a time said aloud ("aspirin given at 1410")
+    // MARK: a time said aloud ("aspirin given at 1410", "gave aspirin five minutes ago")
 
-    /// Cleanup turns a clock time after "at" into one "HH:MM" token. Here it is given to the
-    /// medication, vital signs or procedure it was said about, as `time_said` with its own receipt:
-    /// the one just before it in the same clause ("aspirin 324 at 1410"), or failing that the one
-    /// just after it in the same sentence ("at 1410, BP 150 over 90"). Vital signs read out together
-    /// share the time. A time that is part of another finding ("last known well at 1410") is left to it.
+    /// Words between a thing and "N minutes ago" that mean the time is about something else
+    /// ("BP 150 over 90, pain started 20 minutes ago").
+    static let agoBelongsElsewhere: Set<String> = ["started", "began", "begin", "beginning", "since", "onset", "for", "lasting", "lasted", "complaining", "woke", "fell", "happened"]
+
+    /// A time said about something done is given to the medication, vital signs or procedure it
+    /// belongs to, as `time_said` with its own receipt:
+    /// - a clock time ("14:10", one token after cleanup): the thing just before it in the same clause
+    ///   ("aspirin 324 at 1410"), or failing that the one just after it in the same sentence
+    ///   ("at 1410, BP 150 over 90"). `time_half` is "unsaid" when it could be morning or afternoon.
+    /// - "N minutes ago", "an hour ago", "half an hour ago" ("5 min ago"): only the thing just before
+    ///   it, since said first it is usually about when the complaint began.
+    /// Vital signs read out together share the time. A time that is part of another finding
+    /// ("last known well at 1410") is left to it.
     func attachSaidTimes(_ tt: TokText, _ out: inout [Finding]) {
         let toks = tt.seg.tokens
-        func isTime(_ k: Int) -> Bool {
-            let t = toks[k].text
-            guard k > 0, ["at", "@"].contains(toks[k - 1].text), t.count == 5, Cleanup.clock4(t.replacingOccurrences(of: ":", with: "")) == t else { return false }
-            return true
+        struct Mention { var lo: Int, hi: Int, value: String, halfUnsaid: Bool, ago: Bool }
+        var mentions: [Mention] = []
+        var k = 0
+        while k < toks.count {
+            if let rule = toks[k].rule, rule.hasPrefix("time:clock") {
+                mentions.append(Mention(lo: k, hi: k, value: toks[k].text, halfUnsaid: rule.hasSuffix("?"), ago: false))
+            } else if let a = Self.ago(toks, at: k) {
+                mentions.append(Mention(lo: k, hi: a.end, value: "\(a.minutes) min ago", halfUnsaid: false, ago: true))
+                k = a.end
+            }
+            k += 1
         }
-        guard toks.indices.contains(where: isTime) else { return }
+        guard !mentions.isEmpty else { return }
         // each finding's first and last token, from the raw ranges of its receipts
         let spans: [(lo: Int, hi: Int)?] = out.map { f in
             let r = f.receipts.values.compactMap(\.rawRange).filter { $0.count == 2 }
@@ -166,21 +181,21 @@ public final class RulesExtractor {
         }
         let timed: Set<EventType> = [.medication, .vitals, .procedure]
         func ends(_ k: Int) -> Bool { toks[k].punct.map { ".?!".contains($0) } ?? false }   // a sentence ends after token k
-        let reach = 6   // tokens between the thing and its time ("... milligrams chewed IV at")
-        for k in toks.indices where isTime(k) {
-            if zip(out, spans).contains(where: { f, s in !timed.contains(f.type) && s.map { $0.lo <= k && k <= $0.hi } == true }) { continue }
-            var pick: Int? = nil
+        for t in mentions {
+            if zip(out, spans).contains(where: { f, s in !timed.contains(f.type) && s.map { $0.lo <= t.hi && t.lo <= $0.hi } == true }) { continue }
+            let reach = t.ago ? 3 : 6   // tokens between the thing and its time ("... milligrams chewed IV at")
             // said after the thing, nothing but words in between
             let before = out.indices.filter { i in
-                guard timed.contains(out[i].type), out[i].fields[SaidTime.field] == nil, let s = spans[i], s.hi < k, k - s.hi <= reach else { return false }
-                return (s.hi..<k).allSatisfy { toks[$0].punct == nil }
+                guard timed.contains(out[i].type), out[i].fields[SaidTime.field] == nil, let s = spans[i], s.hi < t.lo, t.lo - s.hi <= reach else { return false }
+                guard (s.hi..<t.lo).allSatisfy({ toks[$0].punct == nil }) else { return false }
+                return !t.ago || !((s.hi + 1)..<t.lo).contains { Self.agoBelongsElsewhere.contains(toks[$0].text) }
             }
-            pick = before.max { spans[$0]!.hi < spans[$1]!.hi }
-            if pick == nil {
+            var pick = before.max { spans[$0]!.hi < spans[$1]!.hi }
+            if pick == nil, !t.ago {
                 // said before the thing, in the same sentence
                 let after = out.indices.filter { i in
-                    guard timed.contains(out[i].type), out[i].fields[SaidTime.field] == nil, let s = spans[i], s.lo > k, s.lo - k <= reach else { return false }
-                    return (k..<s.lo).allSatisfy { !ends($0) }
+                    guard timed.contains(out[i].type), out[i].fields[SaidTime.field] == nil, let s = spans[i], s.lo > t.hi, s.lo - t.hi <= reach else { return false }
+                    return (t.hi..<s.lo).allSatisfy { !ends($0) }
                 }
                 pick = after.min { spans[$0]!.lo < spans[$1]!.lo }
             }
@@ -194,10 +209,28 @@ public final class RulesExtractor {
                 }
             }
             for j in share {
-                out[j].fields[SaidTime.field] = toks[k].text
-                out[j].receipts[SaidTime.field] = tt.receipt(k...k)
+                out[j].fields[SaidTime.field] = t.value
+                out[j].receipts[SaidTime.field] = tt.receipt(t.lo...t.hi)
+                if t.halfUnsaid { out[j].fields[SaidTime.halfField] = "unsaid" }
             }
         }
+    }
+
+    /// "5 minutes ago", "20 mins ago", "an hour ago", "half an hour ago", "2 hours ago" starting at
+    /// token k: how many minutes, and the index of "ago". Up to six hours.
+    static func ago(_ toks: [CleanToken], at k: Int) -> (minutes: Int, end: Int)? {
+        func word(_ i: Int) -> String? { i < toks.count ? toks[i].text : nil }
+        func plain(_ r: Range<Int>) -> Bool { r.allSatisfy { toks[$0].punct == nil } }   // no punctuation inside the phrase
+        let perUnit: [String: Int] = ["minute": 1, "minutes": 1, "min": 1, "mins": 1, "hour": 60, "hours": 60, "hr": 60, "hrs": 60]
+        var amount: Double, unitAt: Int
+        if word(k) == "half", let w = word(k + 1), w == "an" || w == "a" { amount = 0.5; unitAt = k + 2 }
+        else if let w = word(k), w == "a" || w == "an" { amount = 1; unitAt = k + 1 }
+        else if let w = word(k), let n = Int(w), (1...600).contains(n) { amount = Double(n); unitAt = k + 1 }
+        else { return nil }
+        guard let u = word(unitAt), let per = perUnit[u], word(unitAt + 1) == "ago", plain(k..<(unitAt + 1)) else { return nil }
+        let minutes = Int((amount * Double(per)).rounded())
+        guard (1...360).contains(minutes) else { return nil }
+        return (minutes, unitAt + 1)
     }
 
     // MARK: vitals

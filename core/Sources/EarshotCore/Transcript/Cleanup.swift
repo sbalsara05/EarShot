@@ -172,35 +172,85 @@ public final class Cleanup {
             }
             k += 1
         }
-        // post-pass: a clock time after "at" becomes one "HH:MM" token, so it is never read as an
-        // amount ("aspirin given at 1410" is a time, not a 1410 dose). Forms: "at 1410", "at 1410 hours",
-        // "at fourteen ten" (two numbers), "at fourteen hundred" (1400). Left alone when a unit follows
-        // ("running at 1000 ml") or the values cannot be a time.
+        // post-pass: a clock time becomes one "HH:MM" token, so it is never read as an amount
+        // ("aspirin given at 1410" is a time, not a 1410 dose). It must be marked as a time by one of:
+        //   "at" before it:      "at 1410", "at fourteen ten", "at fourteen hundred", "at about 1410", "at 2:10"
+        //   am or pm after it:   "2:10 pm", "two ten p.m.", "at 2 pm"
+        //   "hours" after it:    "1410 hours", "0210 hours" (four digits only without "at")
+        // Left alone when a unit follows ("running at 1000 ml") or the values cannot be a time.
+        // The rule is "time:clock", or "time:clock?" when the half of the day was not said and
+        // could be either ("at two ten").
         let units = Set(dict.unitIndex.values).union(["%"])
         k = 0
-        while k + 1 < out.count {
-            guard out[k].text == "at" || out[k].text == "@", out[k].punct == nil else { k += 1; continue }
-            var time: String? = nil
-            var end = k + 1
-            let a = out[k + 1].text
-            if let hm = Cleanup.clock4(a) {
-                time = hm
-            } else if a.count <= 2, let h = Int(a), (0...23).contains(h), out[k + 1].punct == nil, k + 2 < out.count,
-                      out[k + 2].text.count == 2, let m = Int(out[k + 2].text), (0...59).contains(m) {
-                time = String(format: "%02d:%02d", h, m); end = k + 2
+        while k < out.count {
+            var lead = false
+            var j = k
+            if out[k].text == "at" || out[k].text == "@", out[k].punct == nil, k + 1 < out.count {
+                lead = true; j = k + 1
+                if Cleanup.nearly.contains(out[j].text), out[j].punct == nil, j + 1 < out.count { j += 1 }
             }
-            guard let t = time else { k += 1; continue }
-            if end + 1 < out.count, ["hours", "hrs", "hour"].contains(out[end + 1].text), out[end].punct == nil { end += 1 }
-            if end + 1 < out.count, units.contains(out[end + 1].text), out[end].punct == nil { k += 1; continue }
-            let merged = CleanToken(text: t, rawStart: out[k + 1].rawStart, rawEnd: out[end].rawEnd, rule: "time:clock", punct: out[end].punct)
+            guard let t = Cleanup.clockTime(out, at: j, lead: lead) else { k += 1; continue }
+            if !t.halfSaid, t.end + 1 < out.count, units.contains(out[t.end + 1].text), out[t.end].punct == nil { k += 1; continue }
+            let merged = CleanToken(text: t.text, rawStart: out[j].rawStart, rawEnd: out[t.end].rawEnd, rule: t.sure ? "time:clock" : "time:clock?", punct: out[t.end].punct)
             let chars = Array(seg.text)
             corr.append(Correction(id: "c\(nextId)", rawSpan: seg.id, rawRange: [merged.rawStart, merged.rawEnd],
-                                   original: String(chars[merged.rawStart..<merged.rawEnd]), replacement: t, rule: "time:clock"))
+                                   original: String(chars[merged.rawStart..<merged.rawEnd]), replacement: t.text, rule: merged.rule!))
             nextId += 1
-            out.replaceSubrange((k + 1)...end, with: [merged])
-            k += 2
+            out.replaceSubrange(j...t.end, with: [merged])
+            k = j + 1
         }
         return (CleanSegment(rawSpan: seg.id, startMs: seg.startMs, endMs: seg.endMs, rawText: seg.text, tokens: out, wordTimes: seg.wordTimes, wordConf: seg.wordConf), corr)
+    }
+
+    static let nearly: Set<String> = ["about", "around", "approximately"]
+    /// pm is true, am is false. "p.m." arrives as "p.m" with its last full stop as punctuation.
+    static let halves: [String: Bool] = ["pm": true, "p.m": true, "p.m.": true, "am": false, "a.m": false, "a.m.": false]
+
+    /// A clock time starting at token j, if the words there are one. `lead` says "at" came before.
+    /// - text: "HH:MM" on the 24-hour clock
+    /// - end: its last token (the number, or "pm" / "hours" after it)
+    /// - sure: the half of the day is known (24-hour form, "hours", am or pm)
+    /// - halfSaid: am or pm was said
+    static func clockTime(_ toks: [CleanToken], at j: Int, lead: Bool) -> (text: String, end: Int, sure: Bool, halfSaid: Bool)? {
+        let a = toks[j].text
+        var h = 0, m = 0, end = j
+        var fourDigits = false, pair = false
+        var bare = lead          // may stand as a time without am/pm or "hours" after it
+        if a.count == 4, a.allSatisfy(\.isNumber) {
+            guard let hm = clock4(a) else { return nil }
+            h = Int(hm.prefix(2))!; m = Int(hm.suffix(2))!; fourDigits = true
+        } else if a.count == 3, a.allSatisfy(\.isNumber) {
+            // "two ten" arrives as 210. Digits written as 210 are more often an amount, so without
+            // am or pm only the spoken form counts.
+            guard let hh = Int(a.prefix(1)), let mm = Int(a.suffix(2)), (1...9).contains(hh), mm <= 59 else { return nil }
+            h = hh; m = mm; bare = lead && toks[j].rule == "number:words"
+        } else if a.contains(":") {
+            let p = a.split(separator: ":", omittingEmptySubsequences: false)
+            guard p.count == 2, p[1].count == 2, let hh = Int(p[0]), let mm = Int(p[1]), (0...23).contains(hh), mm <= 59 else { return nil }
+            h = hh; m = mm
+        } else if a.count <= 2, let hh = Int(a), (0...23).contains(hh) {
+            h = hh
+            if toks[j].punct == nil, j + 1 < toks.count, toks[j + 1].text.count == 2, let mm = Int(toks[j + 1].text), mm <= 59 {
+                m = mm; end = j + 1; pair = true
+            } else {
+                bare = false     // "at 2" alone is not a time; "at 2 pm" is
+            }
+        } else {
+            return nil
+        }
+        var sure = fourDigits || h >= 13 || h == 0
+        var halfSaid = false, hours = false
+        if toks[end].punct == nil, end + 1 < toks.count {
+            let next = toks[end + 1].text
+            if let pm = halves[next], (1...12).contains(h) {
+                h = pm ? (h % 12) + 12 : h % 12
+                end += 1; halfSaid = true; sure = true
+            } else if ["hours", "hrs", "hour"].contains(next), fourDigits || pair {
+                end += 1; hours = true; sure = true
+            }
+        }
+        guard halfSaid || bare || (hours && fourDigits) else { return nil }
+        return (String(format: "%02d:%02d", h, m), end, sure, halfSaid)
     }
 
     /// "1410" -> "14:10" when it can be a 24-hour time.
