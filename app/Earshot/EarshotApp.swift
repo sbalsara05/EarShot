@@ -68,6 +68,7 @@ struct Call: Identifiable, Codable {
     var clipName: String?                  // the last clip that said hello, like "Earshot-A3F2"
     var clipState = ClipLink.State.idle
     var clipsNearby: [ClipLink.Found] = []   // clips heard while searching, for the medic to pick from
+    var clipSignal: ClipLink.Signal?       // how strongly the connected clip is heard, refreshed every two seconds
     var clipSilent = false                 // recording from the clip, but no audio has arrived for a few seconds
     var live = Live.none
     var drafts = Drafts.none
@@ -90,6 +91,7 @@ struct Call: Identifiable, Codable {
         link.onFound = { [weak self] clips in self?.clipsNearby = clips }
         link.onEvent = { [weak self] event in self?.clipSaid(event) }
         link.onProblem = { [weak self] message in self?.problem = message }
+        link.onSignal = { [weak self] signal in self?.clipSignal = signal }
         link.onAudio = { [weak self] buffer in
             self?.lastClipAudio = Date()
             self?.transcriber.push(buffer)
@@ -766,6 +768,15 @@ struct ClipScreen: View {
             }
             .font(geist(19, 500)).foregroundStyle(Color.green).padding(.top, 6).padding(.bottom, 18)
             // ponytail: the clip reports no battery or signal yet. Add those rows when the firmware sends them.
+            row("Signal") {
+                if let signal = model.clipSignal {
+                    LevelDots(lit: signal.bars, of: 4)
+                    Text(["Weak", "Fair", "Good", "Strong"][signal.bars - 1])
+                    Text("\(signal.dBm) dBm").font(geist(15)).foregroundStyle(Color.dim)
+                } else {
+                    Text("Measuring").foregroundStyle(Color.dim)
+                }
+            }
             row("Link") { Text("Bluetooth") }
             row("Records from") { Text("Clip") }
             Text("Press the clip to start a recording once a call is open. Hold it to stop. Double tap to mark.")

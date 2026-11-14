@@ -41,13 +41,36 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     var onEvent: (ClipEvent) -> Void = { _ in }
     var onAudio: (AVAudioPCMBuffer) -> Void = { _ in }   // 16 kHz mono, in the order it was captured
     var onProblem: (String) -> Void = { _ in }           // something failed while ready: a command, or the audio
+    var onSignal: (Signal?) -> Void = { _ in }           // the connected clip's signal, every two seconds; nil when not connected
+
+    /// How strongly the connected clip is heard.
+    struct Signal: Equatable {
+        var dBm: Int    // about -50 beside the device, -90 at the edge of range
+        var bars: Int   // 1 (weak) to 4 (strong)
+    }
 
     private(set) var state = State.idle {
         didSet {
             guard state != oldValue else { return }
             log("\(state)")
             onState(state)
+            // Bluetooth does not report signal strength by itself: it has to be asked for. Ask while the clip is ready.
+            signalTimer?.invalidate()
+            signalTimer = nil
+            smoothed = nil
+            if case .ready = state {
+                clip?.readRSSI()
+                signalTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.clip?.readRSSI() }
+            } else {
+                onSignal(nil)
+            }
         }
+    }
+    private var signalTimer: Timer?
+    private var smoothed: Double?   // single readings jump by several dBm, so the shown value is an average that leans on recent ones
+
+    private static func bars(for dBm: Int) -> Int {
+        dBm > -55 ? 4 : dBm > -68 ? 3 : dBm > -80 ? 2 : 1
     }
     private var found: [Found] = [] {
         didSet { if found != oldValue { onFound(found) } }
@@ -209,7 +232,7 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         let id = peripheral.identifier
         let heard = advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? peripheral.name
         let strength = RSSI.intValue   // dBm: about -50 beside the device, -90 at the edge of range
-        let bars = strength > -55 ? 4 : strength > -68 ? 3 : strength > -80 ? 2 : 1
+        let bars = Self.bars(for: strength)
         if nearby[id] == nil { log("found \(heard ?? "a clip with no name yet") at \(strength) dBm") }
         nearby[id] = peripheral
         if let i = found.firstIndex(where: { $0.id == id }) {
@@ -287,6 +310,14 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         }
         if isAudio { audioOn = true } else { eventsOn = true }
         settle()
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
+        guard error == nil, case .ready = state else { return }
+        let reading = RSSI.doubleValue
+        smoothed = smoothed.map { $0 * 0.6 + reading * 0.4 } ?? reading
+        let dBm = Int((smoothed ?? reading).rounded())
+        onSignal(Signal(dBm: dBm, bars: Self.bars(for: dBm)))
     }
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
