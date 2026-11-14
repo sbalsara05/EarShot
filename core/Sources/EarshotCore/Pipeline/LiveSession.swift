@@ -1,0 +1,550 @@
+import Foundation
+
+// MARK: - Packet sources
+
+/// One protocol for every transport. BLE and Wi-Fi live in the app
+/// (CoreBluetooth / Network.framework); replay lives here so it runs
+/// everywhere, including the Simulator and Linux tests.
+public protocol PacketSource: AnyObject {
+    var name: String { get }
+    var onPacket: ((Packet) -> Void)? { get set }
+    var onStatus: ((LinkStatus) -> Void)? { get set }
+    func start()
+    func stop()
+    /// iPad -> clip writes (clock, ack, state). Replay ignores them.
+    func send(_ p: Packet)
+}
+
+public struct LinkStatus: Equatable, Sendable {
+    public var connected: Bool
+    public var transport: String
+    public var detail: String
+    public var kbps: Double
+    public var lossPct: Double
+    public init(connected: Bool, transport: String, detail: String = "", kbps: Double = 0, lossPct: Double = 0) {
+        self.connected = connected; self.transport = transport; self.detail = detail; self.kbps = kbps; self.lossPct = lossPct
+    }
+}
+
+/// Plays a replay file at real time (speed 1) or faster.
+public final class ReplayPacketSource: PacketSource {
+    public let name = "Replay"
+    public var onPacket: ((Packet) -> Void)?
+    public var onStatus: ((LinkStatus) -> Void)?
+    private let packets: [Packet]
+    private let speed: Double
+    private var timer: DispatchSourceTimer?
+    private var idx = 0
+    private var t0 = Date()
+    private let queue = DispatchQueue(label: "earshot.replay")
+    public private(set) var sent: [Packet] = []
+
+    public init(packets: [Packet], speed: Double = 1) { self.packets = packets; self.speed = max(0.1, speed) }
+    public convenience init(url: URL, speed: Double = 1) throws { self.init(packets: try ReplayFile.read(url), speed: speed) }
+
+    public func start() {
+        guard timer == nil else { return }
+        idx = 0; t0 = Date()
+        onStatus?(LinkStatus(connected: true, transport: name, detail: "\(packets.count) packets"))
+        let base = packets.first?.header.clipMs ?? 0
+        let t = DispatchSource.makeTimerSource(queue: queue)
+        t.schedule(deadline: .now(), repeating: .milliseconds(20))
+        t.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            let elapsed = Date().timeIntervalSince(self.t0) * 1000 * self.speed
+            while self.idx < self.packets.count, Double(self.packets[self.idx].header.clipMs &- base) <= elapsed {
+                let p = self.packets[self.idx]; self.idx += 1
+                self.onPacket?(p)
+            }
+            if self.idx >= self.packets.count { self.stop() }
+        }
+        timer = t
+        t.resume()
+    }
+    public func stop() {
+        timer?.cancel(); timer = nil
+        onStatus?(LinkStatus(connected: false, transport: name, detail: "ended"))
+    }
+    public func send(_ p: Packet) { sent.append(p) }
+}
+
+// MARK: - Ledger
+
+/// Everything that ever left the device. Audio bytes sent is always 0:
+/// audio is never written to disk or sent anywhere.
+public final class Ledger: @unchecked Sendable {
+    public struct Entry: Codable, Equatable, Sendable {
+        public var time: String
+        public var what: String
+        public var destination: String
+        public var bytes: Int
+    }
+    public private(set) var entries: [Entry] = []
+    public let audioBytesSent = 0
+    private let lock = NSLock()
+    public init() {}
+    public func record(what: String, destination: String, bytes: Int, at time: Date = Date()) {
+        lock.lock(); defer { lock.unlock() }
+        entries.append(Entry(time: ISO8601DateFormatter().string(from: time), what: what, destination: destination, bytes: bytes))
+    }
+}
+
+// MARK: - Live session
+
+/// What is needed to rebuild a call's record after the app has closed: what Whisper wrote, the
+/// marks, the gaps in the audio, what the medic typed and the live words. No audio is kept, so
+/// anything said but not yet written down when the app closed is not in it. Events are not stored:
+/// the rules are deterministic, so they are worked out again from the segments.
+public struct SessionRecord: Codable, Equatable, Sendable {
+    public struct Gap: Codable, Equatable, Sendable {
+        public var startMs: Int64, endMs: Int64, missingFrames: Int
+    }
+    public var version = 1
+    public var callId: String
+    public var startEpochMs: Int64
+    public var tzOffsetSeconds: Int
+    public var segments: [RawSegment]
+    public var taps: [PlacedTap]
+    public var gaps: [Gap]
+    public var typed: [EarshotEvent]
+    public var liveLines: [LiveLine]
+}
+
+/// The live call pipeline used by the iPad app: packets -> ADPCM decode ->
+/// in-memory ring buffer -> VAD -> whisper (background queue) -> cleanup
+/// (batched ~30 s) -> rules extraction -> tap merge -> events. Audio is held
+/// only in memory and each chunk is freed right after it is transcribed.
+public final class LiveSession {
+    public let dict: EMSDictionary
+    public let config: PipelineConfig
+    public let callId: String
+    public private(set) var clock: CallClock
+    public var transcriber: Transcriber?
+    public var tagger: TokenTagger?
+
+    /// Called on `callbackQueue` whenever events change.
+    public var onEvents: (([EarshotEvent]) -> Void)?
+    public var onState: ((ClipState) -> Void)?
+    /// Called on `callbackQueue` with all raw (Whisper) segments whenever new ones arrive.
+    public var onSegments: (([RawSegment]) -> Void)?
+    public var callbackQueue = DispatchQueue.main
+
+    public private(set) var state: ClipState = .off
+    public private(set) var rawSegments: [RawSegment] = []
+    public private(set) var events: [EarshotEvent] = []
+    public private(set) var audioSecondsHeld: Double = 0
+
+    private let work = DispatchQueue(label: "earshot.live")       // packet handling, VAD, merge
+    private let asrQueue = DispatchQueue(label: "earshot.asr")    // whisper (slow)
+    private let assembler = AudioAssembler(reorderDepth: 10)
+    private let ring = PCMRingBuffer(capacitySeconds: 90)
+    private let vad: EnergyVAD
+    private let cleaner: Cleanup
+    private let rules: RulesExtractor
+    private let crossCheck: CrossCheck
+    private let grounding: Grounding
+    private var liveLines: [String: LiveLine] = [:]
+    private var aiEvents: [EarshotEvent] = []
+    private var clean: [String: CleanSegment] = [:]
+    private var findings: [String: [Finding]] = [:]
+    private var pendingClean: [RawSegment] = []
+    private var lastCleanFlush = Date()
+    private var taps: [PlacedTap] = []
+    private var tablet: [EarshotEvent] = []
+    private var segCounter = 0
+    private var firstClip: Int64?
+    private var sampleCursor: Int64 = 0
+    private var gapList: [(Int64, Int64, Int)] = []
+    private var lastAckedTapSeq: UInt16?
+    public weak var source: PacketSource?
+
+    public init(dict: EMSDictionary, config: PipelineConfig, callId: String, startEpochMs: Int64, tzOffsetSeconds: Int,
+                transcriber: Transcriber?, tagger: TokenTagger? = nil) {
+        self.dict = dict; self.config = config; self.callId = callId
+        self.clock = CallClock(startEpochMs: startEpochMs, tzOffsetSeconds: tzOffsetSeconds)
+        self.transcriber = transcriber; self.tagger = tagger
+        vad = EnergyVAD(config.vad); cleaner = Cleanup(dict: dict); rules = RulesExtractor(dict: dict)
+        crossCheck = CrossCheck(dict: dict); grounding = Grounding(dict: dict)
+    }
+
+    // MARK: input
+
+    public func handle(_ p: Packet) {
+        work.async { self._handle(p) }
+    }
+
+    private func _handle(_ p: Packet) {
+        switch p {
+        case .state(_, let s):
+            state = s.state
+            let st = s.state
+            callbackQueue.async { self.onState?(st) }
+            if st == .off { finishAudio() }
+        case .tap(let h, let t):
+            // ack every tap (the clip resends until acked), dedupe in the assembler
+            source?.send(.ack(PacketHeader(type: .ack, seq: 0, clipMs: 0), ackedSeq: h.seq))
+            let before = assembler.taps.count
+            _ = assembler.push(p)
+            guard assembler.taps.count > before else { return }
+            if t.gesture == .no {
+                // refusal: logged, nothing captured
+                addTap(t, h); return
+            }
+            if t.gesture == .yes || t.gesture == .mark { addTap(t, h) }
+            if t.gesture == .stop { finishAudio() }
+        case .audio(let h, _):
+            // consent gate is enforced in firmware; double-check here
+            guard state == .listening else { return }
+            if firstClip == nil { firstClip = Int64(h.clipMs) }
+            let pcm = assembler.push(p)
+            ingest(pcm)
+            syncGaps()
+        case .clock, .ack:
+            _ = assembler.push(p)
+        }
+    }
+
+    // MARK: clip protocol input (the clip firmware: firmware/BLUETOOTH.md)
+
+    /// One capture: from consent granted to stopped. Clip times map to call time through the
+    /// wall clock at the moment consent arrived, so captures, reconnects and clip reboots all land
+    /// on one call timeline (the clip has no real-time clock).
+    private struct Capture {
+        var assembler = AudioAssembler(reorderDepth: 10)
+        var anchorClipMs: Int64
+        var anchorTMs: Int64
+        var startSample: Int64
+        var sampleOffsetMs: Int64?       // call ms minus pipeline sample ms, fixed at the first frame
+        func tMs(_ clipMs: Int64) -> Int64 { anchorTMs + (clipMs - anchorClipMs) }
+    }
+    private var capture: Capture?
+    private var closedGaps: [(Int64, Int64, Int)] = []
+    public private(set) var clipHello: ClipHello?
+    public private(set) var framesUndecodable = 0
+    /// True while the clip is capturing (between consent granted and stopped).
+    public var capturing: Bool { work.sync { capture != nil } }
+
+    /// Feed one message from the clip. `decoder` turns audio payloads into PCM (Opus in the app,
+    /// pcm in tests). `receivedAt` is when the message arrived; it pins clip time to the call clock.
+    public func handle(_ m: ClipMessage, decoder: ClipFrameDecoder, receivedAt: Date = Date()) {
+        work.async { self._handle(m, decoder: decoder, receivedAt: receivedAt) }
+    }
+
+    private func callMs(_ d: Date) -> Int64 { Int64((d.timeIntervalSince1970 * 1000).rounded()) - clock.startEpochMs }
+
+    private func _handle(_ m: ClipMessage, decoder: ClipFrameDecoder, receivedAt: Date) {
+        switch m {
+        case .hello(let h):
+            clipHello = h
+        case .consent(let granted, let source, let clipMs):
+            if granted {
+                closeCapture()
+                decoder.reset()
+                openCapture(clipMs: clipMs, at: receivedAt)
+                taps.append(PlacedTap(tMs: capture!.tMs(clipMs), source: source, gesture: "yes", clipMs: clipMs))
+                remerge()
+            } else {
+                closeCapture()
+            }
+        case .state(let listening, let clipMs):
+            // The app connected (or reconnected) in the middle of a capture: pick it up without a
+            // consent event (consent was given on the clip before we were listening).
+            if listening && capture == nil { decoder.reset(); openCapture(clipMs: clipMs, at: receivedAt) }
+            if !listening && capture != nil { closeCapture() }
+        case .toggle:
+            break   // the app decides what a toggle means and answers with start/stop; audio follows consent
+        case .marker(_, let source, let clipMs, _):
+            let t = capture?.tMs(clipMs) ?? callMs(receivedAt)
+            taps.append(PlacedTap(tMs: t, source: source, gesture: "mark", clipMs: clipMs))
+            remerge()
+        case .audio(let f):
+            guard capture != nil else { return }              // audio outside a capture is never kept
+            guard let pcm = try? decoder.decode(f.payload), !pcm.isEmpty else {
+                framesUndecodable += 1                        // becomes a gap when later frames arrive
+                return
+            }
+            _audio(f, pcm)
+        }
+    }
+
+    /// An audio frame the caller already decoded (the app decodes Opus once and feeds the same
+    /// samples to the live recogniser and here). Same rules as `handle(.audio)`.
+    public func handleDecodedAudio(seq: UInt32, clipMs: UInt32, pcm: [Int16]) {
+        work.async {
+            guard self.capture != nil, !pcm.isEmpty else { return }
+            self._audio(ClipAudioFrame(seq: seq, clipMs: clipMs, payload: []), pcm)
+        }
+    }
+
+    private func _audio(_ f: ClipAudioFrame, _ pcm: [Int16]) {
+        guard var cap = capture else { return }
+        let out = cap.assembler.pushFrame(seq: Int64(f.seq), clipMs: Int64(f.clipMs), pcm: pcm)
+        if cap.sampleOffsetMs == nil, let first = cap.assembler.firstClipMs {
+            cap.sampleOffsetMs = cap.tMs(first) - sampleCursor * 1000 / Int64(Wire.sampleRate)
+        }
+        capture = cap
+        ingest(out, offsetMs: cap.sampleOffsetMs ?? 0, floorSample: cap.startSample)
+        syncGaps()
+    }
+
+    /// The clip went away, or the call is ending: close any open capture as if it had stopped,
+    /// so the audio already received is transcribed.
+    public func endCapture() { work.async { self.closeCapture() } }
+
+    private func openCapture(clipMs: Int64, at d: Date) {
+        capture = Capture(anchorClipMs: clipMs, anchorTMs: callMs(d), startSample: sampleCursor)
+        state = .listening
+        callbackQueue.async { self.onState?(.listening) }
+    }
+
+    private func closeCapture() {
+        guard let cap = capture else { return }
+        let off = cap.sampleOffsetMs ?? 0
+        ingest(cap.assembler.finish(), offsetMs: off, floorSample: cap.startSample)
+        for chunk in vad.finish() { transcribe(chunk, offsetMs: off, floorSample: cap.startSample) }
+        closedGaps += cap.assembler.gaps.map { (cap.tMs($0.startClipMs), cap.tMs($0.endClipMs), $0.missingFrames) }
+        capture = nil
+        gapList = closedGaps
+        state = .off
+        callbackQueue.async { self.onState?(.off) }
+        asrQueue.async { self.work.async { self.flushClean(force: true) } }
+        remerge()
+    }
+
+    // MARK: hybrid: live recogniser and language model (docs/HYBRID.md)
+
+    /// A line from the live recogniser (Apple's on-device speech). Shown to the medic as they talk,
+    /// never part of the record; used only to cross-check Whisper on drugs, doses and vitals.
+    /// Call again with the same id as the line firms up.
+    public func liveLine(id: String, text: String, start: Date, end: Date) {
+        work.async {
+            let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if t.isEmpty { self.liveLines.removeValue(forKey: id) } else {
+                self.liveLines[id] = LiveLine(id: id, startMs: self.callMs(start), endMs: max(self.callMs(start), self.callMs(end)), text: t)
+            }
+            self.remerge()
+        }
+    }
+
+    /// Fields the language model thinks the rules missed. Each must quote the transcript; those
+    /// that pass `Grounding` join the record as "please confirm". Returns one result per suggestion.
+    public func addSuggestions(_ list: [AISuggestion]) -> [GroundingResult] {
+        work.sync {
+            var results: [GroundingResult] = []
+            for s in list {
+                var r = grounding.check(s, transcript: rawSegments, events: events + aiEvents)
+                if r.accepted, let segId = r.segmentId, let seg = rawSegments.first(where: { $0.id == segId }) {
+                    let isAllergy = s.field == "allergy"
+                    let value = s.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let e = EarshotEvent(id: "a\(aiEvents.count + 1)", callId: callId, time: clock.iso(seg.startMs), tMs: seg.startMs,
+                                         type: isAllergy ? .status : .vitals,
+                                         fields: isAllergy ? ["kind": "allergy", "allergy": value] : [s.field: value],
+                                         source: .heard, quote: s.quote, rawSpan: segId, confidence: 0.5,
+                                         models: ModelInfo(asr: transcriber?.modelName ?? "none", extract: "on-device LM, grounded"),
+                                         receipts: [s.field: FieldReceipt(rawSpan: segId, quote: s.quote)],
+                                         flags: ["confirm", "ai_suggested"])
+                    if aiEvents.contains(where: { $0.fields == e.fields }) { r = GroundingResult(accepted: false, reason: "already suggested", segmentId: segId) }
+                    else { aiEvents.append(e) }
+                }
+                results.append(r)
+            }
+            remerge()
+            return results
+        }
+    }
+
+    /// Keeps the narrative sentences whose numbers and drugs are all in the record.
+    public func checkNarrative(_ text: String) -> (kept: String, dropped: [String]) {
+        work.sync { grounding.checkNarrative(text, events: events, clock: clock) }
+    }
+
+    /// The raw transcript (Whisper), for the language model to read.
+    public var transcriptText: String {
+        work.sync { rawSegments.map { "[\(clock.clock($0.startMs))] \($0.text)" }.joined(separator: "\n") }
+    }
+
+    /// Tap made on the tablet (arrival button, nurse accept, manual mark).
+    public func tabletTap(gesture: String, at date: Date = Date()) {
+        work.async {
+            let t = date.timeIntervalSince1970 * 1000
+            let tMs = Int64(t) - self.clock.startEpochMs
+            self.taps.append(PlacedTap(tMs: tMs, source: "tablet", gesture: gesture, clipMs: -1))
+            self.remerge()
+        }
+    }
+
+    /// A value the medic typed (recall screen). Labeled as theirs.
+    public func medicEntry(type: EventType, fields: [String: String], forTapId: String? = nil, at tMs: Int64) {
+        work.async {
+            var e = EarshotEvent(id: "", callId: self.callId, time: self.clock.iso(tMs), tMs: tMs, type: type, fields: fields,
+                                 source: .tablet, quote: nil, rawSpan: nil, confidence: 1,
+                                 models: ModelInfo(asr: "none", extract: "medic"), enteredBy: "medic")
+            if let t = forTapId { e.fields["labels_tap"] = t }
+            self.tablet.append(e)
+            self.remerge()
+        }
+    }
+
+    private func addTap(_ t: TapPayload, _ h: PacketHeader) {
+        let base = firstClip ?? Int64(t.pressClipMs)
+        if firstClip == nil { firstClip = base }
+        taps.append(PlacedTap(tMs: Int64(t.pressClipMs) - base, source: t.source.name, gesture: t.gesture.name, clipMs: Int64(t.pressClipMs)))
+        remerge()
+    }
+
+    private func ingest(_ pcm: [Int16], offsetMs: Int64 = 0, floorSample: Int64 = 0) {
+        guard !pcm.isEmpty else { return }
+        ring.append(pcm)
+        sampleCursor += Int64(pcm.count)
+        for chunk in vad.push(pcm) { transcribe(chunk, offsetMs: offsetMs, floorSample: floorSample) }
+        audioSecondsHeld = Double(ring.endSample - ring.baseSample) / 16000
+    }
+
+    private func finishAudio() {
+        ingest(assembler.finish())
+        for chunk in vad.finish() { transcribe(chunk) }
+        asrQueue.async { self.work.async { self.flushClean(force: true) } }
+    }
+
+    private func syncGaps() {
+        if let cap = capture {
+            let g = closedGaps + cap.assembler.gaps.map { (cap.tMs($0.startClipMs), cap.tMs($0.endClipMs), $0.missingFrames) }
+            if g.count != gapList.count { gapList = g; remerge() }
+            return
+        }
+        guard let base = firstClip else { return }
+        let g = assembler.gaps.map { ($0.startClipMs - base, $0.endClipMs - base, $0.missingFrames) }
+        if g.count != gapList.count { gapList = g; remerge() }
+    }
+
+    /// - offsetMs: added to the chunk's sample-clock times to get call time (clip captures; 0 for replay).
+    /// - floorSample: the chunk never starts before this sample (the VAD pre-roll must not reach into
+    ///   the previous capture, whose audio is already freed).
+    private func transcribe(_ c0: SpeechChunk, offsetMs: Int64 = 0, floorSample: Int64 = 0) {
+        let c = SpeechChunk(startSample: max(c0.startSample, floorSample), endSample: c0.endSample)
+        guard c.endSample > c.startSample else { return }
+        let startMs = c.startMs + offsetMs, endMs = c.endMs + offsetMs
+        let audio = ring.read(from: c.startSample, to: c.endSample).map { Float($0) / 32768 }
+        ring.discard(before: c.endSample)            // free audio as soon as it is handed to ASR
+        guard let tr = transcriber else { return }
+        asrQueue.async {
+            let pieces = ASRPiece.joinUnfinished((try? tr.transcribe(audio)) ?? [])
+            self.work.async {
+                for p in pieces {
+                    guard let seg = p.rawSegment(id: "s\(self.segCounter + 1)", chunkStartMs: startMs, chunkEndMs: endMs) else { continue }
+                    self.segCounter += 1
+                    self.rawSegments.append(seg)
+                    self.pendingClean.append(seg)
+                }
+                if !pieces.isEmpty, let cb = self.onSegments {
+                    let all = self.rawSegments
+                    self.callbackQueue.async { cb(all) }
+                }
+                self.flushClean(force: false)
+            }
+        }
+    }
+
+    /// Cleanup runs in ~30 s batches (or on every new segment when the call is
+    /// quiet), then extraction; merge reruns over everything (cheap).
+    private func flushClean(force: Bool) {
+        guard !pendingClean.isEmpty else { return }
+        let spanMs = (pendingClean.last!.endMs - pendingClean.first!.startMs)
+        guard force || spanMs >= 30000 || Date().timeIntervalSince(lastCleanFlush) > 3 || pendingClean.count >= 1 else { return }
+        for s in pendingClean {
+            let (c, _) = cleaner.clean(s)
+            clean[s.id] = c
+            var f = ConfidenceFlags.apply(rules.extract(c), seg: c, minConfidence: config.asr.minWordConfidence)
+            if let tg = tagger, let extra = try? TaggerMerge(dict: dict, tagger: tg).findings([c], existing: f) { f += extra }
+            findings[s.id] = f
+        }
+        pendingClean.removeAll()
+        lastCleanFlush = Date()
+        remerge()
+    }
+
+    private func remerge() {
+        let models = ModelInfo(asr: transcriber?.modelName ?? "none", extract: RulesExtractor.version + (tagger.map { "+" + $0.name } ?? ""))
+        let merger = TapMerger(cfg: config.merge, callId: callId, clock: clock, models: models)
+        var times: [String: (Int64, Int64)] = [:]
+        for s in rawSegments { times[s.id] = (s.startMs, s.endMs) }
+        let all = rawSegments.flatMap { findings[$0.id] ?? [] }
+        var ev = merger.merge(findings: all, segments: times, taps: taps, gaps: gapList, extra: [])
+        // medic-typed entries: labels for taps replace the unlabeled tap event
+        for m in tablet {
+            if let t = m.fields["labels_tap"], let i = ev.firstIndex(where: { $0.id == t && $0.isUnlabeledTap }) {
+                var e = m; e.tMs = ev[i].tMs; e.time = ev[i].time; e.tapSource = ev[i].tapSource; e.fields.removeValue(forKey: "labels_tap")
+                ev[i] = e
+            } else {
+                var e = m; e.fields.removeValue(forKey: "labels_tap"); ev.append(e)
+            }
+        }
+        ev += aiEvents
+        if !liveLines.isEmpty { ev = crossCheck.apply(ev, live: Array(liveLines.values)) }
+        ev = SaidTime.apply(ev, clock: clock)   // after the cross-check, which pairs words by when they were spoken
+        ev.sort { ($0.tMs, $0.id) < ($1.tMs, $1.id) }
+        for k in ev.indices where ev[k].source == .tablet && ev[k].enteredBy != nil { ev[k].id = "m\(k + 1)" }
+        events = ev
+        let snapshot = ev
+        callbackQueue.async { self.onEvents?(snapshot) }
+    }
+
+    // MARK: outputs
+
+    public func chartModel() -> ChartModel { ChartModel(events: events, callId: callId, clock: clock) }
+    public func render() -> [RenderedDoc] {
+        let m = chartModel()
+        return [Renderers.soap(m), Renderers.chart(m), Renderers.imistAmbo(m), NEMSISExport.render(m, events: events, dict: dict)]
+    }
+    public func cleanSegment(_ id: String) -> CleanSegment? { work.sync { clean[id] } }
+    /// Transcript context around a time (recall screen), from raw segments.
+    public func transcriptAround(_ tMs: Int64, windowMs: Int64 = 8000) -> [RawSegment] {
+        work.sync { rawSegments.filter { $0.endMs >= tMs - windowMs && $0.startMs <= tMs + windowMs } }
+    }
+
+    // MARK: keeping the record across an app restart
+
+    /// The record so far, to write to disk. Holds no audio.
+    public func saved() -> SessionRecord {
+        work.sync {
+            SessionRecord(callId: callId, startEpochMs: clock.startEpochMs, tzOffsetSeconds: clock.tzOffsetSeconds,
+                          segments: rawSegments, taps: taps,
+                          gaps: gapList.map { SessionRecord.Gap(startMs: $0.0, endMs: $0.1, missingFrames: $0.2) },
+                          typed: tablet, liveLines: liveLines.values.sorted { ($0.startMs, $0.id) < ($1.startMs, $1.id) })
+        }
+    }
+
+    /// Puts back a record saved by an earlier session of the same call, before any new audio.
+    /// The segments go through cleanup and the rules again, so the events come out as they were.
+    /// New segments carry on numbering after the restored ones.
+    public func restore(_ r: SessionRecord) {
+        work.sync {
+            rawSegments = r.segments
+            segCounter = r.segments.compactMap { Int($0.id.dropFirst()) }.max() ?? r.segments.count
+            taps = r.taps
+            closedGaps = r.gaps.map { ($0.startMs, $0.endMs, $0.missingFrames) }
+            gapList = closedGaps
+            tablet = r.typed
+            liveLines = Dictionary(r.liveLines.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+            clean.removeAll(); findings.removeAll()
+            pendingClean = r.segments
+            if pendingClean.isEmpty { remerge() } else { flushClean(force: true) }
+            if !r.segments.isEmpty, let cb = onSegments {
+                let all = rawSegments
+                callbackQueue.async { cb(all) }
+            }
+        }
+    }
+
+    /// Medic signed: wipe everything (audio, transcript, events).
+    public func wipe() {
+        work.sync {
+            ring.wipe(); rawSegments.removeAll(); clean.removeAll(); findings.removeAll(); events.removeAll()
+            taps.removeAll(); tablet.removeAll(); pendingClean.removeAll()
+            capture = nil; closedGaps.removeAll(); gapList.removeAll(); liveLines.removeAll(); aiEvents.removeAll()
+        }
+    }
+
+    /// Wait until queued work is done (tests).
+    public func drain() { asrQueue.sync {}; work.sync {}; asrQueue.sync {}; work.sync {} }
+}

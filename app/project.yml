@@ -3,6 +3,9 @@ options:
   deploymentTarget:
     iOS: "26.0"
 packages:
+  # The transcription pipeline (Whisper, rules, renderers).
+  EarshotCore:
+    path: ../core
   # Decodes the clip's Opus audio. libopus wrapped for Swift, BSD-3-Clause.
   Opus:
     url: https://github.com/alta/swift-opus
@@ -11,8 +14,34 @@ targets:
   Earshot:
     type: application
     platform: iOS
-    sources: [Earshot]
+    sources:
+      - path: Earshot
+      # whisper.cpp's Swift wrapper lives with the pipeline; it builds against whisper.xcframework here
+      - path: ../core/Sources/EarshotWhisper/WhisperTranscriber.swift
+        group: Earshot/Pipeline
+      # The iPad's own on-device recogniser, which writes the record when Whisper is switched off
+      - path: ../core/Sources/EarshotAppleSpeech/AppleTranscriber.swift
+        group: Earshot/Pipeline
+      - path: ../shared/formulary.json
+        buildPhase: resources
+      - path: ../shared/ems_terms.json
+        buildPhase: resources
+      # The one Whisper model: small.en fine-tuned on EMS speech, f16 (in git via LFS; core/scripts/fetch_model.sh).
+      # Bundled at build time; the app never downloads a model. Checked by the pre-build script below.
+      - path: ../models/ggml-ems-small.en-ft-f16.bin
+        buildPhase: resources
+    preBuildScripts:
+      - name: Verify Whisper model
+        script: '"$SRCROOT/../core/scripts/fetch_model.sh" --verify "$SRCROOT/../models/ggml-ems-small.en-ft-f16.bin"'
+        inputFiles:
+          - $(SRCROOT)/../core/scripts/fetch_model.sh
+          - $(SRCROOT)/../models/ggml-ems-small.en-ft-f16.bin
+        basedOnDependencyAnalysis: false
     dependencies:
+      - package: EarshotCore
+        product: EarshotCore
+      - framework: Frameworks/whisper.xcframework
+        embed: true
       - package: Opus
     info:
       path: Earshot/Info.plist
@@ -29,6 +58,7 @@ targets:
         # location: so does the once-a-minute place check.
         UIBackgroundModes: [audio, bluetooth-central, location]
         UIStatusBarHidden: true
+        UIFileSharingEnabled: true
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]

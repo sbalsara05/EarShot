@@ -1,0 +1,37 @@
+[
+ {
+  "clip_ms": 500,
+  "source": "button",
+  "gesture": "yes"
+ },
+ {
+  "clip_ms": 52500,
+  "source": "button"
+ },
+ {
+  "clip_ms": 73000,
+  "source": "button"
+ },
+ {
+  "clip_ms": 86200,
+  "source": "button"
+ },
+ {
+  "clip_ms": 100000,
+  "source": "button"
+ },
+ {
+  "clip_ms": 137000,
+  "source": "button"
+ },
+ {
+  "clip_ms": 160000,
+  "source": "tablet",
+  "gesture": "arrival"
+ },
+ {
+  "clip_ms": 1360000,
+  "source": "tablet",
+  "gesture": "handoff"
+ }
+]

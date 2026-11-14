@@ -16,6 +16,12 @@ struct Item: Identifiable, Codable {
     var text = ""
     var mark: Int? = nil     // set on a mark row, which has no text
     var place: Place? = nil  // set on a location row, which has no text either
+    /// true: a line of the record (Whisper). nil: live words, shown while the medic talks and
+    /// replaced by the record once Whisper catches up.
+    var record: Bool? = nil
+    /// true: live words the record went past without writing anything for that stretch. They stay
+    /// in the transcript, marked, and are not in the report.
+    var unrecorded: Bool? = nil
 }
 
 /// One stretch of a call's audio as text. Pausing and resuming carries on in the same recording.
@@ -39,6 +45,8 @@ struct Call: Identifiable, Codable {
     var markNotes: [Int: String] = [:]
     var signedAt: Date?
     var signature: Signature?
+    var docs: [String: String]?       // chart.md, soap.md, imist_ambo.md, nemsis.xml, rendered from the record
+    var reviewNotes: [String]?        // items to confirm, sentences left out of the narrative
     var format: NarrativeFormat?        // how the narrative is laid out. Nil on calls saved before formats existed: plain
     var narratives: [String: String]?   // the narrative as written in each format so far, by format, so going back to one is instant
 
@@ -112,6 +120,12 @@ struct Call: Identifiable, Codable {
     var micStandIn = UserDefaults.standard.object(forKey: "micStandIn") as? Bool ?? true {
         didSet { UserDefaults.standard.set(micStandIn, forKey: "micStandIn") }
     }
+    /// Whether Whisper writes the record. Off, this device's own recogniser does, so a call can be
+    /// tried with and without Whisper. Takes effect on the next call (core: RecognizerPolicy).
+    var whisperEnabled = UserDefaults.standard.object(forKey: "whisperEnabled") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(whisperEnabled, forKey: "whisperEnabled"); engine.whisperEnabled = whisperEnabled }
+    }
+    var recordedBy: String?                // the recogniser that wrote the latest call's record, like "whisper-small.en-ems-ft-f16"
     var clipName: String?                  // the last clip that said hello, like "Earshot-A3F2"
     var clipState = ClipLink.State.idle
     var clipsNearby: [ClipLink.Found] = []   // clips heard while searching, for the medic to pick from
@@ -129,9 +143,11 @@ struct Call: Identifiable, Codable {
     var rewriting: [Call.ID: NarrativeFormat] = [:]   // calls whose narrative is being written in a newly chosen format
     var narrativeTrouble: [Call.ID: String] = [:]     // why a call's narrative could not be written in the format last chosen
 
-    @ObservationIgnored private let transcriber = Transcriber()
+    @ObservationIgnored private let engine = CallEngine()
+    @ObservationIgnored private var retired = Set<UUID>()             // live lines already replaced by the record
+    @ObservationIgnored private var liveEnds: [UUID: Date] = [:]      // when each live line last changed, so the record replaces it only once it is past that
     @ObservationIgnored private let link = ClipLink()
-    @ObservationIgnored private var source = Transcriber.Source.mic   // where the current recording's audio comes from
+    @ObservationIgnored private var source = CallEngine.Source.mic   // where the current recording's audio comes from
     @ObservationIgnored private var viaClip = false                   // the current recording runs on the clip too, so stop and marks go to it
     @ObservationIgnored private var lastClipAudio = Date()
     @ObservationIgnored private var silenceTimer: Timer?
@@ -141,6 +157,7 @@ struct Call: Identifiable, Codable {
     @ObservationIgnored private var startAsked: Date?                 // when the clip was last told to start, until it answers
 
     init() {
+        engine.whisperEnabled = whisperEnabled
         link.onState = { [weak self] state in self?.clipChanged(to: state) }
         link.onFound = { [weak self] clips in self?.clipsNearby = clips }
         link.onEvent = { [weak self] event in self?.clipSaid(event) }
@@ -148,18 +165,19 @@ struct Call: Identifiable, Codable {
         link.onSignal = { [weak self] signal in self?.clipSignal = signal }
         link.onAudio = { [weak self] buffer in
             self?.lastClipAudio = Date()
-            self?.transcriber.push(buffer)
+            self?.engine.push(buffer)
         }
-        transcriber.onLevel = { [weak self] level in
+        engine.onLevel = { [weak self] level in
             self?.levels.removeFirst()
             self?.levels.append(level)
         }
-        transcriber.onText = { [weak self] id, text in self?.heard(id, text) }
-        transcriber.onCut = { [weak self] in
+        engine.onLiveText = { [weak self] id, text in self?.heard(id, text) }
+        engine.onRecord = { [weak self] id, lines in self?.recorded(id, lines) }
+        engine.onCut = { [weak self] in
             self?.liveLine = nil
             self?.save()   // each finished line is on disk before the next one starts
         }
-        transcriber.onProblem = { [weak self] message in
+        engine.onProblem = { [weak self] message in
             self?.problem = "Transcription stopped. \(message)"
             self?.stop()
         }
@@ -172,7 +190,9 @@ struct Call: Identifiable, Codable {
     }
 
     private func heard(_ id: UUID, _ text: String) {
-        if id == transcriber.segment { liveLine = id }
+        guard !retired.contains(id) else { return }
+        liveEnds[id] = Date()
+        if id == engine.segment { liveLine = id }
         for r in call.recordings.indices {
             if let i = call.recordings[r].items.firstIndex(where: { $0.id == id }) {
                 call.recordings[r].items[i].text = text
@@ -182,11 +202,154 @@ struct Call: Identifiable, Codable {
         if !call.recordings.isEmpty { call.recordings[call.recordings.count - 1].items.append(Item(id: id, text: text)) }
     }
 
+    /// Whisper caught up on a call (the open one, or one waiting for sign-off): its lines replace the
+    /// live words they cover. Marks stay where they are.
+    private func recorded(_ id: Call.ID, _ lines: [RecordLine]) {
+        if call.id == id {
+            Self.place(lines, in: &call, retiring: &retired, speaking: live == .listening ? engine.segment : nil, ends: liveEnds)
+        } else if let i = review.firstIndex(where: { $0.id == id }) {
+            Self.place(lines, in: &review[i], retiring: &retired, speaking: nil, ends: liveEnds)
+        } else {
+            return
+        }
+        if let l = liveLine, retired.contains(l) { liveLine = nil }
+        save()
+    }
+
+    /// How long after words are spoken the live recogniser shows them. A live line's last update is
+    /// that much later than its audio, so the record is allowed that much less to have covered it.
+    static let liveLag: TimeInterval = 1.5
+
+    /// Puts the record's lines into the call and takes out the live words they replace.
+    ///
+    /// A live line is looked at only once the record has reached the end of it: the line being spoken
+    /// stays, and so does one that ran on past where the record has got to. Then, if the record wrote
+    /// something for that stretch of time, the live line is replaced by it. If the record wrote nothing
+    /// there (the recogniser did not hear it as speech), the live line stays and is marked `unrecorded`,
+    /// so words that were heard never just disappear. `ends` is when each live line last changed; a line
+    /// with no entry (read back from disk) ended when it began.
+    static func place(_ lines: [RecordLine], in call: inout Call, retiring retired: inout Set<UUID>,
+                      speaking: UUID?, ends: [UUID: Date]) {
+        guard let covered = lines.map(\.end).max(), !call.recordings.isEmpty else { return }
+        // Each line belongs to one recording: the last one that had begun by the time the line ended.
+        func owner(_ line: RecordLine) -> Int { call.recordings.lastIndex { $0.start <= line.end } ?? 0 }
+        for r in call.recordings.indices {
+            let mine = lines.filter { owner($0) == r }
+            var items: [Item] = []
+            for var item in call.recordings[r].items {
+                if item.mark != nil || item.place != nil { items.append(item); continue }
+                if item.record == true { continue }                                   // rebuilt below
+                let end = ends[item.id] ?? item.time
+                if item.id == speaking || end > covered.addingTimeInterval(liveLag) { items.append(item); continue }   // not reached yet
+                // Live words show up to `liveLag` after their audio, so the audio began that much before `item.time`.
+                if lines.contains(where: { $0.start <= end && $0.end >= item.time.addingTimeInterval(-liveLag) }) {
+                    retired.insert(item.id)                                          // the record has this stretch
+                } else {
+                    if item.unrecorded != true {
+                        LevelProbe.shared.lineMarked(from: item.time.addingTimeInterval(-liveLag), to: end, chars: item.text.count, by: "place")
+                    }
+                    item.unrecorded = true
+                    items.append(item)
+                }
+            }
+            // The record's rows: a row for each sentence with the time it was said, cut where a mark or a
+            // place was logged so those stay between the words they came between. A row that is the same
+            // as before keeps its identity, so only new rows appear and nothing else moves.
+            let before = Dictionary(call.recordings[r].items.filter { $0.record == true }.map { (RowKey(time: $0.time, text: $0.text), $0.id) }, uniquingKeysWith: { a, _ in a })
+            let cuts = items.filter { $0.mark != nil || $0.place != nil }.map(\.time)
+            for row in mine.flatMap({ rows(of: $0, cutAt: cuts) }) {
+                var item = Item(time: row.time, text: row.text, record: true)
+                if let id = before[RowKey(time: row.time, text: row.text)] { item.id = id }
+                items.append(item)
+            }
+            // In time order; rows at the same instant keep the order they were in.
+            call.recordings[r].items = items.enumerated().sorted { ($0.element.time, $0.offset) < ($1.element.time, $1.offset) }.map(\.element)
+        }
+    }
+
+    private struct RowKey: Hashable { var time: Date; var text: String }
+
+    /// The shortest stretch of text given a row of its own, in characters. Shorter sentences ("Okay.") join the next.
+    static let shortestRow = 24
+
+    /// One line of the record as transcript rows. The recogniser writes a long stretch of speech as one
+    /// line with one start time; shown like that, a paragraph carries the time of its first word and
+    /// swallows the marks made during it. So the line is divided at the end of each sentence, and at
+    /// each time in `cuts` (a mark or a logged place), and each row gets the time its first word was said.
+    static func rows(of line: RecordLine, cutAt cuts: [Date]) -> [(time: Date, text: String)] {
+        let chars = Array(line.text)
+        guard !chars.isEmpty else { return [] }
+        let words = line.words.filter { $0.offset >= 0 && $0.offset < chars.count }.sorted { $0.offset < $1.offset }
+        let span = line.end.timeIntervalSince(line.start)
+        /// When the text at a character offset was said.
+        func time(at offset: Int) -> Date {
+            if words.isEmpty { return line.start.addingTimeInterval(span * Double(offset) / Double(chars.count)) }
+            let said = words.last { $0.offset <= offset }?.time ?? line.start
+            return min(max(said, line.start), line.end)
+        }
+        /// The start of the word at or after an offset, so a row never begins inside a word.
+        func wordStart(_ offset: Int) -> Int {
+            var o = min(max(offset, 0), chars.count)
+            while o < chars.count, chars[o] == " " { o += 1 }
+            while o > 0, o < chars.count, chars[o - 1] != " " { o -= 1 }
+            return o
+        }
+        var starts: [Int: Date?] = [0: nil]   // where each row begins, and the time it may not come before
+        // the end of a sentence, when the row so far is long enough to stand alone
+        var last = 0
+        for i in chars.indices where ".?!".contains(chars[i]) && i + 2 < chars.count && chars[i + 1] == " " {
+            if i + 2 - last >= shortestRow { starts[i + 2] = nil as Date?; last = i + 2 }
+        }
+        // a mark or a place logged while the line was being said
+        for cut in cuts where cut > line.start && cut < line.end {
+            let offset = words.isEmpty ? Int(Double(chars.count) * cut.timeIntervalSince(line.start) / max(span, 0.001))
+                                       : (words.first { $0.time >= cut }?.offset ?? chars.count)
+            let o = wordStart(offset)
+            if o > 0, o < chars.count { starts[o] = max(cut, (starts[o] ?? nil) ?? cut) }
+        }
+        let order = starts.keys.sorted()
+        var out: [(time: Date, text: String)] = []
+        var floor = line.start
+        for (n, from) in order.enumerated() {
+            let to = n + 1 < order.count ? order[n + 1] : chars.count
+            let text = String(chars[from..<to]).trimmingCharacters(in: .whitespaces)
+            guard !text.isEmpty else { continue }
+            var at = from == 0 ? line.start : time(at: from)
+            if let notBefore = starts[from] ?? nil { at = max(at, notBefore.addingTimeInterval(0.001)) }   // after the mark it follows
+            at = max(at, floor)   // rows of one line never go back in time
+            floor = at
+            out.append((at, text))
+        }
+        return out
+    }
+
+    /// The call is drafted, so the record is complete: any live words still not in it are marked
+    /// `unrecorded`. Returns how many lines that is. If nothing at all was written to the record (no
+    /// recogniser could run), the live words are all there is and are left as they are.
+    @discardableResult static func settle(_ call: inout Call, ends: [UUID: Date] = [:]) -> Int {
+        guard call.recordings.contains(where: { $0.items.contains { $0.record == true } }) else { return 0 }
+        var count = 0
+        for r in call.recordings.indices {
+            for i in call.recordings[r].items.indices {
+                let item = call.recordings[r].items[i]
+                guard item.mark == nil, item.place == nil, item.record != true, !item.text.isEmpty else { continue }
+                if item.unrecorded != true {
+                    LevelProbe.shared.lineMarked(from: item.time.addingTimeInterval(-liveLag), to: ends[item.id] ?? item.time, chars: item.text.count, by: "settle")
+                }
+                call.recordings[r].items[i].unrecorded = true
+                count += 1
+            }
+        }
+        return count
+    }
+
     // MARK: The call
 
     func newCall() {
         locator.reset()
         call = Call()
+        engine.beginCall(call.id, at: call.start)
+        recordedBy = engine.recordName
         problem = nil
         live = .ready
         tab = .live
@@ -195,7 +358,7 @@ struct Call: Identifiable, Codable {
 
     func record() {
         Task { @MainActor in
-            problem = await Transcriber.authorize(microphone: audioSource == .mic)
+            problem = await CallEngine.authorize(microphone: audioSource == .mic)
             guard problem == nil, live != .listening else { return }
             if clip {
                 // Nothing is shown as recording until the clip confirms, in clipSaid. If it never does, say so.
@@ -227,15 +390,17 @@ struct Call: Identifiable, Codable {
     }
 
     /// Where the next recording's audio will come from: the clip, unless there is none or the gate holds it to the microphone.
-    var audioSource: Transcriber.Source { clip && !micStandIn ? .clip : .mic }
+    var audioSource: CallEngine.Source { clip && !micStandIn ? .clip : .mic }
 
     /// The audio source in words, for the screen: the running recording's, or the next one's.
     var audioLabel: String { (live == .listening ? source : audioSource) == .clip ? "Clip audio" : "\(deviceName) mic" }
 
-    private func begin(from source: Transcriber.Source, viaClip: Bool) {
+    private func begin(from source: CallEngine.Source, viaClip: Bool) {
         guard live != .listening, live != .none else { return }
         do {
-            try transcriber.start(from: source)
+            engine.beginCall(call.id, at: call.start)   // a call reopened after the app closed carries on from its saved record
+            recordedBy = engine.recordName
+            try engine.start(from: source)
             self.source = source
             self.viaClip = viaClip
             if let last = call.recordings.indices.last, let pausedAt = call.recordings[last].end {
@@ -263,7 +428,7 @@ struct Call: Identifiable, Codable {
 
     private func finish(as next: Live) {
         guard live == .listening else { return }
-        transcriber.stop()
+        engine.stop()
         locator.stop()
         // A recording that ends while the clip is away ended when the clip was last heard, not now.
         call.recordings[call.recordings.count - 1].end = clipReconnecting ? droppedAt : Date()
@@ -290,7 +455,7 @@ struct Call: Identifiable, Codable {
     func mark() {
         guard live == .listening else { return }
         if viaClip { link.send("marker") }   // so the clip logs it too; its echo never becomes an intent
-        addMark()
+        addMark(fromClip: false)
     }
 
     /// Logs a place the device has moved to. It goes above the line still being spoken, so that line is not broken in two.
@@ -305,8 +470,8 @@ struct Call: Identifiable, Codable {
         save()
     }
 
-    private func addMark() {
-        transcriber.cut()
+    private func addMark(fromClip: Bool) {
+        engine.mark(fromClip: fromClip)
         call.recordings[call.recordings.count - 1].items.append(Item(mark: call.markCount + 1))
     }
 
@@ -366,7 +531,7 @@ struct Call: Identifiable, Codable {
     /// The link dropped mid-recording. Most drops last a second or two, so the recording stays open and the
     /// header says the clip is reconnecting. If the clip is not back within the grace period, it ends as cut short.
     private func holdForReconnect() {
-        transcriber.stop()   // the line being spoken closes; the next words start a new one
+        engine.stop()   // the line being spoken closes; the next words start a new one
         silenceTimer?.invalidate()
         clipSilent = false
         droppedAt = Date()
@@ -381,7 +546,7 @@ struct Call: Identifiable, Codable {
     /// The clip is back and still capturing: carry on in the same recording.
     private func resumeAfterDrop() {
         do {
-            try transcriber.start(from: .clip)
+            try engine.start(from: .clip)
             clipReconnecting = false
             dropTimer?.invalidate()
             watchForSilence()
@@ -420,7 +585,7 @@ struct Call: Identifiable, Codable {
         case .stopped:
             if viaClip { finish(as: .between) }
         case .mark:
-            if live == .listening { addMark() }
+            if live == .listening { addMark(fromClip: true) }
         case .toggleRecording:
             toggleRecording()
         case .toggleCall:
@@ -437,7 +602,7 @@ struct Call: Identifiable, Codable {
         }
         Task { @MainActor in
             let source = audioSource
-            problem = await Transcriber.authorize(microphone: source == .mic)
+            problem = await CallEngine.authorize(microphone: source == .mic)
             if problem == nil { begin(from: source, viaClip: true) } else { link.send("stop") }
         }
     }
@@ -481,30 +646,22 @@ struct Call: Identifiable, Codable {
 
     /// Writes the reports for a call waiting for sign-off. Until it finishes, the call shows as "Writing reports".
     private func draft(_ id: Call.ID) {
-        guard let waiting = review.first(where: { $0.id == id }) else { return }
-        let transcript = waiting.spoken
-        let wanted = waiting.format ?? NarrativeFormat.preferred   // the format the crew last chose
+        guard review.contains(where: { $0.id == id }) else { return }
         Task { @MainActor in
-            var written = Draft.blank, note: String?
-            var format = NarrativeFormat.plain, narratives: [String: String] = [:]
-            do {
-                written = try await writeDraft(from: transcript)
-                narratives[NarrativeFormat.plain.rawValue] = written.narrative
-                // The draft comes with a plain narrative. If the crew uses another format, write it in that one too.
-                // If that fails the plain one stands, and the format can still be chosen before signing.
-                if wanted != .plain, let laidOut = try? await writeNarrative(from: transcript, as: wanted) {
-                    narratives[wanted.rawValue] = laidOut
-                    written.narrative = laidOut
-                    format = wanted
-                }
-            } catch {
-                note = "Nothing was drafted. \(error.localizedDescription) Fill in the lines yourself."
-            }
+            let out = await engine.finish(id)   // waits for Whisper to finish the call, then drafts from the record
             guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // signed or removed meanwhile
-            review[i].draft = written
-            review[i].draftNote = note
-            review[i].format = format
-            review[i].narratives = narratives
+            var notes = out.notes
+            let missed = Self.settle(&review[i], ends: liveEnds)   // the record is complete: what it never took up is marked
+            if missed > 0 {
+                notes.append("\(plural(missed, "line")) heard live \(missed == 1 ? "is" : "are") not in the record, so not in the report. \(missed == 1 ? "It is" : "They are") marked in the transcript.")
+            }
+            review[i].draft = out.draft
+            review[i].docs = out.docs
+            review[i].reviewNotes = notes
+            review[i].draftNote = notes.isEmpty ? nil : notes.joined(separator: " ")
+            // The record's narrative is the plain one. Another format is written only when the medic picks it.
+            review[i].format = .plain
+            review[i].narratives = out.draft.narrative.isEmpty ? [:] : [NarrativeFormat.plain.rawValue: out.draft.narrative]
             review[i].drafted = true
             save()
         }
@@ -576,6 +733,7 @@ struct Call: Identifiable, Codable {
     /// Throws away the call being recorded, with its recording.
     func discard() {
         stop()
+        engine.discard(call.id)
         call = Call()
         problem = nil
         live = .none
@@ -614,6 +772,9 @@ struct Call: Identifiable, Codable {
         }
     }
 
+    /// Writes the pipeline's record of every open call. Called when the app leaves the screen.
+    func saveRecords() { engine.saveRecords() }
+
     private func load() {
         guard let data = try? Data(contentsOf: Self.file) else { return }   // nothing saved yet
         do {
@@ -632,7 +793,9 @@ struct Call: Identifiable, Codable {
                     live = open.recordings.isEmpty ? .ready : .between
                 }
             }
-            // Drafting that was cut off when the app closed is started again.
+            // Records are kept only for calls that can still use one: the open call and those not yet drafted.
+            engine.forgetRecords(except: Set(review.filter { !$0.drafted }.map(\.id) + (live != .none ? [call.id] : [])))
+            // Drafting that was cut off when the app closed is started again, from the record that was saved.
             for waiting in review where !waiting.drafted { draft(waiting.id) }
         } catch {
             // Never overwrite a file that could not be read: set it aside so its calls can be recovered.
@@ -671,14 +834,51 @@ struct Call: Identifiable, Codable {
         assert(formatted?.narrativeFormat == .draatt && formatted?.pcr[2].title == "Narrative, DRAATT")
         // The clip's messages must be readable exactly as firmware/BLUETOOTH.md gives them.
         // The level meter: silence and a quiet room show nothing, quiet speech still moves it, and louder never reads lower.
-        func tone(_ amplitude: Float) -> AVAudioPCMBuffer {
-            let buffer = AVAudioPCMBuffer(pcmFormat: AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!, frameCapacity: 4096)!
-            buffer.frameLength = 4096
-            for i in 0..<4096 { buffer.floatChannelData![0][i] = amplitude * sin(Float(i) * 0.3) }
-            return buffer
+        func tone(_ amplitude: Float) -> [Int16] {   // a quarter second at 16 kHz, the shape the pipeline's audio has
+            (0..<4000).map { Int16(amplitude * 32767 * sin(Float($0) * 0.3)) }
         }
-        let heard = [0, 0.0005, 0.002, 0.01, 0.03, 0.1, 0.4].map { Transcriber.level(of: tone($0)) }
+        let heard = [0, 0.0005, 0.002, 0.01, 0.03, 0.1, 0.4].map { Audio.level(tone($0)) }
         assert(heard[2] == 0 && heard[3] >= 3 && heard[5] == 6 && heard == heard.sorted(), "the level meter is off: \(heard)")
+        // The record replaces live words only once it has reached the end of them, and only where it wrote
+        // something for that stretch. Live words it went past with nothing written stay, marked.
+        let t0 = Date(timeIntervalSince1970: 1000)
+        let spoken = Item(time: t0.addingTimeInterval(1), text: "covered"), running = Item(time: t0.addingTimeInterval(4), text: "runs on"),
+            now = Item(time: t0.addingTimeInterval(5), text: "speaking"), flag = Item(time: t0.addingTimeInterval(0.2), mark: 1)   // a mark before the first word
+        var talk = Call()
+        talk.recordings = [Recording(start: t0, items: [spoken, flag, running, now])]
+        var gone = Set<UUID>()
+        let line = RecordLine(start: t0, end: t0.addingTimeInterval(6), text: "the record")
+        place([line], in: &talk, retiring: &gone, speaking: now.id,
+              ends: [spoken.id: t0.addingTimeInterval(5), running.id: t0.addingTimeInterval(20), now.id: t0.addingTimeInterval(5.5)])
+        assert(talk.recordings[0].items.map(\.text) == ["the record", "", "runs on", "speaking"] && gone == [spoken.id], "live words were replaced too early: \(talk.recordings[0].items.map(\.text))")
+        // Whisper heard nothing between 21 and 40 seconds, then wrote a line: the live words from that gap stay.
+        let quiet = Item(time: t0.addingTimeInterval(28), text: "missed by the record")
+        talk.recordings[0].items.append(quiet)
+        let later = [line, RecordLine(start: t0.addingTimeInterval(6), end: t0.addingTimeInterval(21), text: "more"),
+                     RecordLine(start: t0.addingTimeInterval(40), end: t0.addingTimeInterval(45), text: "after the gap")]
+        place(later, in: &talk, retiring: &gone, speaking: nil,
+              ends: [running.id: t0.addingTimeInterval(20), now.id: t0.addingTimeInterval(5.5), quiet.id: t0.addingTimeInterval(31)])
+        assert(talk.recordings[0].items.map(\.text) == ["the record", "", "more", "missed by the record", "after the gap"], "\(talk.recordings[0].items.map(\.text))")
+        assert(talk.recordings[0].items.filter { $0.unrecorded == true }.map(\.text) == ["missed by the record"] && !gone.contains(quiet.id))
+        // A long line of the record becomes a row for each sentence, each with the time it was said, and a mark
+        // made in the middle of it stays between the words it came between. Rows that have not changed keep their identity.
+        let long = RecordLine(start: t0, end: t0.addingTimeInterval(90), text: "BP 150 over 90, heart rate 104. Okay. Gave 324 of aspirin chewed and the pain is easing now.",
+                              words: [(0, 0), (15, 20), (32, 40), (38, 70), (56, 76), (60, 80)].map { RecordLine.Word(offset: $0.0, time: t0.addingTimeInterval($0.1)) })
+        let split = rows(of: long, cutAt: [])
+        assert(split.map(\.text) == ["BP 150 over 90, heart rate 104.", "Okay. Gave 324 of aspirin chewed and the pain is easing now."], "\(split.map(\.text))")
+        assert(split.map { Int($0.time.timeIntervalSince(t0)) } == [0, 40], "\(split.map { $0.time.timeIntervalSince(t0) })")
+        let cut = rows(of: long, cutAt: [t0.addingTimeInterval(78)])
+        assert(cut.map(\.text) == ["BP 150 over 90, heart rate 104.", "Okay. Gave 324 of aspirin", "chewed and the pain is easing now."], "\(cut.map(\.text))")
+        assert(cut[2].time > t0.addingTimeInterval(78) && rows(of: RecordLine(start: t0, end: t0.addingTimeInterval(4), text: "No word times here."), cutAt: []).count == 1)
+        var sorted = Call()
+        sorted.recordings = [Recording(start: t0, items: [Item(time: t0.addingTimeInterval(78), mark: 1)])]
+        place([long], in: &sorted, retiring: &gone, speaking: nil, ends: [:])
+        assert(sorted.recordings[0].items.map { $0.mark == nil ? $0.text : "MARK" } == ["BP 150 over 90, heart rate 104.", "Okay. Gave 324 of aspirin", "MARK", "chewed and the pain is easing now."])
+        let ids = sorted.recordings[0].items.map(\.id)
+        place([long, RecordLine(start: t0.addingTimeInterval(95), end: t0.addingTimeInterval(99), text: "Transporting now.")], in: &sorted, retiring: &gone, speaking: nil, ends: [:])
+        assert(Array(sorted.recordings[0].items.map(\.id).prefix(4)) == ids && sorted.recordings[0].items.count == 5, "rows that did not change were rebuilt")
+        talk.recordings[0].items.append(Item(time: t0.addingTimeInterval(60), text: "after the record ended"))
+        assert(settle(&talk) == 2 && talk.recordings[0].items.count == 6 && talk.markCount == 1, "drafting must keep live words and mark them")
         // A mark dropped by accident can be deleted: the ones after it move up, and their notes with them.
         var marked = Call()
         marked.recordings = [Recording(items: [Item(mark: 1), Item(text: "x"), Item(mark: 2)]), Recording(items: [Item(mark: 3)])]
@@ -754,7 +954,7 @@ struct EarshotApp: App {
             .onChange(of: scenePhase) { _, phase in
                 // A recording carries on when the app leaves the screen or the device locks: the app is allowed to
                 // keep the microphone and the clip link in the background. Only its state is saved here.
-                if phase != .active { model.save() }
+                if phase != .active { model.save(); model.saveRecords() }
             }
         }
     }

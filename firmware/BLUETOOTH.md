@@ -133,10 +133,9 @@ The clip does its half: it starts advertising again the instant a connection dro
 
 ## Using the audio
 
-Each audio packet holds one Opus frame. Decode it to 16 kHz mono PCM and hand it to the
-recogniser where the microphone audio goes today: `Transcriber` in `app/Earshot/Recorder.swift`
-appends `AVAudioPCMBuffer`s to its `SFSpeechAudioBufferRecognitionRequest` in the mic tap, and
-clip audio can be appended the same way.
+`ClipLink` (`app/Earshot/ClipLink.swift`) decodes each Opus frame to 16 kHz mono PCM, fills lost
+frames with silence, and hands the audio to `CallEngine` (`app/Earshot/Pipeline/CallEngine.swift`),
+which feeds the same samples to Whisper and the live recogniser.
 
 For decoding, iOS has an Opus decoder in AudioToolbox (`kAudioFormatOpus`, through
 `AVAudioConverter`), and libopus is available as Swift packages. Neither has been tried here.

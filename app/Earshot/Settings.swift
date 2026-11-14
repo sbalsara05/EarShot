@@ -138,36 +138,65 @@ struct SettingsScreen: View {
     private var audio: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Settings").font(doto(fit(46, 34)))
-            Text("Audio from").font(geist(17, 500)).foregroundStyle(Color.dim).padding(.top, 28).padding(.bottom, 12)
-            HStack(spacing: 4) {
-                choice("\(deviceName) mic", standIn: true)
-                choice("Clip", standIn: false)
-            }
-            .padding(4)
-            .background(Color.bg, in: Capsule())
-            .overlay(Capsule().strokeBorder(Color.line))
-            Text(note).font(geist(17)).lineSpacing(4).foregroundStyle(noteColor).padding(.top, 18)
-            Text("Either way the audio is transcribed and drafted the same. The clip's button and marks work with both.")
-                .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 10)
-            Text("Location").font(geist(17, 500)).foregroundStyle(Color.dim).padding(.top, 28).padding(.bottom, 8)
-            HStack(spacing: 10) {
-                Circle().fill(model.location == .always ? Color.green : .yellow).frame(width: 10, height: 10)
-                Text(locationStatus)
-            }
-            .font(geist(19, 600)).foregroundStyle(model.location == .always ? Color.green : .yellow)
-            Text(locationNote).font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 8)
-            if model.location == .whileUsing || model.location == .refused {
-                Button("Open \(deviceName) Settings") {
-                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+            // Three settings and their notes are taller than the panel on an iPad, so they scroll under the title
+            // and every note is shown whole.
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    label("Audio from").padding(.top, 24).padding(.bottom, 12)
+                    HStack(spacing: 4) {
+                        choice("\(deviceName) mic", standIn: true)
+                        choice("Clip", standIn: false)
+                    }
+                    .padding(4)
+                    .background(Color.bg, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.line))
+                    said(note, noteColor).padding(.top, 14)
+                    said("Either way the audio is transcribed and drafted the same. The clip's button and marks work with both.").padding(.top, 8)
+
+                    label("Record by").padding(.top, 28).padding(.bottom, 12)
+                    HStack(spacing: 4) {
+                        recogniser("Whisper", whisper: true)
+                        recogniser("\(deviceName)'s own", whisper: false)
+                    }
+                    .padding(4)
+                    .background(Color.bg, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.line))
+                    said(recordNote, .ink).padding(.top, 14)
+                    said("There is no falling back from one to the other, so a call can be compared with and without Whisper. A change applies from the next call.").padding(.top, 8)
+
+                    label("Location").padding(.top, 28).padding(.bottom, 8)
+                    HStack(spacing: 10) {
+                        Circle().fill(model.location == .always ? Color.green : .yellow).frame(width: 10, height: 10)
+                        Text(locationStatus)
+                    }
+                    .font(geist(19, 600)).foregroundStyle(model.location == .always ? Color.green : .yellow)
+                    said(locationNote).padding(.top, 8)
+                    if model.location == .whileUsing || model.location == .refused {
+                        Button("Open \(deviceName) Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                        }
+                        .buttonStyle(Pill(fill: nil, height: 56, size: 17, grow: true)).padding(.top, 14)
+                    }
                 }
-                .buttonStyle(Pill(fill: nil, height: 56, size: 17, grow: true)).padding(.top, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 8)
             }
-            Spacer(minLength: 0)
+            .scrollIndicators(.hidden)
         }
-        .padding(fit(36, 24))
+        .padding(.top, fit(36, 24)).padding(.horizontal, fit(36, 24)).padding(.bottom, fit(20, 16))
         .side()
         .frame(maxHeight: phone ? nil : .infinity, alignment: .topLeading)
         .panel()
+    }
+
+    /// The name of one setting, above its control.
+    private func label(_ name: String) -> some View {
+        Text(name).font(geist(17, 500)).foregroundStyle(Color.dim)
+    }
+
+    /// A note under a control. It wraps onto as many lines as it needs and is never cut short.
+    private func said(_ text: String, _ color: Color = .dim) -> some View {
+        Text(text).font(geist(17)).lineSpacing(4).foregroundStyle(color).fixedSize(horizontal: false, vertical: true)
     }
 
     private func choice(_ name: String, standIn: Bool) -> some View {
@@ -180,6 +209,26 @@ struct SettingsScreen: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    /// Which recogniser writes the record. There is no falling back from one to the other, so a call
+    /// can be compared with and without Whisper.
+    private func recogniser(_ name: String, whisper: Bool) -> some View {
+        let on = model.whisperEnabled == whisper
+        return Button { model.whisperEnabled = whisper } label: {
+            Text(name).font(geist(17, 600)).foregroundStyle(on ? Color.bg : .dim)
+                .frame(maxWidth: .infinity).frame(height: 56)
+                .background(on ? Color.ink : .clear, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    /// Who writes the record now, and the recogniser the latest call really used.
+    private var recordNote: String {
+        (model.whisperEnabled ? "Whisper writes the record of the next call." : "The \(deviceName)'s own recogniser writes the record of the next call.")
+            + (model.recordedBy.map { " The latest call used \($0)." } ?? "")
     }
 
     /// What the choice means right now. It names the microphone that will really be used, not the one asked for.

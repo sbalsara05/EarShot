@@ -186,7 +186,7 @@ struct LiveScreen: View {
             if current.items.isEmpty {
                 empty("What is said will appear here as you record.")
             } else {
-                feed { TranscriptRows(recording: current, liveLine: model.liveLine) }.smooth(current.items.count)
+                feed { TranscriptRows(recording: current, color: .ink, liveLine: model.liveLine) }.smooth(current.items.count)
             }
         case .between, .cutShort:
             feed {
@@ -462,12 +462,14 @@ struct ReviewSheet: View {
         }
     }
 
-    /// A handoff line. While it is empty it is drawn in yellow: the AI could not fill it, so it needs the medic.
+    /// A handoff line. While it is empty, or holds a value to confirm, it is drawn in yellow: it needs the medic.
     private func field(_ label: String, _ text: Binding<String>, mark: String? = nil, prompt: String = "Add it, or leave blank and ask") -> some View {
         let missing = text.wrappedValue.isEmpty
+        let unsure = text.wrappedValue.contains("please confirm")
         return VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 12) {
-                Text(missing && mark == nil ? "\(label): not heard" : label).font(geist(15, 600)).foregroundStyle(missing ? Color.yellow : .dim)
+                Text(missing && mark == nil ? "\(label): not heard" : unsure ? "\(label): please confirm" : label)
+                    .font(geist(15, 600)).foregroundStyle(missing || unsure ? Color.yellow : .dim)
                 if let mark {
                     HStack(spacing: 6) {
                         Flag(size: 14)
@@ -518,19 +520,27 @@ struct TranscriptRows: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Location at \(clock(item.time)): \(place.line)")
             } else if item.id == liveLine {
-                // The line being spoken: bright, with its newest word in red and a blinking dot.
+                // The line being spoken: the same size as every other line, so nothing jumps when it is
+                // finished. Its newest word is red and a dot blinks after it.
                 let words = item.text.split(separator: " ")
                 Ticker(fps: 4) { t in
                     said(item.time, Text(words.dropLast().joined(separator: " ") + (words.count > 1 ? " " : ""))
                         + Text(words.last.map(String.init) ?? "").foregroundColor(.red)
-                        + Text(" ●").font(geist(14)).foregroundColor(.red.opacity(blink(t))), size: fit(26, 21))
+                        + Text(" ●").font(geist(14)).foregroundColor(.red.opacity(blink(t))))
                 }
             } else if !item.text.isEmpty {
-                said(item.time, Text(item.text).foregroundColor(color))
+                // Words go from lighter to full strength as they settle: light while only heard live,
+                // full once they are in the record. Live words the record went past without taking up
+                // stay, and say so, so nothing that was heard disappears.
+                said(item.time, Text(item.text).foregroundColor(color.opacity(item.record == true ? 1 : 0.6))
+                    + Text(item.unrecorded == true ? "  not in the record" : "").font(geist(14, 600)).foregroundColor(.yellow.opacity(0.8)))
+                    .accessibilityLabel(item.text + (item.unrecorded == true ? ", not in the record" : ""))
             }
             }
-            // A new line or mark rises into place; a deleted mark slides away and fades.
-            .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 14)), removal: .opacity.combined(with: .offset(x: -24))))
+            // A new line or mark rises into place. Text that the record replaces fades over, so it does not
+            // look thrown away; a deleted mark slides away and fades.
+            .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: item.mark == nil ? 0 : 14)),
+                                    removal: item.mark == nil ? .opacity : .opacity.combined(with: .offset(x: -24))))
         }
     }
 
