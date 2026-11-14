@@ -267,7 +267,7 @@ struct DraftsScreen: View {
         List {
             if !model.review.isEmpty {
                 Section {
-                    ForEach(model.review) { call in row(call, waiting: true) { reviewing = call } }
+                    ForEach(model.review) { call in CallRow(call: call, waiting: true) { reviewing = call } }
                 } header: {
                     Text("Needs sign-off").font(geist(15, 600)).foregroundStyle(Color.yellow).textCase(nil)
                 }
@@ -275,7 +275,7 @@ struct DraftsScreen: View {
             }
             if !model.past.isEmpty {
                 Section {
-                    ForEach(model.past) { call in row(call, waiting: false) { opened = call } }
+                    ForEach(model.past) { call in CallRow(call: call, waiting: false) { opened = call } }
                         .onDelete { model.delete(at: $0) }
                 } header: {
                     Text("Signed").font(geist(15, 600)).foregroundStyle(Color.dim).textCase(nil)
@@ -288,8 +288,16 @@ struct DraftsScreen: View {
         .scrollIndicators(.hidden)
     }
 
-    /// One call. A waiting one carries a yellow dot and says what it needs; a signed one says when it was signed.
-    private func row(_ call: Call, waiting: Bool, open: @escaping () -> Void) -> some View {
+}
+
+/// One completed call in a list. A waiting one carries a yellow dot and says what it needs; a signed one says
+/// when it was signed. Used on AI Drafts and on Home.
+struct CallRow: View {
+    var call: Call
+    var waiting: Bool
+    var open: () -> Void
+
+    var body: some View {
         Button(action: open) {
             HStack(spacing: 12) {
                 if waiting { Circle().fill(Color.yellow).frame(width: 10, height: 10) }

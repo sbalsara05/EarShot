@@ -77,7 +77,7 @@ To keep your team and bundle identifier between regenerations, set `DEVELOPMENT_
 5. **Sign off** by drawing a signature or typing your name. The call moves to **Signed**.
 
 The AI Drafts tab shows how many calls are waiting for sign-off, and lists every signed call below
-them. Home lists the three most recent. Signed calls open with a tap and delete with a swipe; **Edit**
+them. Home lists three calls: those waiting for sign-off first, then the most recent signed ones. Signed calls open with a tap and delete with a swipe; **Edit**
 on one sends it back to be signed again. To throw away the call being recorded, use **Discard call**
 on Home.
 

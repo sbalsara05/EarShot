@@ -702,7 +702,8 @@ struct Tabs: View {
 
 struct HomeScreen: View {
     @Environment(Model.self) var model
-    @State var opened: Call?   // the past call being read
+    @State var opened: Call?      // the signed call being read
+    @State var reviewing: Call?   // the call waiting for sign-off that is open in its sheet
     @State private var discarding = false
 
     var body: some View {
@@ -740,11 +741,11 @@ struct HomeScreen: View {
                     }
                 }
                 if let problem = model.problem { Text(problem).font(geist(17, 500)).foregroundStyle(Color.red) }
-                if !model.past.isEmpty { pastCalls }
+                if hasCalls { recentCalls }
             }
-            .padding(.leading, fit(24, 4)).padding(.top, model.past.isEmpty ? 0 : fit(12, 0))
+            .padding(.leading, fit(24, 4)).padding(.top, hasCalls ? fit(12, 0) : 0)
             // With no past calls the headline sits centred, as designed. With some, it moves up and the list fills the rest.
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: model.past.isEmpty ? .leading : .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: hasCalls ? .topLeading : .leading)
 
             Button {
                 if model.clipState == .idle { model.connect() }
@@ -784,64 +785,43 @@ struct HomeScreen: View {
             .accessibilityLabel("Clip \(model.clipTitle), \(model.clipStatus)")
         }
         .sheet(item: $opened) { PastCallView(call: $0).presentationSizing(.page).presentationDragIndicator(.visible) }
+        .sheet(item: $reviewing) { ReviewSheet(id: $0.id).presentationSizing(.page).presentationDragIndicator(.visible) }
     }
 }
 
 extension HomeScreen {
-    /// The big word shrinks on iPhone once there are past calls to make room for.
-    var headline: CGFloat { fit(176, model.past.isEmpty ? 104 : 72) }
+    /// Whether there is any completed call to list.
+    var hasCalls: Bool { !model.review.isEmpty || !model.past.isEmpty }
 
-    /// The three most recent signed calls. The full history is on the AI Drafts tab.
-    var pastCalls: some View {
-        VStack(alignment: .leading, spacing: 4) {
+    /// The big word shrinks on iPhone once there are calls to make room for.
+    var headline: CGFloat { fit(176, hasCalls ? 72 : 104) }
+
+    /// Three calls at most. The ones still waiting for sign-off come first, since they need the medic; any room
+    /// left goes to the most recent signed calls. The rest are on the AI Drafts tab.
+    var recentCalls: some View {
+        let waiting = Array(model.review.prefix(3))
+        let signed = Array(model.past.prefix(3 - waiting.count))
+        let total = model.review.count + model.past.count
+        return VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text("Past calls").font(geist(15, 600)).foregroundStyle(Color.dim)
+                Text(waiting.isEmpty ? "Past calls" : "\(plural(model.review.count, "call")) to sign off")
+                    .font(geist(15, 600)).foregroundStyle(waiting.isEmpty ? Color.dim : .yellow)
                 Spacer()
-                if model.past.count > 3 {
-                    Button("All \(model.past.count) calls") { model.tab = .drafts }
+                if total > 3 {
+                    Button("All \(total) calls") { model.tab = .drafts }
                         .font(geist(15, 600)).foregroundStyle(Color.ink).buttonStyle(.plain).frame(minHeight: 44)
                 }
             }
-            PastCalls(limit: 3, opened: $opened)
-        }
-    }
-}
-
-/// Signed calls, newest first. Tap a row to read it, swipe it left to delete it.
-struct PastCalls: View {
-    @Environment(Model.self) private var model
-    var limit: Int? = nil        // show only this many, from the newest
-    @Binding var opened: Call?   // the call being read, shown by the screen that owns this list
-
-    var body: some View {
-        List {
-            // The shown calls are the first rows of `model.past`, so a swiped row's position is its position there too.
-            ForEach(Array(model.past.prefix(limit ?? model.past.count))) { call in
-                Button { opened = call } label: {
-                  HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(call.draft.patient.isEmpty ? "Patient not recorded" : call.draft.patient)
-                            .font(geist(19, 500)).foregroundStyle(Color.ink).lineLimit(1)
-                        Text("\(day(call.start)), \(span(call.seconds))")
-                            .font(geist(15)).foregroundStyle(Color.dim).lineLimit(1)
-                    }
-                    Spacer()
-                    Text("Signed \(clock(call.signedAt ?? call.start))").font(geist(15, 500).monospacedDigit()).foregroundStyle(Color.green)
-                  }
-                  .padding(.vertical, 12)
-                  .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                .listRowSeparatorTint(Color.line)
-                .accessibilityElement(children: .combine)
+            List {
+                ForEach(waiting) { call in CallRow(call: call, waiting: true) { reviewing = call } }
+                // The signed calls shown are the first rows of `model.past`, so a swiped row's position is its position there too.
+                ForEach(signed) { call in CallRow(call: call, waiting: false) { opened = call } }
+                    .onDelete { model.delete(at: $0) }
             }
-            .onDelete { model.delete(at: $0) }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .scrollIndicators(.hidden)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .scrollIndicators(.hidden)
     }
 }
 
