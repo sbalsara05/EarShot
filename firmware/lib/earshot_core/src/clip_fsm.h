@@ -1,17 +1,26 @@
-// State machine for the clip: press to start, hold to stop.
+// State machine for the clip.
 //
-//   NotListening ──press──▶ Listening
-//        ▲                      │
-//        └────────hold──────────┘
+//   NotListening ──"start"──▶ Listening
+//        ▲                        │
+//        └──────"stop", or hold───┘
 //
-// NotListening: mic off, ring dark. Nothing is captured.
-// Listening:    mic on, audio streams to the tablet, ring green.
+// NotListening: mic off, nothing is captured. Ring green when a tablet is connected, a slow
+//               blue blink while it waits for one.
+// Listening:    mic on, audio streams to the tablet, ring red.
 //
-// The medic asks the patient for consent out loud, as they already do. Pressing the button is
-// the medic's confirmation that consent was given: the press is logged as a consent event and
-// only then does capture start. If the patient says no, the medic does not press.
-// Double tap while Listening drops a timestamp marker.
-// The tablet can drive the same transitions with commands (see protocol.h).
+// The tablet owns the recording and the call. A double click on the clip's button does not
+// change the state here: the clip sends the tablet a "toggle" message for the recording and
+// the tablet answers with "start" or "stop" (see protocol.h). The medic asks the patient for consent out loud, as they
+// already do; starting is the confirmation that consent was given, and it is logged as a
+// consent event before the microphone turns on.
+// A single click while Listening drops a timestamp marker (a "mark"). A single click never
+// starts or stops anything, so a bumped button cannot begin or cut a capture.
+// A hold toggles the call: while Listening it stops the capture at once, tablet or no tablet,
+// and in either state the clip then sends the tablet a "toggle" message for the call.
+// The tablet can also ask the clip to make itself findable ("find"): it blinks and beeps for
+// a few seconds in either state, without changing state.
+// A standalone clip (no tablet at all, as on the Wokwi website) toggles on a double click by
+// itself; that is the only use of the DoubleTap input below.
 #pragma once
 #include <stdint.h>
 
@@ -19,13 +28,14 @@ namespace earshot {
 
 enum class ClipState : uint8_t { NotListening, Listening };
 
-enum class Input : uint8_t { ShortPress, LongPress, DoubleTap, CmdStart, CmdStop, CmdMarker };
+enum class Input : uint8_t { ShortPress, LongPress, DoubleTap, CmdStart, CmdStop, CmdMarker, CmdFind };
 
 enum class Effect : uint8_t {
   None,
   Started,  // consent logged, capture starts
   Stopped,  // capture ended
-  Marker
+  Marker,
+  Find      // blink and beep so the clip can be found; the state does not change
 };
 
 struct Transition {

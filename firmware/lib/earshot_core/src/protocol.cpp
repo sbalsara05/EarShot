@@ -38,6 +38,13 @@ std::string markerJson(uint32_t id, const char* source, uint32_t t_ms, uint32_t 
   return buf;
 }
 
+std::string toggleJson(const char* target, const char* source, uint32_t t_ms) {
+  char buf[120];
+  snprintf(buf, sizeof buf, "{\"type\":\"toggle\",\"target\":\"%s\",\"source\":\"%s\",\"t_ms\":%lu}",
+           target, source, (unsigned long)t_ms);
+  return buf;
+}
+
 bool parseCommand(const std::string& json, Input& out) {
   // Tiny extractor for {"cmd":"..."}; avoids pulling a JSON library onto the device.
   size_t k = json.find("\"cmd\"");
@@ -53,6 +60,7 @@ bool parseCommand(const std::string& json, Input& out) {
   if (cmd == "start") out = Input::CmdStart;
   else if (cmd == "stop") out = Input::CmdStop;
   else if (cmd == "marker") out = Input::CmdMarker;
+  else if (cmd == "find") out = Input::CmdFind;
   else return false;
   return true;
 }

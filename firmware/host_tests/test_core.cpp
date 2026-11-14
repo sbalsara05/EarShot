@@ -127,40 +127,36 @@ static void test_fsm() {
   printf("state machine\n");
   Transition t;
 
-  // Not listening: a press starts; nothing else does anything.
-  t = step(ClipState::NotListening, Input::ShortPress);
+  // Not listening: a double click starts; nothing else does anything.
+  t = step(ClipState::NotListening, Input::DoubleTap);
   CHECK(t.next == ClipState::Listening && t.effect == Effect::Started);
   t = step(ClipState::NotListening, Input::CmdStart);
   CHECK(t.next == ClipState::Listening && t.effect == Effect::Started);
-  t = step(ClipState::NotListening, Input::LongPress);
+  t = step(ClipState::NotListening, Input::ShortPress);  // a single click never starts a capture
   CHECK(t.next == ClipState::NotListening && t.effect == Effect::None);
-  t = step(ClipState::NotListening, Input::DoubleTap);  // a double tap never starts a capture
+  t = step(ClipState::NotListening, Input::LongPress);
   CHECK(t.next == ClipState::NotListening && t.effect == Effect::None);
   t = step(ClipState::NotListening, Input::CmdMarker);
   CHECK(t.next == ClipState::NotListening && t.effect == Effect::None);
   t = step(ClipState::NotListening, Input::CmdStop);
   CHECK(t.next == ClipState::NotListening && t.effect == Effect::None);
 
-  // Listening: hold stops; double tap marks; a stray press does nothing.
+  // Listening: a single click marks; a double click or a hold stops.
   t = step(ClipState::Listening, Input::ShortPress);
-  CHECK(t.next == ClipState::Listening && t.effect == Effect::None);
-  t = step(ClipState::Listening, Input::CmdStart);
-  CHECK(t.next == ClipState::Listening && t.effect == Effect::None);
+  CHECK(t.next == ClipState::Listening && t.effect == Effect::Marker);
+  t = step(ClipState::Listening, Input::CmdMarker);
+  CHECK(t.next == ClipState::Listening && t.effect == Effect::Marker);
+  t = step(ClipState::Listening, Input::DoubleTap);
+  CHECK(t.next == ClipState::NotListening && t.effect == Effect::Stopped);
   t = step(ClipState::Listening, Input::LongPress);
   CHECK(t.next == ClipState::NotListening && t.effect == Effect::Stopped);
   t = step(ClipState::Listening, Input::CmdStop);
   CHECK(t.next == ClipState::NotListening && t.effect == Effect::Stopped);
-  t = step(ClipState::Listening, Input::DoubleTap);
-  CHECK(t.next == ClipState::Listening && t.effect == Effect::Marker);
-  t = step(ClipState::Listening, Input::CmdMarker);
-  CHECK(t.next == ClipState::Listening && t.effect == Effect::Marker);
+  t = step(ClipState::Listening, Input::CmdStart);       // already listening: nothing to do
+  CHECK(t.next == ClipState::Listening && t.effect == Effect::None);
 
-  Input in;
-  CHECK(parseCommand("{\"cmd\":\"start\"}", in) && in == Input::CmdStart);
-  CHECK(parseCommand("{ \"cmd\" : \"stop\" }", in) && in == Input::CmdStop);
-  CHECK(parseCommand("{\"cmd\":\"marker\"}", in) && in == Input::CmdMarker);
-  CHECK(!parseCommand("{\"cmd\":\"format_disk\"}", in));
-  CHECK(!parseCommand("hello", in));
+  CHECK(strcmp(stateName(ClipState::NotListening), "not_listening") == 0);
+  CHECK(strcmp(stateName(ClipState::Listening), "listening") == 0);
 }
 
 // ---------------------------------------------------------------- fake server side
@@ -362,6 +358,19 @@ class FakeHal : public Hal {
     now += 20;  // a real mic read blocks for one frame
     return samples;
   }
+  // "find" beep
+  bool beeping = false;
+  int beeps = 0;              // times a beep started
+  int beeps_with_mic_on = 0;  // must stay 0: a beep would land in the recording
+  int beep_dones = 0;
+  void beep(bool on) override {
+    if (on && !beeping) {
+      ++beeps;
+      if (mic_on) ++beeps_with_mic_on;
+    }
+    beeping = on;
+  }
+  void beepDone() override { ++beep_dones; }
   bool networkUp() override { return net; }
   void log(const char*) override {}
 };
@@ -370,13 +379,22 @@ struct AppRig {
   FakeHal hal;
   FakeTransport tr;
   ClipApp app;
-  AppRig() : app(hal, tr, ClipConfig(), 99) {}
+  // The app's part in a double click: the clip only reports it ("toggle"); the app decides and
+  // answers. Here the stand-in app ends a recording that is running and starts one otherwise.
+  bool app_answers;
+  uint32_t toggles_seen;
+  AppRig() : app(hal, tr, ClipConfig(), 99), app_answers(true), toggles_seen(0) {}
 
   void run(uint32_t ms) {
     uint32_t end = hal.now + ms;
     while ((int32_t)(end - hal.now) > 0) {
       uint32_t before = hal.now;
       app.tick();
+      if (app.stats().toggles != toggles_seen) {
+        toggles_seen = app.stats().toggles;
+        if (app_answers)
+          tr.serverSendText(app.state() == ClipState::Listening ? "{\"cmd\":\"stop\"}" : "{\"cmd\":\"start\"}");
+      }
       if (hal.now == before) hal.now += 1;  // guarantee progress
     }
   }
@@ -419,34 +437,43 @@ static uint32_t seqOf(const WsFrame& f) {
   return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
-static void test_app_press_to_start() {
-  printf("app: press to start, mark, hold to stop\n");
+static void test_app_gestures() {
+  printf("app: double click to start, click to mark, double click or hold to stop\n");
   AppRig r;
   r.app.begin();
   CHECK(r.app.state() == ClipState::NotListening);
   CHECK(!r.hal.mic_on);
 
-  r.run(1000);                                      // powered, connected, nobody has pressed
+  r.run(1000);                                      // powered, connected, nobody has clicked
   CHECK(r.app.linkOpen());
-  CHECK(r.hal.led == LedColor::Off);                // ring dark = not listening
+  CHECK(r.hal.led == LedColor::Green);              // green = tablet connected, not listening
   CHECK_EQ(r.hal.mic_starts, 0);                    // the microphone has never been on
   CHECK_EQ(r.app.stats().frames_captured, 0);
   CHECK_EQ(r.audioFrames(), 0);
   CHECK_EQ(r.textCount("\"type\":\"hello\""), 1);
   CHECK_EQ(r.textCount("\"state\":\"not_listening\",\"listening\":false"), 1);
 
-  r.doubleTap();                                    // a double tap does not start a capture
+  r.shortPress();                                   // a single click does not start a capture
   r.longPress();                                    // nor does a hold
   CHECK(r.app.state() == ClipState::NotListening);
   CHECK_EQ(r.hal.mic_starts, 0);
   CHECK_EQ(r.audioFrames(), 0);
 
-  r.shortPress();                                   // one press: consent logged, capture starts
+  // A double click is only reported: the clip sends "toggle" and waits for the tablet.
+  r.app_answers = false;
+  r.doubleTap();
+  CHECK_EQ(r.textCount("\"type\":\"toggle\",\"target\":\"recording\",\"source\":\"button\""), 1);
+  CHECK(r.app.state() == ClipState::NotListening);  // nothing happens until the tablet answers
+  CHECK_EQ(r.hal.mic_starts, 0);
+  CHECK_EQ(r.textCount("\"type\":\"consent\""), 0);
+  r.app_answers = true;
+
+  r.command("start");                               // the tablet decides: consent logged, capture starts
   CHECK(r.app.state() == ClipState::Listening);
-  CHECK(r.hal.led == LedColor::Green);
+  CHECK(r.hal.led == LedColor::Red);
   CHECK(r.hal.mic_on);
   CHECK_EQ(r.hal.mic_starts, 1);
-  CHECK_EQ(r.textCount("\"type\":\"consent\",\"event\":\"granted\",\"source\":\"button\""), 1);
+  CHECK_EQ(r.textCount("\"type\":\"consent\",\"event\":\"granted\",\"source\":\"tablet\""), 1);
   CHECK_EQ(r.textCount("\"state\":\"listening\",\"listening\":true"), 1);
   r.run(500);
   int sent = r.audioFrames();
@@ -467,33 +494,60 @@ static void test_app_press_to_start() {
   CHECK(granted_at > 0 && first_audio_at > granted_at);
   CHECK(layout_ok);
 
-  r.shortPress();                                   // a stray press while listening does nothing
-  CHECK(r.app.state() == ClipState::Listening);
-  CHECK_EQ(r.textCount("\"event\":\"granted\""), 1);
-
-  r.doubleTap();                                    // double tap: timestamp marker
+  // A single click while listening drops a mark and nothing else: the capture carries on.
+  // The mark is stamped with the moment the button went down, not the moment the click was
+  // recognised (about 0.4 s later, once the double-click window has passed).
+  int frames_before = r.audioFrames();
+  uint32_t pressed_at = r.hal.now;
+  r.shortPress();
   CHECK_EQ(r.app.stats().markers, 1);
   CHECK_EQ(r.textCount("\"type\":\"marker\",\"id\":1,\"source\":\"button\""), 1);
   CHECK(r.app.state() == ClipState::Listening);
+  CHECK(r.hal.mic_on);
+  CHECK_EQ(r.textCount("\"event\":\"granted\""), 1);
+  CHECK_EQ(r.textCount("\"event\":\"stopped\""), 0);
   bool flashed = false;
   for (size_t i = 0; i < r.hal.led_history.size(); ++i) flashed |= r.hal.led_history[i] == LedColor::White;
   CHECK(flashed);
+  {
+    f = r.frames();
+    long t_ms = -1, seq = -1;
+    for (size_t i = 0; i < f.size(); ++i) {
+      size_t at = f[i].payload.find("\"type\":\"marker\"");
+      if (f[i].opcode != 0x1 || at == std::string::npos) continue;
+      t_ms = atol(f[i].payload.c_str() + f[i].payload.find("\"t_ms\":") + 7);
+      seq = atol(f[i].payload.c_str() + f[i].payload.find("\"audio_seq\":") + 12);
+    }
+    CHECK(t_ms >= (long)pressed_at && t_ms <= (long)pressed_at + 80);   // not ~450 ms later
+    CHECK(seq >= frames_before - 1 && seq <= frames_before + 4);        // the frame at the click
+  }
 
-  r.longPress();                                    // hold: stop
+  // A double click while listening sends exactly the same message as one while not
+  // listening; the stand-in app answers "stop" this time.
+  r.doubleTap();
+  CHECK_EQ(r.textCount("\"type\":\"toggle\",\"target\":\"recording\",\"source\":\"button\""), 2);
+  {
+    f = r.frames();
+    std::vector<std::string> toggles;
+    for (size_t i = 0; i < f.size(); ++i)
+      if (f[i].opcode == 0x1 && f[i].payload.find("\"target\":\"recording\"") != std::string::npos)
+        toggles.push_back(f[i].payload.substr(0, f[i].payload.find("\"t_ms\"")));
+    CHECK(toggles.size() == 2 && toggles[0] == toggles[1]);   // identical apart from the time
+  }
   CHECK(r.app.state() == ClipState::NotListening);
   CHECK(!r.hal.mic_on);
-  CHECK(r.hal.led == LedColor::Off);
-  CHECK_EQ(r.textCount("\"type\":\"consent\",\"event\":\"stopped\",\"source\":\"button\""), 1);
+  CHECK(r.hal.led == LedColor::Green);
+  CHECK_EQ(r.textCount("\"type\":\"consent\",\"event\":\"stopped\",\"source\":\"tablet\""), 1);
   int after_stop = r.audioFrames();
   r.run(1000);
   CHECK_EQ(r.audioFrames(), after_stop);            // nothing more is sent
   CHECK_EQ(r.textCount("\"state\":\"not_listening\",\"listening\":false"), 2);
 
-  r.doubleTap();                                    // no markers when not listening
+  r.shortPress();                                   // no marks when not listening
   CHECK_EQ(r.app.stats().markers, 1);
 
   // The next patient: each capture starts its frame counter at 0 again.
-  r.shortPress();
+  r.doubleTap();
   CHECK(r.app.state() == ClipState::Listening);
   CHECK_EQ(r.app.stats().captures, 2);
   r.run(300);
@@ -506,6 +560,11 @@ static void test_app_press_to_start() {
   CHECK(next_audio < f.size());
   if (next_audio < f.size()) CHECK_EQ(seqOf(f[next_audio]), 0);
   CHECK_EQ(r.textCount("\"event\":\"granted\""), 2);
+
+  r.longPress();                                    // a hold still stops a capture
+  CHECK(r.app.state() == ClipState::NotListening);
+  CHECK(!r.hal.mic_on);
+  CHECK_EQ(r.textCount("\"type\":\"consent\",\"event\":\"stopped\",\"source\":\"button\""), 1);
 }
 
 static void test_app_tablet_commands() {
@@ -551,7 +610,7 @@ static void test_app_link_loss() {
   AppRig r;
   r.app.begin();
   r.run(200);
-  r.shortPress();
+  r.doubleTap();
   CHECK(r.app.state() == ClipState::Listening);
   r.run(200);
   CHECK(r.app.stats().frames_sent > 0);
@@ -564,7 +623,7 @@ static void test_app_link_loss() {
   uint32_t sent_before = r.app.stats().frames_sent;
   CHECK(r.app.stats().frames_dropped > 20);           // audio is dropped, not buffered
 
-  r.doubleTap();                                      // marker while offline
+  r.shortPress();                                      // marker while offline
   CHECK_EQ(r.app.stats().markers, 1);
 
   int connects_before = r.tr.connects;
@@ -592,24 +651,42 @@ static void test_app_link_loss() {
   r.run(3000);
   CHECK(r.app.linkOpen());
 
-  // A capture started and stopped while offline is still reported, in order, on reconnect.
+  // A double click with no tablet does nothing, now or later: no capture starts, and no
+  // stale toggle is delivered when the tablet comes back.
   AppRig q;
   q.tr.up = false;
   q.app.begin();
   q.run(200);
-  q.shortPress();
+  q.doubleTap();
+  CHECK(q.app.state() == ClipState::NotListening);
+  CHECK_EQ(q.hal.mic_starts, 0);
+  q.tr.up = true;
+  q.run(3000);
+  CHECK(q.app.linkOpen());
+  CHECK(q.app.state() == ClipState::NotListening);
+  CHECK_EQ(q.textCount("\"target\":\"recording\""), 0);
+  CHECK_EQ(q.textCount("\"type\":\"consent\""), 0);
+  CHECK_EQ(q.audioFrames(), 0);
+
+  // A capture stopped by a hold while offline is reported when the tablet returns.
+  q.doubleTap();                                       // online now: the app answers "start"
+  CHECK(q.app.state() == ClipState::Listening);
+  q.tr.up = false;
+  q.tr.drop();
+  q.run(500);
   q.longPress();
+  CHECK(q.app.state() == ClipState::NotListening);
+  CHECK(!q.hal.mic_on);
   q.tr.up = true;
   q.run(3000);
   CHECK(q.app.linkOpen());
   std::vector<WsFrame> g = q.frames();
-  size_t granted = 0, stopped = 0;
-  for (size_t i = 0; i < g.size(); ++i) {
-    if (g[i].payload.find("\"event\":\"granted\"") != std::string::npos) granted = i;
-    if (g[i].payload.find("\"event\":\"stopped\"") != std::string::npos) stopped = i;
+  CHECK(g.size() >= 3);
+  if (g.size() >= 3) {
+    CHECK(g[0].payload.find("\"type\":\"hello\"") != std::string::npos);
+    CHECK(g[1].payload.find("\"event\":\"stopped\",\"source\":\"button\"") != std::string::npos);
+    CHECK(g[2].payload.find("\"state\":\"not_listening\"") != std::string::npos);
   }
-  CHECK(granted > 0 && stopped > granted);
-  CHECK_EQ(q.audioFrames(), 0);                       // that offline audio is gone, not sent late
 }
 
 static void test_app_external_button() {
@@ -624,9 +701,13 @@ static void test_app_external_button() {
   for (int i = 0; i < 200; ++i) app.tick();
   CHECK(app.state() == ClipState::NotListening);
   hal.button = false;
-  app.onButtonEvent(ButtonEvent::ShortPress);
+  app.onButtonEvent(ButtonEvent::DoubleTap);          // reported to the tablet, not acted on
+  CHECK_EQ(app.stats().toggles, 1);
+  CHECK(app.state() == ClipState::NotListening);
+  tr.serverSendText("{\"cmd\":\"start\"}");          // the tablet decides: start
+  for (int i = 0; i < 5; ++i) app.tick();
   CHECK(app.state() == ClipState::Listening);
-  app.onButtonEvent(ButtonEvent::DoubleTap);
+  app.onButtonEvent(ButtonEvent::ShortPress);
   CHECK_EQ(app.stats().markers, 1);
   app.onButtonEvent(ButtonEvent::LongPress);
   CHECK(app.state() == ClipState::NotListening);
@@ -643,13 +724,13 @@ static void test_app_standalone() {
   for (int i = 0; i < 300; ++i) app.tick();
   CHECK_EQ(tr.connects, 0);                           // never tries to reach a tablet
   CHECK(!app.linkOpen());
-  app.onButtonEvent(ButtonEvent::ShortPress);
+  app.onButtonEvent(ButtonEvent::DoubleTap);
   for (int i = 0; i < 100; ++i) app.tick();
   CHECK(app.state() == ClipState::Listening);
   bool blinked = false;
   for (size_t i = 1; i < hal.led_history.size(); ++i) blinked |= hal.led_history[i] == LedColor::Off;
   CHECK(!blinked);                                    // green stays steady, no "not connected" blink
-  CHECK(hal.led == LedColor::Green);
+  CHECK(hal.led == LedColor::Red);
   CHECK(app.stats().frames_captured > 50);
   CHECK_EQ(app.stats().frames_sent, 0);
   CHECK_EQ(app.stats().frames_dropped, app.stats().frames_captured);
@@ -688,7 +769,7 @@ static void test_app_encoder() {
   CHECK(app.linkOpen());
   CHECK_EQ(enc.frames, 0);                             // nothing is encoded while not listening
 
-  app.onButtonEvent(ButtonEvent::ShortPress);
+  tr.serverSendText("{\"cmd\":\"start\"}");
   for (int i = 0; i < 50; ++i) app.tick();
   CHECK_EQ(enc.resets, 1);                             // codec state is reset at the start of a capture
   CHECK(enc.frames >= 45);
@@ -719,7 +800,8 @@ static void test_app_encoder() {
   enc.fail = false;
 
   app.onButtonEvent(ButtonEvent::LongPress);
-  app.onButtonEvent(ButtonEvent::ShortPress);          // next capture
+  tr.serverSendText("{\"cmd\":\"start\"}");          // next capture
+  for (int i = 0; i < 5; ++i) app.tick();
   CHECK_EQ(enc.resets, 2);
 
   // With no encoder configured, audio is raw PCM and the hello says so.
@@ -741,15 +823,21 @@ static void test_app_encoder() {
 class FakeLink : public Link {
  public:
   bool up;                 // a tablet is connected and subscribed
+  bool lost;               // the tablet vanished (out of range) rather than disconnecting
+  bool app_answers;        // answer the clip's "toggle" the way the app would
+  bool clip_listening;     // what the clip last said about itself
   bool reopened;           // the tablet reconnected since the last pass
   int fail_text;           // this many text sends fail before one succeeds
   size_t max_bytes;
   std::vector<std::string> texts;
   std::vector<std::string> audio;
   std::deque<std::string> from_tablet;
-  FakeLink() : up(false), reopened(false), fail_text(0), max_bytes(kBleMaxMessage), open_(false) {}
+  FakeLink() : up(false), lost(false), app_answers(true), clip_listening(false), reopened(false), fail_text(0), max_bytes(kBleMaxMessage), open_(false) {}
 
-  void connect() { up = true; reopened = true; }
+  void connect() { up = true; lost = false; reopened = true; }
+  void disconnect() { up = false; lost = false; }   // the tablet hangs up on purpose
+  void vanish() { up = false; lost = true; }        // the tablet goes out of range
+  bool lostUnexpectedly() const override { return lost && !open_; }
   void service(uint32_t) override {
     if (reopened) {  // read as closed for one pass, as link.h requires
       reopened = false;
@@ -772,6 +860,11 @@ class FakeLink : public Link {
       return false;
     }
     texts.push_back(t);
+    // Stand in for the app: follow the clip's state, and answer a toggle with start or stop.
+    if (t.find("\"listening\":true") != std::string::npos) clip_listening = true;
+    if (t.find("\"listening\":false") != std::string::npos) clip_listening = false;
+    if (app_answers && t.find("\"target\":\"recording\"") != std::string::npos)
+      from_tablet.push_back(clip_listening ? "{\"cmd\":\"stop\"}" : "{\"cmd\":\"start\"}");
     return true;
   }
   bool sendBinary(const uint8_t* h, size_t hl, const uint8_t* b, size_t bl) override {
@@ -796,7 +889,7 @@ static void test_app_packet_link() {
   FakeEncoder enc;
   ClipConfig cfg;
   cfg.encoder = &enc;
-  cfg.device_id = "Earshot-A3F2";
+  cfg.device_id = "ESP-CLIP-A3F2";
   ClipApp app(hal, link, cfg);
   app.begin();
 
@@ -809,7 +902,7 @@ static void test_app_packet_link() {
   CHECK(app.linkOpen());
   CHECK_EQ(link.texts.size(), 2);                      // introduces itself: hello, then state
   CHECK(link.texts.size() == 2 && link.texts[0].find("\"type\":\"hello\"") != std::string::npos &&
-        link.texts[0].find("\"device\":\"Earshot-A3F2\"") != std::string::npos &&
+        link.texts[0].find("\"device\":\"ESP-CLIP-A3F2\"") != std::string::npos &&
         link.texts[1].find("\"state\":\"not_listening\"") != std::string::npos);
 
   // A command from the tablet starts a capture; every audio frame is one packet that fits.
@@ -826,8 +919,8 @@ static void test_app_packet_link() {
   // A send that fails for a moment is tried again, and events still arrive in order.
   link.fail_text = 3;
   size_t before = link.texts.size();
-  app.onButtonEvent(ButtonEvent::DoubleTap);
-  app.onButtonEvent(ButtonEvent::DoubleTap);
+  app.onButtonEvent(ButtonEvent::ShortPress);
+  app.onButtonEvent(ButtonEvent::ShortPress);
   for (int i = 0; i < 10; ++i) app.tick();
   CHECK_EQ(link.texts.size(), before + 2);
   CHECK(link.texts.size() == before + 2 &&
@@ -840,7 +933,7 @@ static void test_app_packet_link() {
   for (int i = 0; i < 5; ++i) app.tick();
   CHECK(!app.linkOpen());
   size_t audio_before = link.audio.size();
-  app.onButtonEvent(ButtonEvent::DoubleTap);           // marker 3 while disconnected
+  app.onButtonEvent(ButtonEvent::ShortPress);           // marker 3 while disconnected
   for (int i = 0; i < 20; ++i) app.tick();
   CHECK(app.state() == ClipState::Listening);
   CHECK_EQ(link.audio.size(), audio_before);
@@ -868,8 +961,9 @@ static void test_app_packet_link() {
   ClipApp raw(hal2, link2, ClipConfig());
   raw.begin();
   link2.connect();
-  raw.onButtonEvent(ButtonEvent::ShortPress);
-  for (int i = 0; i < 20; ++i) raw.tick();
+  for (int i = 0; i < 5; ++i) raw.tick();
+  raw.onButtonEvent(ButtonEvent::DoubleTap);           // the stand-in app answers "start"
+  for (int i = 0; i < 25; ++i) raw.tick();
   CHECK_EQ(link2.audio.size(), 0);
   CHECK(raw.stats().frames_dropped >= 15);
 }
@@ -877,12 +971,18 @@ static void test_app_packet_link() {
 static void test_message_sizes() {
   printf("protocol: every message fits one Bluetooth packet\n");
   const uint32_t big = 0xFFFFFFFFu;  // longest possible numbers
-  CHECK(helloJson("Earshot-A3F2", "opus", 32000).size() <= kBleMaxMessage);
+  CHECK(helloJson("ESP-CLIP-A3F2", "opus", 32000).size() <= kBleMaxMessage);
   CHECK(stateJson(ClipState::NotListening, big).size() <= kBleMaxMessage);
   CHECK(stateJson(ClipState::Listening, big).size() <= kBleMaxMessage);
   CHECK(consentJson("granted", "button", big).size() <= kBleMaxMessage);
   CHECK(consentJson("stopped", "tablet", big).size() <= kBleMaxMessage);
   CHECK(markerJson(big, "button", big, big).size() <= kBleMaxMessage);
+  CHECK(toggleJson("recording", "button", big).size() <= kBleMaxMessage);
+  CHECK(toggleJson("call", "button", big).size() <= kBleMaxMessage);
+  CHECK(toggleJson("recording", "button", 123456) ==
+        "{\"type\":\"toggle\",\"target\":\"recording\",\"source\":\"button\",\"t_ms\":123456}");
+  CHECK(toggleJson("call", "button", 91500) ==
+        "{\"type\":\"toggle\",\"target\":\"call\",\"source\":\"button\",\"t_ms\":91500}");
   CHECK(kAudioHeaderBytes + 80 <= kBleMaxMessage);     // one Opus frame at 32 kbit/s
   CHECK(kBleMaxMessage <= 182);                        // what iOS allows per packet
 }
@@ -933,11 +1033,387 @@ static void test_voice_clip() {
   CHECK(frame[0] == 0 && frame[kFrameSamples - 1] == 0);
 }
 
+// ---------------------------------------------------------------- find clip
+
+static int ledChanges(const FakeHal& hal, size_t from, LedColor c) {
+  int n = 0;
+  for (size_t i = from; i < hal.led_history.size(); ++i) n += hal.led_history[i] == c;
+  return n;
+}
+
+static void test_find() {
+  printf("find clip: blink and beep\n");
+  Transition t;
+  t = step(ClipState::NotListening, Input::CmdFind);     // never changes the state
+  CHECK(t.next == ClipState::NotListening && t.effect == Effect::Find);
+  t = step(ClipState::Listening, Input::CmdFind);
+  CHECK(t.next == ClipState::Listening && t.effect == Effect::Find);
+  Input in;
+  CHECK(parseCommand("{\"cmd\":\"find\"}", in) && in == Input::CmdFind);
+
+  {  // not listening: blinks white and beeps for 3.2 s, then goes dark and quiet
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    CHECK(r.app.linkOpen());
+    size_t mark = r.hal.led_history.size();
+    r.command("find");                                   // runs 100 ms
+    CHECK(r.app.finding());
+    CHECK(r.app.state() == ClipState::NotListening);
+    CHECK_EQ(r.app.stats().finds, 1);
+    r.run(1400);
+    CHECK(r.app.finding());
+    CHECK(r.hal.beeps >= 3);                             // one beep every 400 ms
+    CHECK(ledChanges(r.hal, mark, LedColor::White) >= 5);   // 125 ms on, 125 ms off
+    r.run(2000);                                         // 3.5 s since the command
+    CHECK(!r.app.finding());
+    CHECK(!r.hal.beeping);
+    CHECK(r.hal.beeps >= 7 && r.hal.beeps <= 9);         // 3.2 s at one per 400 ms
+    CHECK_EQ(r.hal.beep_dones, 1);                       // the speaker is released once, at the end
+    CHECK(r.hal.led == LedColor::Green);
+    CHECK_EQ(r.hal.mic_starts, 0);                       // find never turns the microphone on
+    CHECK_EQ(r.audioFrames(), 0);
+    CHECK_EQ(r.textCount("\"type\":\"consent\""), 0);
+
+    r.command("find");                                   // asking again mid-find restarts the timer
+    r.run(2000);
+    r.command("find");
+    r.run(2000);
+    CHECK(r.app.finding());                              // 4.1 s after the first, 2.1 s after the second
+    r.run(1500);
+    CHECK(!r.app.finding());
+  }
+  {  // listening: blinks only. No beep, the capture carries on, and the light ends up green
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    r.doubleTap();
+    CHECK(r.app.state() == ClipState::Listening);
+    int frames_before = r.audioFrames();
+    size_t mark = r.hal.led_history.size();
+    r.command("find");
+    r.run(1000);
+    CHECK(r.app.finding());
+    CHECK(r.app.state() == ClipState::Listening);
+    CHECK(ledChanges(r.hal, mark, LedColor::White) >= 3);
+    CHECK(ledChanges(r.hal, mark, LedColor::Red) >= 3);     // red shows between blinks
+    CHECK(r.audioFrames() >= frames_before + 40);        // audio kept flowing
+    r.run(2500);
+    CHECK(!r.app.finding());
+    CHECK_EQ(r.hal.beeps, 0);
+    CHECK_EQ(r.hal.beeps_with_mic_on, 0);
+    CHECK(r.hal.led == LedColor::Red);
+    CHECK(r.hal.mic_on);
+  }
+  {  // a capture that starts during a find silences it before the microphone turns on
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    r.command("find");
+    r.run(150);                                          // 250 ms in: between beeps
+    r.command("find");                                   // restart, so a beep is sounding right now
+    CHECK(r.hal.beeping);
+    r.tr.serverSendText("{\"cmd\":\"start\"}");
+    r.run(20);
+    CHECK(r.app.state() == ClipState::Listening);
+    CHECK(!r.hal.beeping);
+    CHECK(r.hal.beep_dones >= 1);
+    int beeps = r.hal.beeps;
+    r.run(3500);
+    CHECK_EQ(r.hal.beeps, beeps);                        // no more beeps once listening
+    CHECK_EQ(r.hal.beeps_with_mic_on, 0);
+    CHECK(r.hal.led == LedColor::Red);
+  }
+  {  // stopping a capture mid-find lets the beeps begin
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    r.doubleTap();
+    r.command("find");
+    r.app.onButtonEvent(ButtonEvent::LongPress);
+    CHECK(r.app.state() == ClipState::NotListening);
+    r.run(1500);
+    CHECK(r.hal.beeps >= 2);
+    CHECK_EQ(r.hal.beeps_with_mic_on, 0);
+  }
+}
+
+// ---------------------------------------------------------------- hold: end the call
+
+static void test_end_call() {
+  printf("hold: mic off at once, then the tablet is told to end the call\n");
+  {  // while recording: the capture stops here, then "end" follows, in that order
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    r.command("start");
+    CHECK(r.app.state() == ClipState::Listening);
+    r.longPress();
+    CHECK(r.app.state() == ClipState::NotListening);
+    CHECK(!r.hal.mic_on);
+    CHECK_EQ(r.app.stats().call_toggles, 1);
+    std::vector<WsFrame> f = r.frames();
+    size_t stopped = 0, state = 0, end = 0;
+    for (size_t i = 0; i < f.size(); ++i) {
+      if (f[i].opcode != 0x1) continue;
+      if (f[i].payload.find("\"event\":\"stopped\",\"source\":\"button\"") != std::string::npos) stopped = i;
+      if (f[i].payload.find("\"state\":\"not_listening\"") != std::string::npos) state = i;
+      if (f[i].payload.find("\"type\":\"toggle\",\"target\":\"call\",\"source\":\"button\"") != std::string::npos) end = i;
+    }
+    CHECK(stopped > 0 && state > stopped && end > state);
+    int after = r.audioFrames();
+    r.run(500);
+    CHECK_EQ(r.audioFrames(), after);                    // no audio after the stop
+
+    // While paused (connected, not recording): "end" alone. Nothing about consent, mic stays off.
+    int consents = r.textCount("\"type\":\"consent\"");
+    size_t mark = r.hal.led_history.size();
+    r.longPress();
+    CHECK_EQ(r.textCount("\"target\":\"call\""), 2);
+    CHECK_EQ(r.textCount("\"type\":\"consent\""), consents);
+    CHECK(r.app.state() == ClipState::NotListening);
+    CHECK_EQ(r.hal.mic_starts, 1);
+    CHECK(ledChanges(r.hal, mark, LedColor::White) >= 1);   // the clip shows the hold was taken
+    CHECK(r.hal.led == LedColor::Green);
+  }
+  {  // after a call is ended, the next double click starts a fresh one
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    r.doubleTap();                                       // call 1: the stand-in app answers "start"
+    CHECK(r.app.state() == ClipState::Listening);
+    r.run(400);
+    r.longPress();                                       // end call 1
+    CHECK(r.app.state() == ClipState::NotListening);
+    CHECK_EQ(r.app.stats().call_toggles, 1);
+    int toggles = r.textCount("\"target\":\"recording\"");
+    r.doubleTap();                                       // call 2
+    CHECK_EQ(r.textCount("\"target\":\"recording\""), toggles + 1);
+    CHECK(r.app.state() == ClipState::Listening);
+    CHECK(r.hal.mic_on);
+    CHECK_EQ(r.app.stats().captures, 2);
+    r.run(300);
+    std::vector<WsFrame> f = r.frames();                 // its audio counts from 0 again
+    size_t last_granted = 0;
+    for (size_t i = 0; i < f.size(); ++i)
+      if (f[i].opcode == 0x1 && f[i].payload.find("\"event\":\"granted\"") != std::string::npos) last_granted = i;
+    size_t next_audio = last_granted + 1;
+    while (next_audio < f.size() && f[next_audio].opcode != 0x2) ++next_audio;
+    CHECK(next_audio < f.size());
+    if (next_audio < f.size()) CHECK_EQ(seqOf(f[next_audio]), 0);
+  }
+  {  // no tablet: the microphone still goes off, and no "end" turns up later
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    r.command("start");
+    r.tr.up = false;
+    r.tr.drop();
+    r.run(500);
+    r.longPress();
+    CHECK(r.app.state() == ClipState::NotListening);
+    CHECK(!r.hal.mic_on);
+    CHECK_EQ(r.app.stats().call_toggles, 0);
+    r.tr.up = true;
+    r.run(3000);
+    CHECK(r.app.linkOpen());
+    CHECK_EQ(r.textCount("\"event\":\"stopped\",\"source\":\"button\""), 1);   // the stop is reported
+    CHECK_EQ(r.textCount("\"target\":\"call\""), 0);                                 // the hold is not replayed
+  }
+  {  // a standalone clip has no call to end: a hold just stops the capture
+    FakeHal hal;
+    FakeLink link;
+    ClipConfig alone;
+    alone.gateway_enabled = false;
+    ClipApp solo(hal, link, alone);
+    solo.begin();
+    solo.onButtonEvent(ButtonEvent::DoubleTap);
+    CHECK(solo.state() == ClipState::Listening);
+    solo.onButtonEvent(ButtonEvent::LongPress);
+    CHECK(solo.state() == ClipState::NotListening);
+    CHECK_EQ(solo.stats().call_toggles, 0);
+    CHECK_EQ(link.texts.size(), 0);
+  }
+}
+
+// ---------------------------------------------------------------- what the light shows
+
+// Runs the app for `ms` of clip time and returns how often the light changed to each colour.
+struct LedCount {
+  int blue, green, red, white, off;
+};
+static LedCount runAndCount(ClipApp& app, FakeHal& hal, uint32_t ms) {
+  size_t from = hal.led_history.size();
+  uint32_t end = hal.now + ms;
+  while ((int32_t)(end - hal.now) > 0) {
+    uint32_t before = hal.now;
+    app.tick();
+    if (hal.now == before) hal.now += 1;
+  }
+  LedCount c = {0, 0, 0, 0, 0};
+  for (size_t i = from; i < hal.led_history.size(); ++i) {
+    c.blue += hal.led_history[i] == LedColor::Blue;
+    c.green += hal.led_history[i] == LedColor::Green;
+    c.red += hal.led_history[i] == LedColor::Red;
+    c.white += hal.led_history[i] == LedColor::White;
+    c.off += hal.led_history[i] == LedColor::Off;
+  }
+  return c;
+}
+
+static void test_light() {
+  printf("light: blue ready, green connected, red listening, flashing red when the tablet is lost\n");
+  FakeHal hal;
+  FakeLink link;
+  ClipApp app(hal, link, ClipConfig());
+  app.begin();
+
+  // Powered, no tablet: one blue blink every 2 seconds. Never green (nothing is connected)
+  // and never red (the microphone is off).
+  LedCount c = runAndCount(app, hal, 6000);
+  CHECK(c.blue >= 2 && c.blue <= 4);
+  CHECK(c.off >= 2);
+  CHECK_EQ(c.green, 0);
+  CHECK_EQ(c.red, 0);
+  CHECK_EQ(hal.mic_starts, 0);
+
+  // A tablet connects: solid green, and it stays green.
+  link.connect();
+  runAndCount(app, hal, 100);
+  CHECK(app.linkOpen());
+  CHECK(hal.led == LedColor::Green);
+  c = runAndCount(app, hal, 6000);
+  CHECK_EQ(c.blue + c.red + c.off + c.white, 0);       // no change at all
+  CHECK(hal.led == LedColor::Green);
+
+  // Listening and connected: solid red.
+  app.onButtonEvent(ButtonEvent::DoubleTap);
+  c = runAndCount(app, hal, 4000);
+  CHECK_EQ(c.blue + c.green, 0);
+  CHECK(hal.led == LedColor::Red);
+  CHECK(hal.mic_on);
+
+  // The tablet goes away mid-capture: red flashes. No blue, and no green.
+  link.up = false;
+  c = runAndCount(app, hal, 4000);
+  CHECK_EQ(c.blue + c.green, 0);
+  CHECK(c.red >= 2 && c.off >= 2);
+
+  // The tablet comes back mid-capture: solid red again.
+  link.connect();
+  runAndCount(app, hal, 200);
+  c = runAndCount(app, hal, 3000);
+  CHECK_EQ(c.off + c.blue + c.green, 0);
+  CHECK(hal.led == LedColor::Red);
+
+  // The capture is stopped while connected: back to green.
+  app.onButtonEvent(ButtonEvent::LongPress);
+  runAndCount(app, hal, 200);
+  CHECK(hal.led == LedColor::Green);
+  CHECK(!hal.mic_on);
+
+  // The tablet disconnects on purpose while idle (the app's Disconnect button): back to the
+  // blue blink, ready for a tablet to connect. No red.
+  link.disconnect();
+  c = runAndCount(app, hal, 6000);
+  CHECK(c.blue >= 2 && c.blue <= 4);
+  CHECK_EQ(c.red + c.green, 0);
+
+  // It connects again: green.
+  link.connect();
+  runAndCount(app, hal, 200);
+  CHECK(hal.led == LedColor::Green);
+
+  // The tablet goes out of range while idle: red flashes, though the microphone stays off.
+  link.vanish();
+  c = runAndCount(app, hal, 6000);
+  CHECK(c.red >= 4 && c.off >= 4);
+  CHECK_EQ(c.blue + c.green, 0);
+  CHECK(!hal.mic_on);
+  CHECK(app.state() == ClipState::NotListening);
+
+  // It comes back into range: solid green again.
+  link.connect();
+  runAndCount(app, hal, 200);
+  c = runAndCount(app, hal, 3000);
+  CHECK_EQ(c.red + c.off + c.blue, 0);
+  CHECK(hal.led == LedColor::Green);
+
+  // A deliberate disconnect in the middle of a capture still flashes red: the microphone is
+  // on and nothing is receiving the audio.
+  app.onButtonEvent(ButtonEvent::DoubleTap);
+  runAndCount(app, hal, 500);
+  link.disconnect();
+  c = runAndCount(app, hal, 4000);
+  CHECK(c.red >= 2 && c.off >= 2);
+  CHECK_EQ(c.blue + c.green, 0);
+  CHECK(hal.mic_on);
+  app.onButtonEvent(ButtonEvent::LongPress);            // stopped with no tablet: blue, not red
+  c = runAndCount(app, hal, 6000);
+  CHECK(c.blue >= 2);
+  CHECK_EQ(c.red + c.green, 0);
+
+  // "Find" while waiting is still the fast white blink.
+  link.connect();
+  runAndCount(app, hal, 100);
+  link.from_tablet.push_back("{\"cmd\":\"find\"}");
+  link.up = false;                                     // the tablet drops right after asking
+  c = runAndCount(app, hal, 3000);
+  CHECK(c.white >= 8);
+
+  // A standalone clip (no tablet to wait for) stays dark.
+  FakeHal hal2;
+  FakeLink link2;
+  ClipConfig alone;
+  alone.gateway_enabled = false;
+  ClipApp solo(hal2, link2, alone);
+  solo.begin();
+  c = runAndCount(solo, hal2, 6000);
+  CHECK_EQ(c.blue + c.green, 0);
+  CHECK(hal2.led == LedColor::Off);
+  solo.onButtonEvent(ButtonEvent::DoubleTap);          // listening is red there too, and steady
+  c = runAndCount(solo, hal2, 3000);
+  CHECK(hal2.led == LedColor::Red);
+  CHECK_EQ(c.off + c.blue + c.green, 0);
+}
+
+static void test_wifi_link_loss_kind() {
+  printf("wi-fi link: a server goodbye is deliberate, a dead connection is a loss\n");
+  {  // the connection simply dies: lost, so the light flashes red
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    CHECK(r.app.linkOpen());
+    r.tr.up = false;                                     // and it cannot reconnect
+    r.tr.drop();
+    r.run(300);
+    CHECK(!r.app.linkOpen());
+    size_t mark = r.hal.led_history.size();
+    r.run(4000);
+    CHECK(ledChanges(r.hal, mark, LedColor::Red) >= 2);
+    CHECK_EQ(ledChanges(r.hal, mark, LedColor::Blue), 0);
+  }
+  {  // the server sends a WebSocket Close: deliberate, so the light goes to the blue blink
+    AppRig r;
+    r.app.begin();
+    r.run(300);
+    CHECK(r.app.linkOpen());
+    r.tr.up = false;
+    r.tr.serverSend(0x8, "");
+    r.run(300);
+    CHECK(!r.app.linkOpen());
+    size_t mark = r.hal.led_history.size();
+    r.run(6000);
+    CHECK(ledChanges(r.hal, mark, LedColor::Blue) >= 2);
+    CHECK_EQ(ledChanges(r.hal, mark, LedColor::Red), 0);
+  }
+}
+
 int main() {
   test_button();
   test_fsm();
   test_ws_client();
-  test_app_press_to_start();
+  test_app_gestures();
   test_app_tablet_commands();
   test_app_link_loss();
   test_app_external_button();
@@ -946,6 +1422,10 @@ int main() {
   test_app_packet_link();
   test_message_sizes();
   test_voice_clip();
+  test_end_call();
+  test_find();
+  test_light();
+  test_wifi_link_loss_kind();
   printf("\n%d checks, %d failed\n", g_checks, g_failed);
   return g_failed ? 1 : 0;
 }

@@ -13,36 +13,63 @@ physical button and light.
 
 ## What the clip does
 
-Press to start, hold to stop.
+Single click to drop a mark, double click to toggle the recording (pause or resume), hold to
+toggle the call (end it, or open a new one). The tablet decides what each toggle means.
 
 | Ring | State | What is happening |
 |---|---|---|
-| Dark | Not listening | Mic off. Nothing is captured |
-| Green | Listening | Mic on, audio streams to the tablet |
+| Slow blue blink | Not listening | No tablet connected; ready for one. Shown after power-on and after the tablet disconnects on purpose |
+| Green | Not listening | Mic off. A tablet is connected |
+| Red | Listening | Mic on, audio streams to the tablet |
+| Flashing red | Either | The tablet is gone when it should be there: it dropped out of range, or the clip is listening with no tablet connected (that audio is being dropped) |
 | White flash | | Marker dropped |
-| Blinking | | Listening, but not connected to the tablet |
+| Fast white blink | | Find clip (about 3 seconds) |
+
+Solid red always means the microphone is on. Flashing red is the alarm; it returns to green,
+or to solid red if a capture is running, when the tablet is back.
+
+The clip tells a deliberate disconnect from a lost connection by the reason Bluetooth gives
+when the link ends. The tablet hanging up (the app's Disconnect button, the app closing,
+Bluetooth switched off) is deliberate: blue blink. The tablet no longer answering (out of
+range, battery dead) is a loss: flashing red.
 
 | Gesture | When | Effect |
 |---|---|---|
-| Press | Not listening | Start: consent is logged and capture begins (green) |
-| Hold 1.5 s | Listening | Stop the capture |
-| Double tap | Listening | Timestamp marker sent to the tablet |
+| Single click | Listening | A mark: a timestamp marker sent to the tablet as JSON, stamped with the moment of the click |
+| Double click | Any time a tablet is connected | Toggle the recording. The clip sends `{"type":"toggle","target":"recording",...}`, the same every time. The tablet decides: it answers `stop` to pause the recording in progress, or `start` to begin the next one |
+| Hold 1.5 s | Any time | Toggle the call. If the clip is listening the microphone goes off at once, tablet or no tablet. Then the clip sends `{"type":"toggle","target":"call",...}`, the same every time. The tablet decides: end the open call, generate its reports and save it, or open a new call if none is open |
 
-The medic asks the patient for consent out loud, as they already do. Pressing the button is the
-medic's confirmation that the patient agreed: the clip logs it as a consent event and only then
-starts the microphone. If the patient says no, the medic does not press.
+The tablet owns the recording and the call. The clip never starts a recording by itself: a
+double click only asks, and the microphone turns on when the tablet answers `start`. Toggles
+are only sent while a tablet is connected and are never stored, so a double click or a hold
+made out of range has no effect later (a hold still turns the microphone off).
 
-The tablet can drive the same flow with commands (`start`, `stop`, `marker`), so the PCR app can
-start and stop a recording.
+The medic asks the patient for consent out loud, as they already do. Starting is the medic's
+confirmation that the patient agreed: the clip logs it as a consent event and only then starts
+the microphone. If the patient says no, the medic does not start.
+
+The tablet's other commands are `marker` (drop a mark) and `find`, below.
+
+**Find clip.** The tablet's `find` command makes the clip blink white and beep for 3.2 seconds
+so it can be found, then stop by itself. It works whether or not the clip is listening and never
+changes that. While listening the clip only blinks, so the beep cannot land in a recording.
+
+| Board | Find does |
+|---|---|
+| Atom VoiceS3R | Blinks the ring and beeps the built-in speaker (not yet tried on the board) |
+| ESP32-S3 Feather | Blinks the onboard light. It has no speaker; for a beep, wire a piezo buzzer from a free pin to GND and set `BUZZER_PIN` in `include/config.h` |
+| Simulator | Blinks the ring and beeps through the laptop (the **Find clip** button) |
 
 Details worth knowing:
 
-- The microphone is only on while the ring is green. Nothing is captured before the press, so there is nothing to wipe or withhold.
+- The microphone is only on while the ring is red. Nothing is captured before the start, so there is nothing to wipe or withhold.
 - The consent message is sent before the first audio frame, and every start and stop is logged with a timestamp.
-- A press while already listening is ignored, so a bumped button cannot cut the capture. A double tap or a hold never starts one.
+- A single click never starts or stops anything, so a bumped button cannot begin or cut a capture; at worst it adds a mark.
+- A single click is only recognised once the double-click window (0.35 s) has passed, so the mark is sent about 0.4 s after the click. Its time and audio position are those of the click itself.
 - Each capture restarts the audio frame counter at 0, which gives the tablet a clean boundary between patients.
 - If the link drops while listening, audio is dropped (not stored); consent events and markers are queued and sent on reconnect.
-- The board has no battery or power switch: plugging in USB powers it, and it starts in "not listening".
+- The board has no battery or power switch: plugging in USB powers it, and it starts in "not listening", blinking blue until a tablet connects and green once one has.
+- There is no pairing step or pairing mode: the clip is findable whenever it is powered and no tablet is connected, which is what the blue blink shows.
 
 ### Audio compression
 
@@ -82,7 +109,8 @@ Wi-Fi.
 | `src/build_config.h` | Picks pins, microphone and link for each build |
 | `include/config.example.h` | Link choice, Wi-Fi details, pins |
 | `BLUETOOTH.md` | App-side guide to the Bluetooth link |
-| `tools/ble_receiver.py` | Mac stand-in for the app: connects over Bluetooth, saves and transcribes the audio |
+| `tools/ble_receiver.py` | Mac stand-in for the app: connects over Bluetooth, saves and transcribes the audio. With `--app` it answers double clicks, shows marks, and on a hold ends the open call and saves it to `build/calls/`, or opens a new one |
+| `APP_AGENT_PROMPT.md` | Hand-off prompt for the app development agent: what to do on a double click, a single click and a hold |
 | `tools/flash_feather.sh` | Builds and flashes the Feather |
 | `tools/make_voice_clip.py`, `tools/check_voice_clip.py` | Build the voice recording; check it transcribes correctly end to end |
 | `host_tests/` | Unit tests for the core, run on the laptop |
@@ -113,8 +141,9 @@ make e2e
 make run
 ```
 
-`make run` serves the UI at http://localhost:8765. The left panel is the clip: click to press,
-hold for a long press, double-click for a marker (the space bar works too). The right panel is
+`make run` serves the UI at http://localhost:8765. The left panel is the clip: double-click
+to pause or resume the recording, click for a mark, hold to toggle the call (the space bar works too). The mock tablet
+answers a double click the way the app should: `stop` if a recording is running, `start` if not. The right panel is
 the mock tablet and shows exactly what arrived, including an "audio without consent" counter
 that must stay at 0, how many times consent was logged, and the data rate against the 8,000
 bytes-per-second Bluetooth budget.
@@ -125,8 +154,8 @@ By default the simulated clip hears a test tone. Under **Clip microphone**, choo
 and allow microphone access: the laptop's microphone then stands in for the clip's microphone.
 Open the page in Chrome or Safari for this (http://localhost:8765).
 
-- Speak while the ring is dark: the tablet stays at 0 bytes.
-- Press the button (ring green), speak, hold to stop, then press **Play received audio** to hear exactly what the tablet was sent.
+- Speak while the ring is green (connected, not listening): the tablet stays at 0 bytes.
+- Double-click the button (ring red), speak, double-click again to stop, then press **Play received audio** to hear exactly what the tablet was sent.
 
 The laptop mic tests the whole path with real speech. It does not tell you how the clip's own
 microphone sounds; for that, run the real device against `sim/tablet.py --no-sim --lan` and use
@@ -170,8 +199,8 @@ too slow to run the Opus encoder in real time. Microphone testing stays with the
 3. Start the mock tablet: `python3 sim/tablet.py --no-sim`
 4. Open the `firmware/` folder in VS Code, then F1 → "Wokwi: Start Simulator".
 
-Click the blue button (or hold the **B** key) for the clip button. The ring goes green on a
-press and dark again on a hold; http://localhost:8765 shows what the virtual clip sent. The
+Click the blue button (or hold the **B** key) for the clip button. The ring is green once the
+virtual clip has connected, red after a double click and green again after another; http://localhost:8765 shows what the virtual clip sent. The
 virtual board reaches the laptop as `host.wokwi.internal` through the gateway built into the
 extension.
 
@@ -190,7 +219,7 @@ This writes `build/wokwi_web/`: a tiny `sketch.ino`, the whole firmware folded i
 then press play. No account is needed to run it.
 
 The website cannot reach a tablet on your laptop, so this build is standalone: the ring shows
-the state (dark or green) and the serial monitor prints the clip's state every 5 seconds, but
+the state (dark when not listening, red when listening) and the serial monitor prints the clip's state every 5 seconds, but
 nothing is streamed. A recorded run of the earlier two-press flow is in
 `evidence/2026-11-13-wokwi-run/`.
 
@@ -211,13 +240,15 @@ and the onboard NeoPixel is the light. No `config.h` is needed for Bluetooth.
    mode.) If the script says the board did not enter flashing mode, hold BOOT, tap RESET,
    release BOOT, and run it again.
 3. Watch the log: `pio device monitor`. Every 5 seconds it prints a status line, which should
-   include `bluetooth=advertising-as-Earshot-XXXX`. (The start-up lines are usually missed,
+   include `bluetooth=advertising-as-ESP-CLIP-XXXX`. (The start-up lines are usually missed,
    because the monitor connects after the board has booted; press RESET to see them.)
 4. Receive on the Mac, from Terminal (macOS asks once to let Terminal use Bluetooth):
    `build/codec-test-venv/bin/python tools/ble_receiver.py --start --seconds 13 --transcribe`
    It should print the events, about 50 packets a second, 0 lost, and the recording's words.
-5. Or press BOOT to start, hold it 1.5 s to stop, double tap for a marker, and watch with the
-   iPad app, nRF Connect or LightBlue.
+5. Or use the BOOT button: double click sends `toggle` (something must answer `start` for the
+   clip to begin: the iPad app, `tools/ble_receiver.py --app`, or a `{"cmd":"start"}` written
+   from nRF Connect or LightBlue), single click while it is red drops a mark, and a 1.5 s hold
+   turns the microphone off and sends the call toggle.
 
 The status line every 5 seconds shows the slowest Opus encode so far, which must stay under
 20 ms. The first run measured 16.5 ms at worst: it kept up with nothing dropped, but with
@@ -257,7 +288,7 @@ and sends events as text frames and audio as binary frames. Full definition is i
 
 - **Events** (text, JSON): `hello`, `state` (`not_listening`, `listening`), `consent` (`granted`, `stopped`), `marker`.
 - **Audio** (binary, only between `granted` and `stopped`): 8-byte header (`uint32 seq`, `uint32 t_ms`, little-endian) followed by one 20 ms frame. The `hello` event names the codec: `opus` (one 80-byte packet at 32 kbit/s) or `pcm` (640 bytes of 16-bit samples).
-- **Commands** (text, JSON, tablet to clip): `{"cmd":"start"}`, `stop`, `marker`.
+- **Commands** (text, JSON, tablet to clip): `{"cmd":"start"}`, `stop`, `marker`, `find`.
 
 `t_ms` is milliseconds since the clip booted. The tablet should stamp wall-clock time on receipt.
 `sim/tablet.py` is a working reference for the tablet side over Wi-Fi, and

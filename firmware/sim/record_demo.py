@@ -123,38 +123,42 @@ class Recorder:
             await asyncio.sleep(max(0.0, period - (time.monotonic() - started)))
 
 
-async def scenario(cdp, rec):
-    btn = "#btn"
-    rec.say("Power on. Ring dark: not listening. Microphone off, tablet has received 0 bytes.")
-    await asyncio.sleep(3.5)
-
-    rec.say("One press: the patient has agreed. Consent is logged, ring green, audio reaches the tablet.")
-    await cdp.press(btn, 0.12)
-    await asyncio.sleep(4.0)
-
-    rec.say("Double tap: timestamp marker. It appears in the tablet's marker list.")
+async def double_click(cdp, btn):
     await cdp.press(btn, 0.09)
     await asyncio.sleep(0.13)
     await cdp.press(btn, 0.09)
+
+
+async def scenario(cdp, rec):
+    btn = "#btn"
+    rec.say("Power on. Ring green: connected to the tablet, not listening. Microphone off, tablet has received 0 bytes.")
+    await asyncio.sleep(3.5)
+
+    rec.say("Double click: the clip tells the tablet, the tablet answers 'start'. Consent is logged, ring red, audio arrives.")
+    await double_click(cdp, btn)
+    await asyncio.sleep(4.0)
+
+    rec.say("Single click: a mark. It appears in the tablet's marker list; the capture carries on.")
+    await cdp.press(btn, 0.12)
     await asyncio.sleep(3.0)
 
-    rec.say("A stray press while listening is ignored, so a bump cannot cut the capture.")
+    rec.say("Double click again: the same message. This time the tablet answers 'stop'. Ring back to green.")
+    await double_click(cdp, btn)
+    await asyncio.sleep(3.5)
+
+    rec.say("A single click while not listening does nothing, so a bump cannot start a capture.")
     await cdp.press(btn, 0.12)
     await asyncio.sleep(2.5)
 
-    rec.say("Hold 1.5 s: stop. Ring dark; the byte count stops.")
-    await cdp.press(btn, 1.8)
+    rec.say("Next patient. Double click starts a new capture; consent is logged again.")
+    await double_click(cdp, btn)
     await asyncio.sleep(3.5)
 
-    rec.say("Next patient. One press starts a new capture; consent is logged again.")
-    await cdp.press(btn, 0.12)
-    await asyncio.sleep(3.5)
-
-    rec.say("Hold: stop.")
+    rec.say("Hold 1.5 s: toggles the call. The microphone goes off at once; the tablet ends the call and writes it up.")
     await cdp.press(btn, 1.8)
     await asyncio.sleep(3.0)
 
-    rec.say("The tablet can start a capture too (the PCR app sends 'start').")
+    rec.say("The tablet can start a capture itself too (the PCR app sends 'start').")
     await cdp.press('[data-cmd="start"]', 0.08)
     await asyncio.sleep(3.5)
 

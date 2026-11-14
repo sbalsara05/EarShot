@@ -67,6 +67,10 @@ class MockTablet:
         self.sim = None           # simulated clip process
         self.sim_status = {}
         self.sim_led = "off"
+        self.toggles = 0          # double clicks the clip has reported (toggle the recording)
+        self.call_toggles = 0     # holds the clip has reported (toggle the call)
+        self.answer_toggles = True  # answer them the way the app would (start, or stop if listening)
+        self.sim_beeps = 0        # beeps the simulated clip has made ("find")
         self.server = None
         self._tasks = []
         self._wav = None
@@ -327,6 +331,16 @@ class MockTablet:
                 self.last_seq = None  # each capture restarts the clip's frame counter
             elif what == "stopped":
                 self.listening = False
+        elif kind == "toggle":
+            # The clip only reports the gesture; the tablet decides what it means.
+            if ev.get("target") == "call":
+                # A hold. The app would end the open call and write it up, or open a new one.
+                self.call_toggles += 1
+            else:
+                # A double click. Like the app, pause the recording in progress or begin the next.
+                self.toggles += 1
+                if self.answer_toggles:
+                    asyncio.ensure_future(self.send_command("stop" if self.listening else "start"))
         elif kind == "marker":
             self.markers.append({"id": ev.get("id"), "t_ms": ev.get("t_ms"),
                                  "audio_seq": ev.get("audio_seq"), "source": ev.get("source"),
@@ -389,6 +403,9 @@ class MockTablet:
             if m.get("sim") == "led":
                 self.sim_led = m.get("color", "off")
                 self._broadcast({"kind": "led", "color": self.sim_led})
+            elif m.get("sim") == "beep":
+                self.sim_beeps += 1 if m.get("on") else 0
+                self._broadcast({"kind": "beep", "on": bool(m.get("on"))})
             elif m.get("sim") == "status":
                 m.pop("sim")
                 self.sim_status = m

@@ -1,7 +1,7 @@
 // Simulated clip: the real firmware core (lib/earshot_core) running on a laptop.
 //
 //   button  <- lines on stdin:  down | up | short | long | double | quit
-//   LED     -> JSON lines on stdout: {"sim":"led","color":"amber"}
+//   LED     -> JSON lines on stdout: {"sim":"led","color":"red"}
 //   mic     <- a generated tone, a 16 kHz mono 16-bit WAV file (--wav), the voice recording
 //              built into the firmware (--voice), or live audio fed on
 //              stdin ("mic ext", then "a <base64 pcm>" lines; "mic tone" switches back).
@@ -147,7 +147,8 @@ class SimHal : public Hal {
     return button_;
   }
   void setLed(LedColor c) override {
-    const char* name = c == LedColor::Green ? "green" : c == LedColor::White ? "white" : "off";
+    const char* name = c == LedColor::Green ? "green" : c == LedColor::White ? "white"
+                       : c == LedColor::Blue ? "blue" : c == LedColor::Red ? "red" : "off";
     out("{\"sim\":\"led\",\"color\":\"%s\"}", name);
   }
   bool micStart() override {
@@ -195,6 +196,7 @@ class SimHal : public Hal {
     }
     return samples;
   }
+  void beep(bool on) override { out("{\"sim\":\"beep\",\"on\":%s}", on ? "true" : "false"); }
   bool networkUp() override { return true; }
   void log(const char* message) override { out("{\"sim\":\"log\",\"msg\":\"%s\"}", message); }
 

@@ -33,6 +33,9 @@ class WsClient {
   void close();
 
   State state() const { return state_; }
+  // True if the last connection ended with the server's Close message (a deliberate goodbye)
+  // rather than the connection simply dying. Cleared by open().
+  bool peerClosed() const { return peer_closed_; }
   bool isOpen() const { return state_ == State::Open; }
 
   // Reads whatever is waiting. Returns true when a complete text message was placed in `out`;
@@ -56,6 +59,7 @@ class WsClient {
   std::vector<uint8_t> tx_;
   std::string fragment_;
   bool in_fragment_;
+  bool peer_closed_;
 };
 
 }  // namespace earshot

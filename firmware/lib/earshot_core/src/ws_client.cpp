@@ -29,7 +29,7 @@ WsClient::WsClient(Transport& transport, uint32_t random_seed)
     : t_(transport),
       state_(State::Closed),
       rng_(random_seed ? random_seed : 0x9E3779B9u),
-      in_fragment_(false) {
+      in_fragment_(false), peer_closed_(false) {
   tx_.reserve(1024);
 }
 
@@ -42,6 +42,7 @@ uint32_t WsClient::nextRandom() {  // xorshift32; masking keys need no cryptogra
 
 bool WsClient::open(const char* host, uint16_t port, const char* path) {
   close();
+  peer_closed_ = false;
   if (!t_.connect(host, port)) return false;
 
   uint8_t key[16];
@@ -225,6 +226,7 @@ bool WsClient::parseFrame(std::string& out) {
         break;
       case 0x8:  // close
         sendFrame(0x8, (const uint8_t*)payload.data(), payload.size() >= 2 ? 2 : 0, NULL, 0);
+        peer_closed_ = true;  // the server said goodbye on purpose
         close();
         return false;
       case 0x9:  // ping -> pong

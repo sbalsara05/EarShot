@@ -29,6 +29,7 @@ class BleLink : public earshot::Link,
   // ---- earshot::Link
   void service(uint32_t now_ms) override;
   bool isOpen() const override { return open_; }
+  bool lostUnexpectedly() const override { return lost_ && !connected_; }
   bool poll(std::string& out) override;
   bool sendText(const std::string& text) override;
   bool sendBinary(const uint8_t* head, size_t head_len, const uint8_t* body, size_t body_len) override;
@@ -59,6 +60,7 @@ class BleLink : public earshot::Link,
   std::atomic<uint16_t> conn_handle_;
   std::atomic<uint16_t> interval_units_;  // 1.25 ms each
   std::atomic<uint32_t> session_;         // bumps on every new subscription and every disconnect
+  std::atomic<bool> lost_;                // the last disconnect was not the tablet's own choice
 
   // Used in loop() only.
   bool open_;

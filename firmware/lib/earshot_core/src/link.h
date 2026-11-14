@@ -18,6 +18,10 @@ class Link {
   // True while messages can be sent. After the far end reconnects, this must read false for at
   // least one pass so the clip knows to introduce itself again.
   virtual bool isOpen() const = 0;
+  // True while the link is closed because the tablet vanished (out of range, lost power)
+  // rather than disconnecting on purpose. False before the first connection and after a
+  // deliberate disconnect. The clip's light tells the two apart.
+  virtual bool lostUnexpectedly() const = 0;
   // Returns true when a text message from the tablet was placed in `out`; call until false.
   virtual bool poll(std::string& out) = 0;
   virtual bool sendText(const std::string& text) = 0;

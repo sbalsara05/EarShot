@@ -27,6 +27,12 @@ struct ClipConfig {
   uint32_t reconnect_ms;
   uint32_t handshake_timeout_ms;
   uint32_t marker_flash_ms;
+  uint32_t wait_blink_ms;       // waiting for a tablet: blue for this long...
+  uint32_t wait_period_ms;      // ...once every this long
+  uint32_t find_ms;             // how long "find" blinks and beeps; matches the app's button
+  uint32_t find_blink_ms;       // light on for this long, then off for this long
+  uint32_t find_beep_ms;        // each beep lasts this long...
+  uint32_t find_beep_period_ms; // ...and one starts this often
   ButtonTiming button;
   ClipConfig()
       : gateway_host("127.0.0.1"),
@@ -38,7 +44,13 @@ struct ClipConfig {
         encoder(NULL),
         reconnect_ms(2000),
         handshake_timeout_ms(3000),
-        marker_flash_ms(200) {}
+        marker_flash_ms(200),
+        wait_blink_ms(500),
+        wait_period_ms(2000),
+        find_ms(3200),
+        find_blink_ms(125),
+        find_beep_ms(120),
+        find_beep_period_ms(400) {}
 };
 
 struct ClipStats {
@@ -47,10 +59,13 @@ struct ClipStats {
   uint32_t frames_dropped;   // captured while the link was down (or failed to encode); not stored
   uint32_t audio_bytes_sent; // encoded audio bytes sent, excluding the 8-byte frame header
   uint32_t markers;
+  uint32_t toggles;          // double clicks passed to the tablet: toggle the recording
+  uint32_t call_toggles;     // holds passed to the tablet: toggle the call
+  uint32_t finds;            // times the tablet asked the clip to make itself findable
   uint32_t captures;         // times capture was started
   ClipStats()
       : frames_captured(0), frames_sent(0), frames_dropped(0), audio_bytes_sent(0), markers(0),
-        captures(0) {}
+        toggles(0), call_toggles(0), finds(0), captures(0) {}
 };
 
 class ClipApp {
@@ -67,22 +82,28 @@ class ClipApp {
   // For platforms that sample the button on their own fast timer (so a tap is never missed
   // while the main loop is busy with the network). Call from the same thread as tick().
   void onButtonEvent(ButtonEvent event);
+  // The same, with the clip time at which the gesture began (Button::gestureStartMs()), so a
+  // mark is stamped with the moment of the click rather than when the click was recognised.
+  void onButtonEvent(ButtonEvent event, uint32_t began_ms);
 
   ClipState state() const { return state_; }
   const ClipStats& stats() const { return stats_; }
   bool linkOpen() const { return announced_ && link_->isOpen(); }
+  bool finding() const { return finding_; }
 
  private:
   ClipApp(const ClipApp&);             // not copyable
   ClipApp& operator=(const ClipApp&);
 
   void init();
-  void apply(Input input, const char* source);
+  void apply(Input input, const char* source, uint32_t began_ms);
   void emit(const std::string& json);
   void flushPending();
   void serviceLink(uint32_t now);
   void announce(uint32_t now);
   void serviceAudio(uint32_t now);
+  void serviceFind(uint32_t now);
+  void setBeep(bool on);
   void refreshLed(uint32_t now, bool force);
 
   Hal& hal_;
@@ -104,6 +125,9 @@ class ClipApp {
 
   bool flashing_;
   uint32_t flash_start_;
+  bool finding_;          // blinking (and beeping) so the clip can be found
+  uint32_t find_start_;
+  bool beep_on_;
   LedColor led_;
 };
 

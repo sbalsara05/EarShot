@@ -25,12 +25,18 @@ class Button {
   //  - DoubleTap is reported on the release of the second tap.
   ButtonEvent update(bool raw_pressed, uint32_t now_ms);
 
+  // When the gesture just reported began: the moment the button first went down. A single
+  // click is only reported once the double-click window has passed, about 0.4 s later, so
+  // this is the time to stamp on what the click means.
+  uint32_t gestureStartMs() const { return gesture_at_; }
+
  private:
   ButtonTiming t_;
   bool raw_last_;
   uint32_t raw_changed_at_;
   bool pressed_;
   uint32_t down_at_;
+  uint32_t gesture_at_;
   bool long_fired_;
   bool second_tap_;
   bool tap_pending_;
