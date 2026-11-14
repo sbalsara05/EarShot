@@ -3,23 +3,31 @@
 The iPhone and iPad app. It records a call, shows a live transcript with marks, then drafts a nurse
 handoff and a PCR for the medic to edit and sign.
 
-Audio comes from the clip over Bluetooth when one is connected, and from the device's own microphone
-when none is. The Bluetooth side follows [`firmware/BLUETOOTH.md`](../firmware/BLUETOOTH.md) and lives
-in `Earshot/ClipLink.swift`. It has not been run against a clip yet.
+It connects to the clip over Bluetooth, following [`firmware/BLUETOOTH.md`](../firmware/BLUETOOTH.md).
+The link lives in `Earshot/ClipLink.swift`. It has been run against the ESP32-S3 Feather stand-in on an
+iPad, not yet against the Atom VoiceS3R.
 
 ## Using a clip
 
 1. Power the clip. On the Clip tab, tap **Find my clip** and allow Bluetooth. Clips in range are
    listed with their signal strength; tap yours to connect. The app remembers it and reconnects by
    itself from then on. **Find clip** makes a connected clip blink.
-2. **New call**, then **Start recording** in the app, or press the clip's button. The clip's light
-   turns green and its audio becomes the transcript.
-3. **Mark** in the app or a double tap on the clip drops a mark. The red button, or holding the clip's
-   button, stops the recording.
+2. The clip's button then drives the call:
 
-A press on the clip with no call open records nothing: the app tells the clip to stop again. If the
-clip goes out of range mid-recording, the recording ends as "cut short" and the clip reconnects when it
-is back. Bluetooth needs a real iPhone or iPad; the simulator has none.
+| On the clip | In the app |
+|---|---|
+| Click | Drops a mark |
+| Double click | Pauses the recording, or resumes it |
+| Click and hold | Completes the open call. With no call open, starts one and begins recording |
+
+**Audio from** on the Clip tab chooses the microphone. It is set to this device's microphone for now,
+because the stand-in board has none and plays a stored voice. Switch it to **Clip** once a clip with a
+microphone is in use. The Live Call header always names the microphone in use.
+
+The app only shows a clip as connected once the clip has confirmed every step, and names the step if
+one fails. If the link drops during a recording made from the clip's audio, the recording is held open
+for 30 seconds while the clip reconnects, then ends as "cut short". Bluetooth needs a real iPhone or
+iPad; the simulator has none.
 
 ## What you need
 
@@ -61,25 +69,17 @@ To keep your team and bundle identifier between regenerations, set `DEVELOPMENT_
 ## Using it
 
 1. **New call**, then **Start recording**. Speak; each pause starts a new line with its clock time.
-2. **Mark** drops a numbered mark at that moment. The red button stops the recording.
-3. The red button pauses; **Resume recording** carries on in the same recording. Tap **Complete**, and
-   confirm, to close the recording for good and draft the handoff and PCR.
-4. Fix any line. Yellow lines are ones the AI did not hear.
-5. **Sign off** by drawing a signature or typing your name. The call moves to Past calls on Home.
+2. **Mark** drops a numbered mark at that moment. The red button pauses; **Resume recording** carries
+   on in the same recording. A recording keeps going when the app is not on screen.
+3. **Complete**, and confirm, closes the recording for good. The call moves to the AI Drafts tab under
+   **Needs sign-off**, where its handoff and PCR are drafted, and a new call can start straight away.
+4. Open a waiting call to fix any line. Yellow lines are ones the AI did not hear.
+5. **Sign off** by drawing a signature or typing your name. The call moves to **Signed**.
 
-A call that is not signed stays open, even if the app is closed. To throw one away, use
-**Discard call** on Home. Past calls open with a tap and delete with a swipe.
-
-## More than one call
-
-Completing a call does not have to wait for its paperwork. The call moves to the AI Drafts tab, under
-**Needs sign-off**, and its reports are drafted there while a new call can start straight away. The
-AI Drafts tab shows how many calls are waiting. Open one to correct its lines and sign it; it then
-moves to **Signed**. Home lists the three most recent signed calls.
-
-From the clip: a double click pauses and resumes the recording, and a click and hold completes the
-open call, or, with no call open, starts one and begins recording. The exact messages for those two
-gestures are not settled with the firmware yet; the app reads them in `ClipIntent` in `ClipLink.swift`.
+The AI Drafts tab shows how many calls are waiting for sign-off, and lists every signed call below
+them. Home lists the three most recent. Signed calls open with a tap and delete with a swipe; **Edit**
+on one sends it back to be signed again. To throw away the call being recorded, use **Discard call**
+on Home.
 
 ## Messages you may see
 
@@ -126,8 +126,12 @@ xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS
 
 ## Not built yet
 
-- **The clip over the air.** The Bluetooth code is written but not yet run against a clip. The clip
-  reports no battery or signal, and the link has no pairing or encryption.
+- **The clip.** It reports no battery level, and the link has no pairing or encryption. Audio spoken
+  while the link is down is lost: the clip does not store it.
+- **Older systems.** The app also builds for iOS 18 (set `IPHONEOS_DEPLOYMENT_TARGET=18.0`), where
+  everything works except the AI drafts, which need iOS 26.
+- **Background transcription.** Recording carries on in the background; whether on-device
+  transcription keeps up there has not been confirmed.
 - **Sign-in and audit trail.** Anyone holding the device can open the app and read past calls.
 - **Audio.** Only the transcript is kept. No audio file is saved.
 - **Long calls.** The on-device model reads about 4,000 tokens. Longer calls fail to draft with a
