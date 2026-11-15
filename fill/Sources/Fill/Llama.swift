@@ -20,8 +20,8 @@ public struct Problem: Error, LocalizedError {
 /// run on the GPU, and it no longer depends on his `EarshotCore`.
 ///
 /// The same question always gets the same answer: the most likely token is taken every time (no dice), and
-/// every answer is held to a grammar, so it always parses. A question that starts the same way as the last one
-/// (the same transcript) reuses the work already done on that shared start.
+/// every answer is held to a grammar, so it always parses. Questions about the same transcript share the work
+/// of reading it (see `shared`).
 public final class Llama: Engine {
     public let name: String
 
@@ -82,12 +82,13 @@ public final class Llama: Engine {
         return String(decoding: buf.prefix(Int(n)).map { UInt8(bitPattern: $0) }, as: UTF8.self)
     }
 
-    func tokenize(_ text: String) throws -> [llama_token] {
+    /// - opening: this text starts the prompt, so it gets the model's start-of-text token if it has one.
+    func tokenize(_ text: String, opening: Bool = true) throws -> [llama_token] {
         var toks = [llama_token](repeating: 0, count: text.utf8.count + 16)
-        var n = llama_tokenize(vocab, text, Int32(text.utf8.count), &toks, Int32(toks.count), true, true)
+        var n = llama_tokenize(vocab, text, Int32(text.utf8.count), &toks, Int32(toks.count), opening, true)
         if n < 0 {
             toks = [llama_token](repeating: 0, count: Int(-n))
-            n = llama_tokenize(vocab, text, Int32(text.utf8.count), &toks, Int32(toks.count), true, true)
+            n = llama_tokenize(vocab, text, Int32(text.utf8.count), &toks, Int32(toks.count), opening, true)
         }
         guard n >= 0 else { throw Problem("The question could not be read by the model.") }
         return Array(toks.prefix(Int(n)))
@@ -106,42 +107,59 @@ public final class Llama: Engine {
         return buf.prefix(Int(max(0, n))).map { UInt8(bitPattern: $0) }
     }
 
-    /// The tokens the model is holding now: the last question and its answer.
-    private var cached: [llama_token] = []
+    /// Where the part of a question shared with the next one ends. Everything up to and including this text
+    /// (the instructions and the transcript) is read once, and the model's state at that point is kept, so each
+    /// further question about the same transcript starts from there instead of reading it again.
+    public var shared = "END OF TRANSCRIPT\n\n"
+    private var kept: (tokens: [llama_token], state: [UInt8])?
+
+    /// Reads tokens into the model, in pieces no larger than its batch.
+    private func read(_ tokens: [llama_token]) throws {
+        var tokens = tokens, at = 0
+        while at < tokens.count {
+            let n = min(2048, tokens.count - at)
+            let rc = tokens[at..<at + n].withContiguousMutableStorageIfAvailable { llama_decode(ctx, llama_batch_get_one($0.baseAddress, Int32(n))) } ?? -1
+            guard rc == 0 else { kept = nil; throw Problem("The model could not read the question (\(rc)).") }
+            at += n
+        }
+    }
 
     public func complete(system: String, user: String, grammar: String, maxTokens: Int) throws -> String {
         lock.lock(); defer { lock.unlock() }
-        var prompt = try tokenize(format(system: system, user: user))
-        guard prompt.count + maxTokens <= Int(nCtx) else {
-            throw Problem("A question of \(prompt.count) tokens and an answer of up to \(maxTokens) do not fit in the model's \(nCtx).")
-        }
-        // Reuse the shared start. At least one token is always read, so there is something to answer from.
-        var keep = zip(cached, prompt).prefix { $0 == $1 }.count
-        keep = min(keep, prompt.count - 1)
-        let mem = llama_get_memory(ctx)
-        if keep > 0, llama_memory_seq_rm(mem, 0, Int32(keep), -1) {
-            cached = Array(prompt.prefix(keep))
+        let text = format(system: system, user: user)
+        var head: [llama_token] = [], tail: [llama_token]
+        if let cut = text.range(of: shared), cut.upperBound < text.endIndex {
+            head = try tokenize(String(text[..<cut.upperBound]))
+            tail = try tokenize(String(text[cut.upperBound...]), opening: false)
         } else {
-            llama_memory_clear(mem, true)
-            keep = 0
-            cached = []
+            tail = try tokenize(text)
         }
+        guard head.count + tail.count + maxTokens <= Int(nCtx) else {
+            throw Problem("A question of \(head.count + tail.count) tokens and an answer of up to \(maxTokens) do not fit in the model's \(nCtx).")
+        }
+
+        let t0 = Date()
+        llama_memory_clear(llama_get_memory(ctx), true)
+        var fresh = head.count + tail.count
+        if let kept, !head.isEmpty, kept.tokens == head, kept.state.withUnsafeBufferPointer({ llama_state_seq_set_data(ctx, $0.baseAddress, $0.count, 0) }) > 0 {
+            fresh = tail.count   // the shared start is back in place without being read again
+        } else {
+            llama_memory_clear(llama_get_memory(ctx), true)
+            kept = nil
+            try read(head)
+            if !head.isEmpty {
+                var state = [UInt8](repeating: 0, count: llama_state_seq_get_size(ctx, 0))
+                let wrote = state.withUnsafeMutableBufferPointer { llama_state_seq_get_data(ctx, $0.baseAddress, $0.count, 0) }
+                if wrote > 0 { kept = (head, Array(state.prefix(wrote))) }
+            }
+        }
+        try read(tail)
 
         guard let g = llama_sampler_init_grammar(vocab, grammar, "root") else { throw Problem("The answer's grammar does not parse.") }
         defer { llama_sampler_free(g) }
 
-        let t0 = Date()
-        // Read in pieces no larger than the batch, so a long transcript never overruns it.
-        var at = keep
-        while at < prompt.count {
-            let n = min(2048, prompt.count - at)
-            let rc = prompt[at..<at + n].withContiguousMutableStorageIfAvailable { llama_decode(ctx, llama_batch_get_one($0.baseAddress, Int32(n))) } ?? -1
-            guard rc == 0 else { cached = []; throw Problem("The model could not read the question (\(rc)).") }
-            at += n
-        }
-        cached = prompt
         let t1 = Date()
-        promptTokens += prompt.count - keep
+        promptTokens += fresh
         promptSeconds += t1.timeIntervalSince(t0)
         defer { makeSeconds += Date().timeIntervalSince(t1) }
 
@@ -176,8 +194,7 @@ public final class Llama: Engine {
             out += piece(t)
             madeTokens += 1
             let rc = withUnsafeMutablePointer(to: &t) { llama_decode(ctx, llama_batch_get_one($0, 1)) }
-            guard rc == 0 else { cached = []; throw Problem("The model stopped part way through its answer (\(rc)).") }
-            cached.append(t)
+            guard rc == 0 else { throw Problem("The model stopped part way through its answer (\(rc)).") }
         }
         return String(decoding: out, as: UTF8.self)
     }

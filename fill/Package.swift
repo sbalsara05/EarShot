@@ -12,6 +12,7 @@ let package = Package(
         .target(name: "Fill", dependencies: ["llama"], resources: [.copy("Resources/drugs.txt")]),
         // Mac only: fills a report from a transcript file and scores it against the right answers.
         .executableTarget(name: "fill-transcript", dependencies: ["Fill"]),
-        .testTarget(name: "FillTests", dependencies: ["Fill"]),
+        // nemsis_xsd is the national NEMSIS 3.5.1 schema, read from disk by the XML test.
+        .testTarget(name: "FillTests", dependencies: ["Fill"], exclude: ["nemsis_xsd"]),
     ]
 )

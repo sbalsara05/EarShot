@@ -88,4 +88,49 @@ final class FillTests: XCTestCase {
         }
         XCTAssertEqual(Set(Nemsis.sections.flatMap(\.fields).map(\.id)).count, Nemsis.fieldCount)
     }
+
+    /// Runs the national schema over what the writer makes. Mac only: it needs xmllint.
+    func valid(_ xml: String) throws -> String {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("earshot-\(UUID().uuidString).xml")
+        try xml.write(to: file, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let schema = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("nemsis_xsd/EMSDataSet_v3.xsd")
+        let lint = Process(), pipe = Pipe()
+        lint.executableURL = URL(fileURLWithPath: "/usr/bin/xmllint")
+        lint.arguments = ["--noout", "--schema", schema.path, file.path]
+        lint.standardError = pipe
+        try lint.run()
+        let said = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        lint.waitUntilExit()
+        return lint.terminationStatus == 0 ? "" : said
+    }
+
+    func testTheXMLPassesTheNationalSchema() throws {
+        #if os(macOS)
+        var agency = NemsisXML.Agency()
+        agency.number = "A123"; agency.stateID = "S-9"; agency.state = "MA"; agency.unit = "M4"; agency.callSign = "Medic 4"
+        agency.capability = "2207015"; agency.serviceType = "2205001"; agency.responseMode = "2223001"
+        let start = Date(timeIntervalSince1970: 1_794_000_000)
+        let full: [String: String] = [
+            "ePatient.03": "Dana", "ePatient.02": "Lee", "ePatient.15": "67", "ePatient.16": "Years", "ePatient.25": "Female",
+            "eScene.15": "1 Main St & 2nd", "eScene.18": "MA", "eScene.19": "02115", "eScene.06": "Single",
+            "eSituation.04": "chest pain", "eSituation.05": "1", "eSituation.06": "Hours", "eSituation.07": "Chest", "eSituation.11": "STEMI",
+            "eHistory.08": "hypertension", "eTimes.09": "10:02:26", "eTimes.11": "10:02:38",
+            "eVitals.01": "10:00:36", "eVitals.06": "158", "eVitals.07": "92", "eVitals.10": "110", "eVitals.12": "94", "eVitals.14": "22", "eVitals.27": "6", "eVitals.23": "15",
+            "eVitals.01#2": "10:02:02", "eVitals.06#2": "138", "eVitals.10#2": "96", "eVitals.18#2": "110",
+            "eMedications.03": "aspirin", "eMedications.05": "324", "eMedications.04": "Oral", "eMedications.01": "10:00:52",
+            "eMedications.03#2": "Nitro", "eMedications.05#2": "0.4", "eMedications.04#2": "Sublingual", "eMedications.06#2": "mg", "eMedications.07#2": "Improved",
+            "eMedications.03#3": "somethingnew", "eProcedures.03": "12 lead ECG", "eProcedures.01": "10:01:02", "eProcedures.05": "1", "eProcedures.06": "Yes",
+            "eDisposition.01": "Mass General", "eDisposition.17": "Emergent", "eNarrative.01": "A 67 year old <female> with chest pain.",
+        ]
+        for report in [full, [:], ["ePatient.15": "sixty", "eVitals.07": "92", "eScene.19": "nope", "eSituation.05": "1"]] {
+            let xml = NemsisXML.write(report, id: UUID(), start: start, end: start.addingTimeInterval(600), agency: agency, version: "1.0")
+            XCTAssertEqual(try valid(xml), "")
+        }
+        let xml = NemsisXML.write(full, id: UUID(), start: start, end: start.addingTimeInterval(600), agency: agency, version: "1.0")
+        XCTAssertTrue(xml.contains("<eMedications.03 CodeType=\"9924003\">4917</eMedications.03>"), "Nitro is nitroglycerin")
+        XCTAssertTrue(xml.contains("<ePatient.25>9919001</ePatient.25>") && xml.contains("<eVitals.06>138</eVitals.06>") && xml.contains("<dAgency.04>25</dAgency.04>"))
+        XCTAssertEqual(try valid(NemsisXML.write([:], id: UUID(), start: start, end: start, agency: NemsisXML.Agency(), version: "1.0")), "", "nothing set in Settings")
+        #endif
+    }
 }
