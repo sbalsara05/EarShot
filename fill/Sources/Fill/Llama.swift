@@ -1,3 +1,4 @@
+import Accelerate
 import Foundation
 import llama
 
@@ -169,8 +170,10 @@ public final class Llama: Engine {
         for _ in 0..<maxTokens {
             guard let logits = llama_get_logits_ith(ctx, -1) else { throw Problem("The model gave no answer.") }
             // The most likely token, if the grammar allows it; otherwise the most likely one it does allow.
-            var best = 0
-            for i in 1..<nVocab where logits[i] > logits[best] { best = i }
+            // Found with Accelerate: a plain loop over the whole vocabulary for every token is slow in a debug build.
+            var top: Float = 0, where_: vDSP_Length = 0
+            vDSP_maxvi(logits, 1, &top, &where_, vDSP_Length(nVocab))
+            let best = Int(where_)
             var one = llama_token_data(id: llama_token(best), logit: logits[best], p: 0)
             var t = llama_token(best)
             let allowed: Bool = withUnsafeMutablePointer(to: &one) { ptr in
