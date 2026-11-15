@@ -43,26 +43,28 @@ extension Call {
         (1500, "Medic 4, we've arrived at the hospital."),
     ]
 
-    /// The sample call, as if it ended a quarter of an hour ago, completed and waiting to be filled and signed.
+    /// The sample call, as if it ended a quarter of an hour ago and Complete has just been tapped.
     static func sample() -> Call {
         let start = Date().addingTimeInterval(-40 * 60)
         var items = [Item(time: start.addingTimeInterval(396), place: Place(latitude: 42.26260, longitude: -71.80230, accuracy: 8, street: "12 Oak Street", city: "Worcester", county: "Worcester", state: "MA", zip: "01608"))]
         items += said.map { Item(time: start.addingTimeInterval($0.0), text: $0.1, end: start.addingTimeInterval($0.0 + 3), source: .whisper, confidence: 0.93) }
         items.sort { $0.time < $1.time }
         var call = Call(start: start, recordings: [Recording(start: start, end: start.addingTimeInterval(1510), items: items)])
-        call.drafted = true
         call.whisper = true
         return call
     }
 }
 
 extension Model {
-    /// Puts the sample call among the calls waiting for sign-off, once. Deleting it does not bring it back.
+    /// Puts the sample call among the calls waiting for sign-off, once, and fills its report the way a completed
+    /// call's is. Deleting it does not bring it back.
     func seedSample() {
         guard !UserDefaults.standard.bool(forKey: "sample-call-1") else { return }
         UserDefaults.standard.set(true, forKey: "sample-call-1")
-        review.insert(.sample(), at: 0)
+        let call = Call.sample()
+        review.insert(call, at: 0)
         save()
+        finishUp(call.id)
     }
 }
 #endif

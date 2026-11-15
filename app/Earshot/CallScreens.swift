@@ -365,8 +365,7 @@ struct ReviewSheet: View {
                 ScrollView {
                     switch tab {
                     case .summary:
-                        SummaryView(call: call, status: model.filling[id], edit: { model.answer($0, $1, in: id) }, hear: { model.listen(to: $0, in: call) }, playing: model.playing,
-                                    refill: call.drafted ? { Task { await model.fill(id) } } : nil)
+                        SummaryView(call: call, status: model.filling[id], edit: { model.answer($0, $1, in: id) }, hear: { model.listen(to: $0, in: call) }, playing: model.playing)
                     case .transcript:
                         CallTranscript(call: call, deleteMark: { model.deleteMark($0, in: id) }).smooth(call.markCount)
                     }

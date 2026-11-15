@@ -107,7 +107,7 @@ To keep your team and bundle identifier between regenerations, set `DEVELOPMENT_
    Scene, Situation, History, Vitals, Medications, Procedures, Disposition, Narrative), with a card for each set
    of vitals, each medication and each procedure. An answer the transcript gave carries a small time chip: tap it
    to see the line it came from and hear it. Yellow answers are the ones to look at. Anything can be typed over,
-   and what could not be found reads n/a. **Fill again** reads the transcript again; answers you typed stay.
+   and what could not be found reads n/a.
 5. **Transcript** is what was said. Tap a line to hear it again. A mark dropped by accident (a stray click
    on the clip) can be deleted here: swipe it left and tap **Delete**. The marks after it move up a number.
 6. **Sign off** by drawing a signature or typing your name. The call moves to **Signed**.

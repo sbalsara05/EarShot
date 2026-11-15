@@ -50,7 +50,6 @@ struct SummaryView: View {
     var edit: ((String, String) -> Void)? = nil     // (element, new answer)
     var hear: ((Item) -> Void)? = nil               // play a transcript line
     var playing: Item.ID? = nil
-    var refill: (() -> Void)? = nil                 // read the transcript again
     @State private var shown: String?               // the element whose line is on show
 
     private var report: [String: String] { call.report ?? [:] }
@@ -67,13 +66,7 @@ struct SummaryView: View {
                 Text("\(filled) of \(Nemsis.total(in: report)) filled").font(geist(15, 600).monospacedDigit())
                     .foregroundStyle(filled == 0 ? Color.dim : .green)
             }
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(note).font(geist(15, 500)).foregroundStyle(status == nil ? Color.dim : .yellow).fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                if let refill, status == nil, edit != nil {
-                    Button(call.filledBy == nil ? "Fill from transcript" : "Fill again", action: refill).buttonStyle(Pill(fill: nil, height: 36, size: 15))
-                }
-            }
+            Text(note).font(geist(15, 500)).foregroundStyle(status == nil ? Color.dim : .yellow).fixedSize(horizontal: false, vertical: true)
             ForEach(Nemsis.sections) { section in
                 ForEach(1...Nemsis.sets(of: section, in: report), id: \.self) { set in card(section, set, rows) }
             }

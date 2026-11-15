@@ -633,7 +633,7 @@ struct Call: Identifiable, Codable {
 
     /// Waits for Whisper to read a completed call to its end, fills its report from the transcript, then marks it
     /// ready to sign. Until then the call says what it is waiting for.
-    private func finishUp(_ id: Call.ID) {
+    func finishUp(_ id: Call.ID) {
         Task { @MainActor in
             await scribe.finished(id)
             guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // removed meanwhile
