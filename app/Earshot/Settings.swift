@@ -150,8 +150,12 @@ struct SettingsScreen: View {
             Text("Either way the audio is transcribed the same. The clip's button and marks work with both.")
                 .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 10)
             Text("Transcript by").font(geist(17, 500)).foregroundStyle(Color.dim).padding(.top, 28).padding(.bottom, 8)
-            Text(model.recordBy.map { "Whisper \($0)" } ?? "This \(deviceName) only").font(geist(19, 600))
-            Text(model.recordBy != nil
+            HStack(spacing: 10) {
+                Text(model.recordLoading ? "Loading Whisper" : model.recordBy.map { "Whisper \($0)" } ?? "This \(deviceName) only").font(geist(19, 600))
+                if model.recordLoading { Working() }
+            }
+            Text(model.recordLoading ? "The Whisper model takes a few seconds to load after the app opens."
+                 : model.recordBy != nil
                  ? "Words show at once as this \(deviceName) hears them, then Whisper's more careful reading takes their place. Lighter lines are ones to read with care."
                  : "The Whisper model is not in this build, so the transcript is this \(deviceName)'s own. Run transcribe/fetch.sh and build again.")
                 .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 8)

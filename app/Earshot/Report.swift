@@ -9,6 +9,14 @@ struct Evidence: Codable, Equatable {
     var other: String?     // a second answer the transcript also gave
 }
 
+/// How far along the filling of one call's report is.
+struct Filling: Equatable {
+    var step = 0, of = 0   // which question the model is on. 0: the model is still being loaded
+    var text: String { step == 0 ? "Getting ready" : "Question \(step) of \(of)" }
+    /// The share done, 0 to 1. Loading the model counts as a first small step, so the bar is never empty.
+    var done: Double { of == 0 ? 0.04 : 0.04 + 0.96 * Double(step - 1) / Double(of) }
+}
+
 /// Fills a call's NEMSIS report from its transcript, with a language model on this device (see the `Fill` package).
 ///
 ///   transcript ─► five short questions to the model ─► each answer checked against the line it cites ─► report

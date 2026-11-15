@@ -130,9 +130,10 @@ struct Call: Identifiable, Codable {
     var levels = [Int](repeating: 0, count: 30)    // recent loudness, oldest first
     var problem: String?
 
+    var recordLoading = true                       // the Whisper model is still being loaded, just after launch
     var recordBy: String?                          // the Whisper model writing the record, like "ems-small.en-ft-q5_0". Nil: live words only
     var playing: Item.ID?                          // the line being played back from the call's audio
-    var filling: [Call.ID: String] = [:]           // calls whose report is being filled right now, and how far along
+    var filling: [Call.ID: Filling] = [:]          // calls whose report is being filled right now, and how far along
     @ObservationIgnored private let reporter = Reporter()
     /// The model that fills reports on this device. Nil: there is none.
     var reportBy: String? { reporter.name }
@@ -181,6 +182,7 @@ struct Call: Identifiable, Codable {
         scribe.load { [weak self] in
             guard let self else { return }
             self.recordBy = self.scribe.name
+            self.recordLoading = false
             self.transcriber.liveOptional = self.scribe.name != nil
         }
         transcriber.onProblem = { [weak self] message in
@@ -653,11 +655,11 @@ struct Call: Identifiable, Codable {
         let lines = call.spoken
         func note(_ why: String) { if let i = review.firstIndex(where: { $0.id == id }) { review[i].fillNote = why } }
         guard !lines.isEmpty else { return note("Nothing was said on this call, so there was nothing to fill the report from.") }
-        filling[id] = "Getting ready"
+        filling[id] = Filling()
         defer { filling[id] = nil }
         do {
             let heard = lines.map { Heard($0.text, clock: stamp($0.time), seconds: $0.time.timeIntervalSinceReferenceDate, unsure: $0.unsure) }
-            let filled = try await reporter.fill(heard) { [weak self] step, of in self?.filling[id] = "Question \(step) of \(of)" }
+            let filled = try await reporter.fill(heard) { [weak self] step, of in self?.filling[id] = Filling(step: step, of: of) }
             guard let i = review.firstIndex(where: { $0.id == id }) else { return }
             review[i].take(filled, from: lines, by: reporter.name)
         } catch {
@@ -1141,7 +1143,10 @@ struct HomeScreen: View {
                                 }
                                 .font(geist(17, 500)).foregroundStyle(Color.green)
                             } else {
-                                Text(model.clipStatus).font(geist(17, 500)).foregroundStyle(Color.dim)
+                                HStack(spacing: 10) {
+                                    Text(model.clipStatus).font(geist(17, 500)).foregroundStyle(Color.dim)
+                                    if model.clipState == .searching || model.clipState == .connecting { Working(color: .dim) }
+                                }
                             }
                         }
                         if model.clipState == .idle {
@@ -1351,7 +1356,10 @@ struct ClipScreen: View {
                     }
                 }
                 .clipped()
-            Text(model.clipState == .searching ? "Looking for clips nearby" : model.clipStatus).font(geist(18, 500)).foregroundStyle(Color.dim)
+            HStack(spacing: 10) {
+                Text(model.clipState == .searching ? "Looking for clips nearby" : model.clipStatus).font(geist(18, 500)).foregroundStyle(Color.dim)
+                if model.clipState == .searching || model.clipState == .connecting { Working(color: .dim) }
+            }
         }
         .padding(.vertical, fit(0, 24))
         .frame(maxWidth: .infinity, maxHeight: phone ? nil : .infinity)

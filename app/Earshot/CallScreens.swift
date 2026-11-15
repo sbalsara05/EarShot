@@ -323,7 +323,10 @@ struct CallRow: View {
                 }
                 Spacer()
                 if waiting {
-                    Text(call.drafted ? "Check and sign" : model.filling[call.id] != nil ? "Filling report" : "Finishing transcript").font(geist(15, 600)).foregroundStyle(Color.yellow)
+                    HStack(spacing: 8) {
+                        if !call.drafted { Working() }
+                        Text(call.drafted ? "Check and sign" : model.filling[call.id] != nil ? "Filling report" : "Finishing transcript").font(geist(15, 600)).foregroundStyle(Color.yellow)
+                    }
                 } else {
                     Text("Signed \(clock(call.signedAt ?? call.start))").font(geist(15, 500).monospacedDigit()).foregroundStyle(Color.green)
                 }
@@ -365,14 +368,17 @@ struct ReviewSheet: View {
                 ScrollView {
                     switch tab {
                     case .summary:
-                        SummaryView(call: call, status: model.filling[id], edit: { model.answer($0, $1, in: id) }, hear: { model.listen(to: $0, in: call) }, playing: model.playing)
+                        SummaryView(call: call, filling: model.filling[id], edit: { model.answer($0, $1, in: id) }, hear: { model.listen(to: $0, in: call) }, playing: model.playing)
                     case .transcript:
                         CallTranscript(call: call, deleteMark: { model.deleteMark($0, in: id) }).smooth(call.markCount)
                     }
                 }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
-                Button(model.filling[id] != nil ? "Filling the report" : call.drafted ? "Sign off" : "Finishing the transcript") { signing = true }
+                Button { signing = true } label: {
+                    if !call.drafted { Working(color: .bg, size: 6) }
+                    Text(model.filling[id] != nil ? "Filling the report" : call.drafted ? "Sign off" : "Finishing the transcript")
+                }
                     .buttonStyle(Pill(grow: true))
                     .disabled(!call.drafted || model.filling[id] != nil)
             }

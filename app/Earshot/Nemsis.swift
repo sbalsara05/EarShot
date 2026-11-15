@@ -46,7 +46,7 @@ struct ReportTabs: View {
 /// line and hear it. Yellow answers are the ones to look at: the line was doubted, or it is a conclusion.
 struct SummaryView: View {
     var call: Call
-    var status: String? = nil                       // how far along the filling is, while it runs
+    var filling: Filling? = nil                     // how far along the filling is, while it runs
     var edit: ((String, String) -> Void)? = nil     // (element, new answer)
     var hear: ((Item) -> Void)? = nil               // play a transcript line
     var playing: Item.ID? = nil
@@ -66,16 +66,24 @@ struct SummaryView: View {
                 Text("\(filled) of \(Nemsis.total(in: report)) filled").font(geist(15, 600).monospacedDigit())
                     .foregroundStyle(filled == 0 ? Color.dim : .green)
             }
-            Text(note).font(geist(15, 500)).foregroundStyle(status == nil ? Color.dim : .yellow).fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                if waiting { Working() }
+                Text(note).font(geist(15, 500)).foregroundStyle(waiting ? Color.yellow : .dim).fixedSize(horizontal: false, vertical: true)
+            }
+            if let filling { WorkBar(done: filling.done) }
             ForEach(Nemsis.sections) { section in
                 ForEach(1...Nemsis.sets(of: section, in: report), id: \.self) { set in card(section, set, rows) }
             }
         }
     }
 
+    /// The call is still being worked on: its transcript is being finished, or its report filled.
+    private var waiting: Bool { filling != nil || (edit != nil && !call.drafted) }
+
     /// One line under the heading: what filled the report, or why nothing did.
     private var note: String {
-        if let status { return "Filling the report from the transcript on this \(deviceName). \(status)." }
+        if let filling { return "Filling the report from the transcript on this \(deviceName). \(filling.text)." }
+        if waiting { return "Finishing the transcript. The report fills from it next." }
         if let why = call.fillNote { return why }
         if let model = call.filledBy { return "Filled from the transcript by \(model), on this \(deviceName). Tap a time to hear where an answer came from." }
         return edit == nil ? "This report was filled in by hand." : "Not filled from the transcript. You can type any answer in yourself."
@@ -115,7 +123,7 @@ struct SummaryView: View {
                 Text(field.id.split(separator: ".").last.map(String.init) ?? "").font(geist(12, 500).monospaced()).foregroundStyle(Color.mid)
             }
             if let edit {
-                TextField(field.label, text: Binding { value } set: { edit(element, $0) }, prompt: Text("n/a").foregroundColor(.mid), axis: field.long ? .vertical : .horizontal)
+                TextField(field.label, text: Binding { value } set: { edit(element, $0) }, prompt: Text(waiting ? "…" : "n/a").foregroundColor(.mid), axis: field.long ? .vertical : .horizontal)
                     .lineLimit(field.long ? 3...12 : 1...1)
                     .font(geist(fit(20, 18), 500)).tint(.yellow).foregroundStyle(tint)
                     .frame(minHeight: 36)
