@@ -14,12 +14,15 @@
 		3A435505B7D0B4A4AA3BFCA4 /* CallScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06F5CBCC5993083EA36925D /* CallScreens.swift */; };
 		3BFB747F26F82F6AC4447545 /* ggml-ems-small.en-ft-q5_0.bin in Resources */ = {isa = PBXBuildFile; fileRef = 266EE8812D8801590E020024 /* ggml-ems-small.en-ft-q5_0.bin */; };
 		3E7BD88A2B7D7295DDF2A177 /* Record.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4E08A9751FED1591579C347 /* Record.swift */; };
+		47F49904FE7908C5B0A0431C /* Tape.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE322DADE30C1D569C905AE0 /* Tape.swift */; };
 		5EA0B41AFDD9F5C0689BA5CC /* Recorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082FE432C47C08908302588B /* Recorder.swift */; };
+		84501C3B6DEEBFD6DDA82D4A /* OggOpus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6273D0FDC33DD6934E7BA9C0 /* OggOpus.swift */; };
 		878D9EE1C03D34879ABDA544 /* Doto.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3B54A6FD7A9CDD5B33581F98 /* Doto.ttf */; };
 		8A68780E5B2AB6DD36343945 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEAF53ABFAEC8D34367ACFED /* Components.swift */; };
 		8B0D82104F53169D3CC0E274 /* Transcribe in Frameworks */ = {isa = PBXBuildFile; productRef = 8CBACC738A817B7FE1671D26 /* Transcribe */; };
 		98D9917AA5FEBB8DCBF2E47D /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6044FC5A766E4F76FE91669 /* Settings.swift */; };
 		D4CAEFADF2070B5754D7B127 /* Location.swift in Sources */ = {isa = PBXBuildFile; fileRef = F949E326EC948B2E81BC2143 /* Location.swift */; };
+		EC0B6D8828F1FD049A500416 /* Nemsis.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68C2DC29C1BDF3C5C9035CEF /* Nemsis.swift */; };
 		F99AAED5F7FFCD762B42F0A1 /* EarshotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65190926CE10F1D5F4E2A146 /* EarshotApp.swift */; };
 /* End PBXBuildFile section */
 
@@ -28,13 +31,16 @@
 		266EE8812D8801590E020024 /* ggml-ems-small.en-ft-q5_0.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-ems-small.en-ft-q5_0.bin"; sourceTree = "<group>"; };
 		3B54A6FD7A9CDD5B33581F98 /* Doto.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Doto.ttf; sourceTree = "<group>"; };
 		49877C5566DBC8D8D8440C52 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		6273D0FDC33DD6934E7BA9C0 /* OggOpus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OggOpus.swift; sourceTree = "<group>"; };
 		65190926CE10F1D5F4E2A146 /* EarshotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarshotApp.swift; sourceTree = "<group>"; };
+		68C2DC29C1BDF3C5C9035CEF /* Nemsis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nemsis.swift; sourceTree = "<group>"; };
 		7A685C4A23F84CC7A60156D5 /* Geist.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Geist.ttf; sourceTree = "<group>"; };
 		A18D9A4B70409523880ADDFC /* Signature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Signature.swift; sourceTree = "<group>"; };
 		CA1C4DF6D9C6C2838DCE2131 /* ClipLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipLink.swift; sourceTree = "<group>"; };
 		D417CBEB2EF403CE505CD8E9 /* Earshot.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Earshot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D6044FC5A766E4F76FE91669 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
 		D9BDBB8447B6FDB6CF54FD76 /* transcribe */ = {isa = PBXFileReference; lastKnownFileType = folder; name = transcribe; path = ../transcribe; sourceTree = SOURCE_ROOT; };
+		DE322DADE30C1D569C905AE0 /* Tape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tape.swift; sourceTree = "<group>"; };
 		EEAF53ABFAEC8D34367ACFED /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		F06F5CBCC5993083EA36925D /* CallScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallScreens.swift; sourceTree = "<group>"; };
 		F4E08A9751FED1591579C347 /* Record.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Record.swift; sourceTree = "<group>"; };
@@ -71,10 +77,13 @@
 				65190926CE10F1D5F4E2A146 /* EarshotApp.swift */,
 				49877C5566DBC8D8D8440C52 /* Info.plist */,
 				F949E326EC948B2E81BC2143 /* Location.swift */,
+				68C2DC29C1BDF3C5C9035CEF /* Nemsis.swift */,
+				6273D0FDC33DD6934E7BA9C0 /* OggOpus.swift */,
 				F4E08A9751FED1591579C347 /* Record.swift */,
 				082FE432C47C08908302588B /* Recorder.swift */,
 				D6044FC5A766E4F76FE91669 /* Settings.swift */,
 				A18D9A4B70409523880ADDFC /* Signature.swift */,
+				DE322DADE30C1D569C905AE0 /* Tape.swift */,
 				625549ADE10661222DA18E2E /* Fonts */,
 			);
 			path = Earshot;
@@ -224,10 +233,13 @@
 				8A68780E5B2AB6DD36343945 /* Components.swift in Sources */,
 				F99AAED5F7FFCD762B42F0A1 /* EarshotApp.swift in Sources */,
 				D4CAEFADF2070B5754D7B127 /* Location.swift in Sources */,
+				EC0B6D8828F1FD049A500416 /* Nemsis.swift in Sources */,
+				84501C3B6DEEBFD6DDA82D4A /* OggOpus.swift in Sources */,
 				3E7BD88A2B7D7295DDF2A177 /* Record.swift in Sources */,
 				5EA0B41AFDD9F5C0689BA5CC /* Recorder.swift in Sources */,
 				98D9917AA5FEBB8DCBF2E47D /* Settings.swift in Sources */,
 				2B776581A3212DEB28068FB6 /* Signature.swift in Sources */,
+				47F49904FE7908C5B0A0431C /* Tape.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

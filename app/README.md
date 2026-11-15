@@ -1,7 +1,7 @@
 # Earshot app
 
-The iPhone and iPad app. It records a call, shows a live transcript with marks, then drafts a nurse
-handoff and a PCR for the medic to edit and sign.
+The iPhone and iPad app. It records a call, shows a live transcript with marks, and lays the call out as
+a NEMSIS report for the medic to check, correct and sign.
 
 Before the first build, run `../transcribe/fetch.sh` once. It builds whisper.cpp and pulls the Whisper model from
 Git LFS; Whisper writes the transcript (see [`transcribe/README.md`](../transcribe/README.md)).
@@ -41,6 +41,11 @@ device's place once a minute and adds a location row to the transcript when it h
 so a call at one address logs it once. The row carries the address when one can be looked up (that needs a
 network) and the coordinates either way. Settings shows whether location is allowed.
 
+**Call audio.** The audio is saved as it arrives, one small `.opus` file for each unbroken stretch (Start or
+Resume to Pause). The clip's Opus packets are written as they came, with nothing re-encoded; the microphone's
+audio is encoded to Opus first. A line's time in the transcript is its place in the file, so on a completed
+call a tap on a line plays it back. Files are in `Application Support/audio/<call id>/`.
+
 **Transcript.** Two recognisers hear the same audio. This device's own shows words at once. Whisper reads the
 audio again a pause at a time, and its line takes the place of the live words a few seconds later. Each of
 Whisper's lines carries a confidence from 0 to 1 and a time for every word. A line the live recogniser heard
@@ -61,7 +66,6 @@ iPad; the simulator has none.
 | Mac | Xcode 26 or later |
 | Device or simulator | iOS or iPadOS 26 or later |
 | For live transcription | A real iPhone or iPad. It does not work in the simulator |
-| For AI drafts | Apple Intelligence turned on (iPhone 15 Pro or later, or an iPad with an M1 or A17 Pro chip or later) |
 
 ## Run it in the simulator
 
@@ -72,8 +76,6 @@ The simulator is good for checking screens and the flow. Two things do not work 
 
 - **Recording.** The simulator has no speech model, so a recording stops straight away with
   "Failed to initialize recognizer". That is expected.
-- **Drafts.** They only run if Apple Intelligence is turned on in the Mac's System Settings. Without
-  it, the handoff opens blank with a yellow note.
 
 ## Run it on a real iPhone or iPad
 
@@ -96,20 +98,17 @@ To keep your team and bundle identifier between regenerations, set `DEVELOPMENT_
 1. **New call**, then **Start recording**. Speak; each pause starts a new line with its clock time.
 2. **Mark** drops a numbered mark at that moment. The red button pauses; **Resume recording** carries
    on in the same recording. A recording keeps going when the app is not on screen.
-3. **Complete**, and confirm, closes the recording for good. The call moves to the AI Drafts tab under
-   **Needs sign-off**, where its handoff and PCR are drafted, and a new call can start straight away.
-4. Open a waiting call to fix any line. Yellow lines are ones the AI did not hear.
-   A mark dropped by accident (a stray click on the clip) can be deleted here: swipe it left in the transcript
-   and tap **Delete**. The marks after it move up a number, and the note on a deleted mark goes with it.
-5. Choose the **Narrative format** under PCR: Plain, SOAP, CHART or DRAATT. The narrative is rewritten in
-   that format from the transcript, on the device, in a few seconds; the rest of the report does not change.
-   Going back to a format already written for the call is instant and brings back the same words. The
-   format you choose is used for the first draft of your next calls. A section the call said nothing
-   about reads "Not heard."
-6. **Sign off** by drawing a signature or typing your name. The call moves to **Signed**, with its
-   narrative in the format it was signed in. **Copy PCR** copies it that way too.
+3. **Complete**, and confirm, closes the recording for good. The call moves to the Reports tab under
+   **Needs sign-off**, and a new call can start straight away.
+4. Open a waiting call. **Summary** is its NEMSIS report: a card for each section (Times, Patient, Scene,
+   Situation, History, Vitals, Medications, Procedures, Disposition, Narrative), each field named by its
+   NEMSIS element. Nothing fills the fields in yet (the step that reads the transcript into them is not
+   built), so each reads n/a until it is typed in.
+5. **Transcript** is what was said. Tap a line to hear it again. A mark dropped by accident (a stray click
+   on the clip) can be deleted here: swipe it left and tap **Delete**. The marks after it move up a number.
+6. **Sign off** by drawing a signature or typing your name. The call moves to **Signed**.
 
-The AI Drafts tab shows how many calls are waiting for sign-off, and lists every signed call below
+The Reports tab shows how many calls are waiting for sign-off, and lists every signed call below
 them. Home lists three calls: those waiting for sign-off first, then the most recent signed ones. Signed calls open with a tap and delete with a swipe; **Edit**
 on one sends it back to be signed again. To throw away the call being recorded, use **Discard call**
 on Home.
@@ -119,8 +118,6 @@ on Home.
 | Message | What it means |
 |---|---|
 | "This iPhone cannot transcribe English on the device yet" | The device has no on-device speech model, so the app will not record. It never sends call audio to a server |
-| "Nothing was drafted. Apple Intelligence is turned off" | Turn Apple Intelligence on in Settings. A completed call is not drafted again, so fill its lines in by hand |
-| "The on-device model is still downloading" | Apple Intelligence was just turned on. Wait a few minutes |
 | "Transcription stopped" | The recogniser failed. In the simulator this is expected |
 
 ## Changing the project
@@ -150,9 +147,12 @@ xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS
 | File | What is in it |
 |---|---|
 | `Earshot/EarshotApp.swift` | App state, saving to disk, the header and tabs, Home, Clip |
-| `Earshot/CallScreens.swift` | Live Call, AI Drafts, and the past-call screen |
-| `Earshot/Recorder.swift` | Audio to live words (microphone or clip), and transcript to drafts |
+| `Earshot/CallScreens.swift` | Live Call, Reports, and the past-call screen |
+| `Earshot/Recorder.swift` | Audio to live words (microphone or clip) |
+| `Earshot/Nemsis.swift` | The NEMSIS report: its sections and fields, and the Summary screen |
 | `Earshot/Record.swift` | Whisper's side of a call: the same audio, read into the lines that replace the live words |
+| `Earshot/Tape.swift` | A call's audio on disk: saving it as it arrives, reading a part back, playing a line |
+| `Earshot/OggOpus.swift` | The .opus file format the audio is saved in |
 | `Earshot/ClipLink.swift` | The Bluetooth link to the clip: find, connect, receive, send |
 | `Earshot/Settings.swift` | Settings: the audio source, and the values stamped on every report |
 | `Earshot/Location.swift` | The once-a-minute place check during a recording |
@@ -164,14 +164,16 @@ xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS
 
 - **The clip.** It reports no battery level, and the link has no pairing or encryption. Audio spoken
   while the link is down is lost: the clip does not store it.
-- **Older systems.** The app also builds for iOS 18 (set `IPHONEOS_DEPLOYMENT_TARGET=18.0`), where
-  everything works except the AI drafts, which need iOS 26.
+- **Older systems.** The app also builds for iOS 18 (set `IPHONEOS_DEPLOYMENT_TARGET=18.0`).
 - **Background transcription.** Recording carries on in the background; whether on-device
   transcription keeps up there has not been confirmed.
 - **Sign-in and audit trail.** Anyone holding the device can open the app and read past calls.
-- **Audio.** Only the transcript is kept. No audio file is saved.
-- **Long calls.** The on-device model reads about 4,000 tokens. Longer calls fail to draft with a
-  message, and the handoff has to be filled in by hand.
+- **Audio.** Each call's audio is kept on the device beside its transcript, about 15 MB an hour from the clip
+  and 8 MB from the microphone, and is deleted with the call. It is never sent anywhere. Nothing reads it again
+  yet: it is there to be heard, and for a later step to re-read a line it doubts.
+- **The report.** No field is filled from the transcript yet, no XML is written, and each call holds one set
+  of vitals, one medication and one procedure. The field numbers should be checked against the NEMSIS 3.5
+  data dictionary before XML is produced.
 - **Languages.** English (US) only.
 
 Calls are stored only on the device, encrypted while it is locked, and kept out of iCloud backups.
