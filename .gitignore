@@ -22,3 +22,7 @@ transcribe/Frameworks/
 transcribe/Models/*
 !transcribe/Models/ggml-ems-small.en-ft-q5_0.bin
 xcuserdata/
+
+# filling the report (fill/): the llama.cpp framework and the language model are fetched by fill/fetch.sh
+fill/Frameworks/
+fill/Models/
