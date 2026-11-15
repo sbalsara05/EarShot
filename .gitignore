@@ -26,3 +26,6 @@ xcuserdata/
 # filling the report (fill/): the llama.cpp framework and the language model are fetched by fill/fetch.sh
 fill/Frameworks/
 fill/Models/
+
+# ipad.sh keeps a copy of the project file while it builds
+*.before
