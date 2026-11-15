@@ -51,7 +51,7 @@ do {
     let whisper = try Whisper(model: URL(fileURLWithPath: paths[0]), gpu: !flag("--cpu"))
     if let i = arguments.firstIndex(of: "--beam"), let n = Int32(arguments[arguments.index(after: i)]) { whisper.beam = n }
     whisper.retries = !flag("--no-retries")
-    if !flag("--no-drugs") { whisper.lean(toward: Drugs.names) }
+    if !flag("--no-drugs") { whisper.lean(toward: Drugs.names + Terms.names) }
     let loaded = Date().timeIntervalSince(loading)
 
     let scribe = Scribe(whisper)

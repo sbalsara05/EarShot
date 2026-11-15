@@ -48,9 +48,21 @@ public enum Drugs {
     /// Drug names to lean toward: generic names, brands and the short names crews use, four letters or longer.
     /// Misspellings are never in the list, since leaning toward them would teach the mistake, and neither are
     /// everyday words that are only sometimes a drug ("sugar", "saline").
-    /// From the Massachusetts statewide protocols and RxNorm, gathered in pull request 15's formulary.
+    /// From the Massachusetts statewide protocols and RxNorm, gathered in pull request 15's formulary, plus the
+    /// medicines patients most often say they take or are allergic to, which is what a history is made of.
     public static let names: [String] = {
         guard let url = Bundle.module.url(forResource: "drugs", withExtension: "txt"), let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+        return text.split(separator: "\n").map(String.init)
+    }()
+}
+
+public enum Terms {
+    /// Clinical words to lean toward that are not drugs: the ones Whisper has been seen to mishear ("end title"
+    /// for end tidal, "bronchi" for rhonchi) and others as rare in everyday speech. Common words are left out:
+    /// Whisper knows them, and every word added is one more it can be tipped toward by mistake.
+    /// Kept apart from the drugs because the report-filling step reads the drug list as "these are medicines".
+    public static let names: [String] = {
+        guard let url = Bundle.module.url(forResource: "terms", withExtension: "txt"), let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         return text.split(separator: "\n").map(String.init)
     }()
 }

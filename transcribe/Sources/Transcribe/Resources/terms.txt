@@ -1,0 +1,63 @@
+pulse oximetry
+oximetry
+tachycardic
+tachycardia
+bradycardic
+bradycardia
+hypotensive
+hypertensive
+diaphoretic
+STEMI
+atrial fibrillation
+sinus tachycardia
+sinus rhythm
+ventricular tachycardia
+ventricular fibrillation
+asystole
+nasal cannula
+non-rebreather
+nebulizer
+capnography
+end tidal
+glucometer
+Glasgow
+sublingual
+intramuscular
+intranasal
+intraosseous
+antecubital
+bilaterally
+syncope
+postictal
+anaphylaxis
+hypoglycemic
+hypoglycemia
+hyperglycemia
+dyspnea
+rhonchi
+rales
+stridor
+crepitus
+laceration
+contusion
+hematoma
+cyanotic
+lethargic
+orthostatic
+tourniquet
+cervical collar
+intubated
+supraglottic
+cardioversion
+epigastric
+hernia
+COPD
+emphysema
+pulmonary embolism
+congestive heart failure
+myocardial infarction
+dialysis
+pacemaker
+angina
+aneurysm
+sepsis

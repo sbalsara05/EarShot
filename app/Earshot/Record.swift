@@ -39,7 +39,7 @@ final class Record {
             #else
             let loaded = try? Whisper(model: file)
             #endif
-            loaded?.lean(toward: Drugs.names)
+            loaded?.lean(toward: Drugs.names + Terms.names)
             DispatchQueue.main.async {
                 self.whisper = loaded
                 self.name = loaded?.name
