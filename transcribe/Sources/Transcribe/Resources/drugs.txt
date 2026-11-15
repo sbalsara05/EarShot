@@ -9,41 +9,56 @@ activated charcoal
 acular
 acuvail
 addaprin
+adderall
 adenocard
 adenoscan
 adenosine
 adrenalin
 adrenaline
+advair
+advil
 afrezza
 akten
 albuterol
 albuterol neb
 alcaine
+aleve
 aller-tec
 alleroff
 alocane
+alprazolam
 amidate
 amiodarone
+amlodipine
+amoxicillin
 amp of d50
 anacin af
+ancef
 anecream
 anectine
 apap
+apixaban
 apresoline
 aspergum
 aspi-cor
 aspirin
+atenolol
 ativan
+atorvastatin
 atropen
 atropine
 atropine and pralidoxime
 atropine sulfate
 atrovent
+augmentin
+azithromycin
 baby aspirin
 bactimicina
+bactrim
 banophen
 baqsimi
 bayer aspirin
+benadryl
 bicarb
 bicarb amp
 bio-kool
@@ -52,7 +67,10 @@ bondlido
 brethine
 brilinta
 bruselix
+budesonide
 bufferin
+buprenorphine
+bupropion
 burn jel plus
 cacl
 calcium chloride
@@ -65,22 +83,38 @@ cardene
 cardiac epi
 cardizem
 cartia
+carvedilol
+cefazolin
+ceftriaxone
+celexa
+cephalexin
 cetafen
 cetirizine
 charcocaps
 chewable aspirin
+ciprofloxacin
+citalopram
+claritin
+clonazepam
+clonidine
 clopidogrel
+codeine
 comfortcaine
 compazine
 compoz
 compro
 cordarone
+coreg
+coumadin
 counteract ib
 counteract pain
 cutiecaine
 cyanokit
+cyclobenzaprine
 cyklokapron
+cymbalta
 decadron
+depakote
 depo-medrol
 derma numb
 dermamycin
@@ -97,40 +131,57 @@ dextrose 50
 dexycu
 diastat
 diazepam
+digoxin
+dilantin
 dilaudid
 diltiazem
 diltzac
+dimenhydrinate
 diphedryl
 diphenhist
 diphenhydramine
 dopamine
 dormin
+doxycycline
 droperidol
+duloxetine
 duo neb
 duodote
 duoneb
 duramorph
 durlaza
 ecotrin
+effient
 elepsia
+eliquis
 enfamil glucose
+enoxaparin
+entresto
 epi pen
 epinephrine
 epipen
+escitalopram
+esmolol
 etomidate
 famotidine
 fentanyl
 fentora
 feverall
+flexeril
+flomax
+fluoxetine
 furosemide
+gabapentin
 genahist
 genpril
+glipizide
 glucagen
 glucagon
 glucoburst
 glucose gel
 glutose
 gonitro
+gravol
 gvoke
 haldol
 haloperidol
@@ -141,45 +192,68 @@ humalog
 humulin r
 hybrisil
 hydralazine
+hydrochlorothiazide
+hydrocodone
+hydrocortisone
 hydromorphone
 hydroxocobalamin
+hydroxyzine
 ibuprofen
 ibuprohm
+imdur
 immphentiv
 inapsine
 infumorph
 insta glucose
 insta-char
 insta-glucose
+insulin
 intropin
 ionsys
 ipratropium
 isopto atropine
+isosorbide
+januvia
+jardiance
 kadian
 kapspargo
+keflex
 keppra
 ketalar
 ketamine
 ketaset
 ketorolac
 kids-eeze allergy
+klonopin
 kloxxado
 labetalol
 lactated ringer's
 lactated ringers
+lamictal
 lantus
 lasix
 laughing gas
+levalbuterol
 levetiracetam
 levophed
+levothyroxine
+lexapro
 libervant
 lidocaine
+lipitor
+lisinopril
+lithium
 little fevers
 lopressor
+loratadine
 lorazepam
 loreev
+losartan
+lovenox
+lyrica
 lysteda
 mag sulfate
+magnesium
 magnesium sulfate
 mapap
 mark 1 kit
@@ -187,26 +261,34 @@ mark one kit
 matzim
 maxidex
 medrol
+meloxicam
+metformin
+methadone
 methylprednisolone
+metoclopramide
 metoprolol
 mgso4
 midazolam
 miniprin
 mitigo
+montelukast
 morphine
 morphine sulfate
+motrin
 ms contin
 mso4
 mydfrin
 myxredlin
 nalox
 naloxone
+naproxen
 narcan
 nasop
 nayzilam
 neo-synephrine
 neoprofen
 neosynephrine
+neurontin
 nexterone
 nicardipine
 nitro
@@ -223,72 +305,110 @@ nitromist
 nitronox
 nitrostat
 nitrous oxide
+norco
 norcuron
 norepi
 norepinephrine
 normal saline
 nortemp
+norvasc
 norwich aspirin
 novolin r
 novolog
 nytol
 ofirmev
 olanzapine
+omeprazole
 ondansetron
 one milligram epi
 oral glucose
 oral glucose gel
+oxycodone
+oxycontin
 oxygen
 oxytocin
+ozempic
 ozurdex
 pacerone
 panadol
+pantoprazole
 paracetamol
+penicillin
+percocet
 phenadoz
 phenergan
 phenylephrine
+phenytoin
 pitocin
 pitressin
 plavix
+pradaxa
+prasugrel
+prednisone
+pregabalin
+prilosec
 proair
+procainamide
 prochlorperazine
 promethazine
 promethegan
 proparacaine
+propofol
 proprinal
+protonix
 proventil
+prozac
+pulmicort
 push dose epi
 push dose neo
 quelicin
+quetiapine
 quzyttir
 racemic epi
 racemic epinephrine
 racepinephrine
 rectiv
+reglan
 rextovy
 rezenopy
 rhinall
 ringer's lactate
+ritalin
+rivaroxaban
+rocephin
 rocuronium
 roweepra
+seroquel
+sertraline
+simvastatin
+singulair
 sodium bicarb
 sodium bicarbonate
 sodium chloride
 solu medrol
+solu-cortef
 solu-medrol
 solumedrol
+spiriva
+spironolactone
 spritam
 sprix
 st. joseph aspirin
 sublimaze
+suboxone
 subsys
 succinylcholine
 sudafed pe
 sudo-tab
 sugar gel
+sulfa
 supplemental oxygen
+symbicort
 symjepi
+synthroid
+tamsulosin
 taztia
+tenecteplase
 terbutaline
 tetracaine
 thiamine
@@ -297,8 +417,11 @@ tiazac
 ticagrelor
 toprol
 toradol
+tramadol
 trandate
 tranexamic acid
+trazodone
+tylenol
 valium
 valtoco
 vasopressin
@@ -307,10 +430,17 @@ vazalore
 vazculep
 vecuronium
 ventolin
+verapamil
 versed
+vicodin
 vitamin b1
 wal-four
 wal-zyr
+warfarin
+wellbutrin
+xanax
+xarelto
+xopenex
 xylocaine
 zemuron
 zerviate
@@ -318,4 +448,6 @@ zetamine
 zimhi
 zofran
 zofran odt
+zoloft
 zyprexa
+zyrtec

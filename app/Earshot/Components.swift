@@ -172,6 +172,41 @@ struct BlinkDot: View {
     }
 }
 
+/// Three dots that light in turn: the app is working on something and nothing is needed from the medic.
+/// One look across the whole app for "wait". With Reduce Motion on, the dots stay lit and still.
+struct Working: View {
+    var color = Color.yellow
+    var size: CGFloat = 5
+    @Environment(\.accessibilityReduceMotion) private var still
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.3, paused: still)) { time in
+            let lit = Int(time.date.timeIntervalSinceReferenceDate / 0.3) % 3
+            HStack(spacing: size * 0.8) {
+                ForEach(0..<3, id: \.self) { dot in
+                    Circle().fill(color.opacity(still || dot == lit ? 1 : 0.25)).frame(width: size, height: size)
+                }
+            }
+        }
+        .accessibilityHidden(true)   // the words beside it say what is happening
+    }
+}
+
+/// A thin bar that fills as a job gets done, for work whose length is known.
+struct WorkBar: View {
+    var done: Double   // 0 to 1
+
+    var body: some View {
+        GeometryReader { space in
+            Capsule().fill(Color.ghost)
+                .overlay(alignment: .leading) { Capsule().fill(Color.yellow).frame(width: max(6, space.size.width * min(1, max(0, done)))) }
+        }
+        .frame(height: 4)
+        .animation(.easeInOut(duration: 0.4), value: done)
+        .accessibilityHidden(true)
+    }
+}
+
 struct Pill: ButtonStyle {
     var fill: Color? = .ink   // nil draws the outlined button
     var height: CGFloat = 68, size: CGFloat = 19

@@ -9,7 +9,7 @@ let package = Package(
     products: [.library(name: "Transcribe", targets: ["Transcribe"])],
     targets: [
         .binaryTarget(name: "whisper", path: "Frameworks/whisper.xcframework"),
-        .target(name: "Transcribe", dependencies: ["whisper"], resources: [.copy("Resources/drugs.txt")]),
+        .target(name: "Transcribe", dependencies: ["whisper"], resources: [.copy("Resources/drugs.txt"), .copy("Resources/terms.txt")]),
         // Mac only: transcribes a WAV file and prints the lines, to check and time the module without an iPad.
         .executableTarget(name: "transcribe-wav", dependencies: ["Transcribe"]),
         .testTarget(name: "TranscribeTests", dependencies: ["Transcribe"]),

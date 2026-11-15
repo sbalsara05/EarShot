@@ -6,6 +6,9 @@ packages:
   # Audio to transcript lines with Whisper. Run transcribe/fetch.sh once before building.
   Transcribe:
     path: ../transcribe
+  # Transcript to NEMSIS answers with a language model. Run fill/fetch.sh once before building.
+  Fill:
+    path: ../fill
   # Decodes the clip's Opus audio. libopus wrapped for Swift, BSD-3-Clause.
   Opus:
     url: https://github.com/alta/swift-opus
@@ -21,9 +24,15 @@ targets:
       - path: ../transcribe/Models/ggml-ems-small.en-ft-q5_0.bin
         buildPhase: resources
         optional: true
+      # The language model that fills the report: Qwen3.5 4B, 4-bit, 2.7 GB (fill/fetch.sh downloads it).
+      # Without it the app builds and reports are filled in by hand.
+      - path: ../fill/Models/Qwen3.5-4B-Q4_K_M.gguf
+        buildPhase: resources
+        optional: true
     dependencies:
       - package: Opus
       - package: Transcribe
+      - package: Fill
     postBuildScripts:
       # Settings shows which branch and commit a build came from.
       - name: Stamp the branch

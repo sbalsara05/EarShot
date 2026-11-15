@@ -2,6 +2,7 @@ import AVFoundation
 import CoreLocation
 import Opus
 import SwiftUI
+import Fill
 
 enum Tab: String {
     case home = "Home", live = "Live Call", drafts = "Reports", clip = "Clip", settings = "Settings"
@@ -49,6 +50,9 @@ struct Call: Identifiable, Codable {
     var recordings: [Recording] = []
     var drafted = false               // the call was completed and its transcript is finished, so it can be signed
     var report: [String: String]?     // its NEMSIS record: answers by element, like "ePatient.15": "68" (see `Nemsis`)
+    var evidence: [String: Evidence]? // where each answer the transcript gave came from, by element. A typed answer has none
+    var filledBy: String?             // the model that filled the report from the transcript. Nil: it was not filled
+    var fillNote: String?             // why the report was not filled, in words for the medic
     var markNotes: [Int: String] = [:]
     var signedAt: Date?
     var signature: Signature?
@@ -126,8 +130,13 @@ struct Call: Identifiable, Codable {
     var levels = [Int](repeating: 0, count: 30)    // recent loudness, oldest first
     var problem: String?
 
+    var recordLoading = true                       // the Whisper model is still being loaded, just after launch
     var recordBy: String?                          // the Whisper model writing the record, like "ems-small.en-ft-q5_0". Nil: live words only
     var playing: Item.ID?                          // the line being played back from the call's audio
+    var filling: [Call.ID: Filling] = [:]          // calls whose report is being filled right now, and how far along
+    @ObservationIgnored private let reporter = Reporter()
+    /// The model that fills reports on this device. Nil: there is none.
+    var reportBy: String? { reporter.name }
     @ObservationIgnored private let tape = Tape()
     @ObservationIgnored private let speaker = Speaker()
     @ObservationIgnored private let transcriber = Transcriber()
@@ -173,6 +182,7 @@ struct Call: Identifiable, Codable {
         scribe.load { [weak self] in
             guard let self else { return }
             self.recordBy = self.scribe.name
+            self.recordLoading = false
             self.transcriber.liveOptional = self.scribe.name != nil
         }
         transcriber.onProblem = { [weak self] message in
@@ -183,6 +193,9 @@ struct Call: Identifiable, Codable {
         locator.onLevel = { [weak self] level in self?.location = level }
         location = locator.level
         load()
+        #if DEBUG
+        seedSample()   // one made-up call with a full transcript, to try the report on (see Sample.swift)
+        #endif
         link.resume()
         locator.ask()   // asked at first launch, before any call, so a recording never stops for the question
     }
@@ -620,17 +633,39 @@ struct Call: Identifiable, Codable {
         finishUp(done.id)
     }
 
-    /// Waits for Whisper to read a completed call to its end, then marks it ready to sign. Until then the call
-    /// shows as "Finishing transcript".
-    /// ponytail: this is where the step that fills the NEMSIS fields from the transcript goes, once it is built.
-    private func finishUp(_ id: Call.ID) {
+    /// Waits for Whisper to read a completed call to its end, fills its report from the transcript, then marks it
+    /// ready to sign. Until then the call says what it is waiting for.
+    func finishUp(_ id: Call.ID) {
         Task { @MainActor in
             await scribe.finished(id)
             guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // removed meanwhile
             Self.settle(&review[i])
+            save()
+            await fill(id)
+            guard let i = review.firstIndex(where: { $0.id == id }) else { return }
             review[i].drafted = true
             save()
         }
+    }
+
+    /// Fills a waiting call's report from its transcript. Takes a minute or two. If it cannot be done the call
+    /// says why, and the report is left for the medic to fill in.
+    @MainActor func fill(_ id: Call.ID) async {
+        guard filling[id] == nil, let call = review.first(where: { $0.id == id }) else { return }
+        let lines = call.spoken
+        func note(_ why: String) { if let i = review.firstIndex(where: { $0.id == id }) { review[i].fillNote = why } }
+        guard !lines.isEmpty else { return note("Nothing was said on this call, so there was nothing to fill the report from.") }
+        filling[id] = Filling()
+        defer { filling[id] = nil }
+        do {
+            let heard = lines.map { Heard($0.text, clock: stamp($0.time), seconds: $0.time.timeIntervalSinceReferenceDate, unsure: $0.unsure) }
+            let filled = try await reporter.fill(heard) { [weak self] step, of in self?.filling[id] = Filling(step: step, of: of) }
+            guard let i = review.firstIndex(where: { $0.id == id }) else { return }
+            review[i].take(filled, from: lines, by: reporter.name)
+        } catch {
+            note(error.localizedDescription)
+        }
+        save()
     }
 
     /// The medic typed an answer into a call's report. An emptied answer is forgotten. Saved when the report closes.
@@ -639,6 +674,7 @@ struct Call: Identifiable, Codable {
         var report = review[i].report ?? [:]
         report[element] = value.isEmpty ? nil : value
         review[i].report = report
+        review[i].evidence?[element] = nil   // it is the medic's answer now
     }
 
     /// Signing off moves a call from the ones waiting to the signed ones.
@@ -791,10 +827,13 @@ struct Call: Identifiable, Codable {
         if case .typed("A. Medic")? = copy?.signature {} else { assertionFailure("the signature was lost on disk") }
         // The NEMSIS record: every element is listed once, an answer survives being saved, and a call is named from it.
         assert(Set(Nemsis.sections.flatMap(\.fields).map(\.id)).count == Nemsis.fieldCount && Nemsis.sections.allSatisfy { s in s.fields.allSatisfy { $0.id.hasPrefix(s.id + ".") } })
-        call.report = ["ePatient.15": "68", "ePatient.13": "Male", "eVitals.06": " "]
+        call.report = ["ePatient.15": "68", "ePatient.25": "Male", "eVitals.06": " ", "eVitals.10#2": "96"]
+        call.evidence = ["ePatient.15": Evidence(line: UUID(), check: true, other: "86")]
         let reported = try? JSONDecoder().decode(Call.self, from: JSONEncoder().encode(call))
         assert(reported?.report?["ePatient.15"] == "68" && copy?.report == nil)
-        assert(Nemsis.filled(call.report ?? [:]) == 2 && Nemsis.title(of: call.report ?? [:]) == "68 years, Male" && Nemsis.title(of: [:]) == nil)
+        assert(call.xml(Standing()).flatMap { try? String(contentsOf: $0, encoding: .utf8) }?.contains("<ePatient.15>68</ePatient.15>") == true)
+        assert(reported?.evidence?["ePatient.15"]?.other == "86" && Nemsis.sets(of: Nemsis.sections[5], in: call.report ?? [:]) == 2)
+        assert(Nemsis.filled(call.report ?? [:]) == 3 && Nemsis.title(of: call.report ?? [:]) == "68 years, Male" && Nemsis.title(of: [:]) == nil)
         // A call saved by a build that wrote nurse and PCR drafts still opens.
         if var old = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(call)) as? [String: Any] {
             old["draft"] = ["patient": "x", "narrative": "y"]
@@ -1104,7 +1143,10 @@ struct HomeScreen: View {
                                 }
                                 .font(geist(17, 500)).foregroundStyle(Color.green)
                             } else {
-                                Text(model.clipStatus).font(geist(17, 500)).foregroundStyle(Color.dim)
+                                HStack(spacing: 10) {
+                                    Text(model.clipStatus).font(geist(17, 500)).foregroundStyle(Color.dim)
+                                    if model.clipState == .searching || model.clipState == .connecting { Working(color: .dim) }
+                                }
                             }
                         }
                         if model.clipState == .idle {
@@ -1314,7 +1356,10 @@ struct ClipScreen: View {
                     }
                 }
                 .clipped()
-            Text(model.clipState == .searching ? "Looking for clips nearby" : model.clipStatus).font(geist(18, 500)).foregroundStyle(Color.dim)
+            HStack(spacing: 10) {
+                Text(model.clipState == .searching ? "Looking for clips nearby" : model.clipStatus).font(geist(18, 500)).foregroundStyle(Color.dim)
+                if model.clipState == .searching || model.clipState == .connecting { Working(color: .dim) }
+            }
         }
         .padding(.vertical, fit(0, 24))
         .frame(maxWidth: .infinity, maxHeight: phone ? nil : .infinity)

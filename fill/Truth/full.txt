@@ -1,0 +1,33 @@
+[14:02:00] Medic 4 is en route to 12 Oak Street for chest pain.
+[14:08:35] Medic 4 on scene.
+[14:09:20] Hi sir, I'm a paramedic. What's your name?
+[14:09:24] Robert Hayes.
+[14:09:30] Okay Robert, how old are you?
+[14:09:33] I'm 58.
+[14:09:40] We're at the patient's house. 58 year old male, found sitting in the kitchen.
+[14:09:50] What's going on today?
+[14:09:54] I've got this crushing chest pain, it started about 30 minutes ago.
+[14:10:05] Does it go anywhere?
+[14:10:08] Into my left arm and my jaw.
+[14:10:15] Any medical history?
+[14:10:18] High blood pressure and high cholesterol. I had a stent put in 2 years ago.
+[14:10:30] Do you take any medications?
+[14:10:33] Lisinopril and atorvastatin.
+[14:10:40] Any allergies to medications?
+[14:10:43] Sulfa drugs.
+[14:11:00] On a scale of 0 to 10, how bad is the pain?
+[14:11:04] It's an 8.
+[14:11:20] First set of vitals. BP 162 over 98, heart rate 108, respirations 22, sats 93 percent on room air.
+[14:11:35] Blood sugar is 124. Temp 98.4. GCS 15.
+[14:12:00] Giving 324 of aspirin, chewed.
+[14:12:30] 12 lead shows ST elevation in the inferior leads. This looks like a STEMI.
+[14:13:00] 18 gauge IV in the left AC.
+[14:13:30] Nitro 0.4 sublingual.
+[14:14:00] Putting him on oxygen, 4 liters by nasal cannula.
+[14:16:00] Robert, how's the pain now?
+[14:16:03] Maybe a 5.
+[14:16:20] Second set. BP 144 over 88, heart rate 96, sats 97 percent, respirations 18.
+[14:17:00] 4 milligrams of Zofran IV for the nausea.
+[14:18:00] Medic 4 is leaving the scene, transporting to Saint Vincent Hospital, lights and sirens.
+[14:23:00] Third set of vitals. BP 138 over 84, pulse 90, sats 98 percent. Pain is a 3.
+[14:27:00] Medic 4, we've arrived at the hospital.
