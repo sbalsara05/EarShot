@@ -56,6 +56,9 @@ often). MedGemma and Phi-4-mini were not tried.
 Four transcripts is a small set. It shows the method works; it does not show how often a wrong value gets through
 on real calls.
 
+`Truth/full.m4a` is `Truth/full.txt` spoken aloud by two of the Mac's voices (2 min 35 s), to play to an iPad and
+try the whole path from sound to report. Its pauses are seconds long where the real call's would be minutes.
+
 ```bash
 swift run -c release fill-transcript Models/Qwen3.5-4B-Q4_K_M.gguf Truth/demo.txt --score Truth/demo.json --dropped
 ```

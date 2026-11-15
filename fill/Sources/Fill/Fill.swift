@@ -307,7 +307,7 @@ enum Check {
 
     /// Words that show a line really says what a time or a choice claims.
     private static let signs: [String: [String]] = [
-        "en_route": ["route", "responding", "way"], "on_scene": ["scene", "arrived", "arriving", "arrive"],
+        "en_route": ["route", "enroute", "responding", "way"], "on_scene": ["scene", "arrived", "arriving", "arrive"],
         "left_scene": ["transporting", "transport", "leaving", "rolling", "departing", "taking", "route"],
         "at_destination": ["hospital", "ed", "er", "emergency", "arrived", "destination"],
         "Female": ["female", "woman", "she", "her", "lady", "girl"], "Male": ["male", "man", "he", "his", "him", "gentleman", "boy"],

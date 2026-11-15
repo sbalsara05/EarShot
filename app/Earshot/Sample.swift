@@ -4,7 +4,7 @@ import Foundation
 /// A made-up call with everything a report needs said out loud, for trying the whole path from transcript to
 /// XML without recording one: times, who the patient is, history, three sets of vitals, four medicines, two
 /// procedures, and where the patient went. Debug builds only. It has no audio, so its lines cannot be played.
-/// The same transcript is `fill/Truth/full.txt`.
+/// The same transcript is `fill/Truth/full.txt`, and `fill/Truth/full.m4a` is it spoken aloud.
 extension Call {
     /// (seconds into the call, what was said)
     private static let said: [(Double, String)] = [
