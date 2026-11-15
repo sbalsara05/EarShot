@@ -74,4 +74,27 @@ final class TranscribeTests: XCTestCase {
         XCTAssertTrue(Drugs.names.contains("aspirin") && Drugs.names.contains("narcan"))
         XCTAssertFalse(Drugs.names.contains("sugar"))
     }
+
+    /// Quiet speech over a quiet room is turned up toward the goal without clipping; loud speech is left alone.
+    func testLevelTurnsQuietAudioUp() {
+        func speech(_ size: Double, room: Double, seconds: Int = 6) -> [Int16] {
+            (0..<seconds * 16000).map { i in
+                let talking = (i / 8000) % 2 == 1   // half a second of room, half a second of voice
+                return Int16((talking ? size : room) * sin(Double(i) * 0.3))
+            }
+        }
+        var quiet = Level()
+        let up = quiet.apply(speech(400, room: 10))
+        XCTAssertGreaterThan(quiet.gain, 8)
+        XCTAssertGreaterThan(up.suffix(16000).map { abs(Int($0)) }.max() ?? 0, 3200)
+        XCTAssertLessThanOrEqual(up.map { abs(Int($0)) }.max() ?? 0, 12_500)   // never past the goal by more than a step
+
+        var loud = Level()
+        let same = speech(14_000, room: 30)
+        XCTAssertEqual(Array(loud.apply(same)[8000...]), Array(same[8000...]))   // from the first loud sound on
+
+        var hiss = Level()   // nothing but a noisy room: the noise stays quiet
+        let noise = hiss.apply(speech(60, room: 60))
+        XCTAssertLessThan(Double(noise.suffix(16000).map { abs(Int($0)) }.max() ?? 0), Level.hush * 1.5 + 1)
+    }
 }

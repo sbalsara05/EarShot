@@ -68,6 +68,9 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     var onFound: ([Found]) -> Void = { _ in }            // every clip in range, in the order first heard
     var onEvent: (ClipEvent) -> Void = { _ in }
     var onAudio: (AVAudioPCMBuffer) -> Void = { _ in }   // 16 kHz mono, in the order it was captured
+    /// The same audio as the clip sent it, for saving: one 20 ms Opus packet, and how many frames of silence
+    /// were given to `onAudio` just before it in place of packets that were lost.
+    var onPacket: (Data, Int) -> Void = { _, _ in }
     var onProblem: (String) -> Void = { _ in }           // something failed while ready: a command, or the audio
     var onSignal: (Signal?) -> Void = { _ in }           // the connected clip's signal, every two seconds; nil when not connected
 
@@ -410,6 +413,7 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     private func hear(_ data: Data) {
         guard data.count > Self.header else { return }
         let seq = Self.frameNumber(of: data)
+        var filled = 0
         if let next = nextSeq, seq > next {
             // Frames were lost on the way. Keep the timeline honest with silence, up to two seconds of it.
             let missing = Int(seq - next)
@@ -418,13 +422,16 @@ final class ClipLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
                 quiet.frameLength = quiet.frameCapacity
                 quiet.floatChannelData?[0].update(repeating: 0, count: Int(quiet.frameLength))
                 onAudio(quiet)
+                filled = min(missing, 100)
             }
         }
         nextSeq = seq &+ 1
         packets += 1
         do {
             guard let decoder else { throw Problem("The audio decoder could not be created.") }
-            onAudio(try decoder.decode(data.dropFirst(Self.header)))
+            let opus = Data(data.dropFirst(Self.header))
+            onAudio(try decoder.decode(opus))
+            onPacket(opus, filled)
         } catch {
             // Packets that arrive but cannot be turned into sound are not a working link, so say so once.
             undecoded += 1

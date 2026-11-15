@@ -148,10 +148,10 @@ struct LiveScreen: View {
                 recordButton("Resume recording")
                 Button("Complete") { completing = true }.buttonStyle(Pill(height: 96, size: 26, grow: true))
                     .confirmationDialog("Complete this call?", isPresented: $completing, titleVisibility: .visible) {
-                        Button("Complete and write reports", role: .destructive) { model.complete() }
+                        Button("Complete call", role: .destructive) { model.complete() }
                         Button("Keep recording", role: .cancel) {}
                     } message: {
-                        Text("This cannot be undone. The recording ends for good and the nurse handoff and PCR are written from it. The reports wait on the AI Drafts tab for you to check and sign, and you can start a new call straight away.")
+                        Text("This cannot be undone. The recording ends for good. Its report waits on the Reports tab for you to check and sign, and you can start a new call straight away.")
                     }
             }
         }
@@ -192,7 +192,8 @@ struct LiveScreen: View {
             feed {
                 ForEach(Array(model.call.recordings.enumerated()), id: \.offset) { n, recording in
                     RecordingHeading(number: n + 1, recording: recording)
-                    TranscriptRows(recording: recording, color: n == number - 1 ? .ink : .dim)
+                    TranscriptRows(recording: recording, color: n == number - 1 ? .ink : .dim,
+                                   play: model.call.audio == nil ? nil : { model.listen(to: $0, in: model.call) }, playing: model.playing)
                 }
                 if let problem = model.problem { alert("Problem", problem) }
                 if model.live == .cutShort {
@@ -233,7 +234,7 @@ struct LiveScreen: View {
     }
 }
 
-// MARK: AI Drafts
+// MARK: Reports
 
 /// Every completed call: the ones still waiting for a person to check and sign them, then the signed ones.
 struct DraftsScreen: View {
@@ -266,12 +267,12 @@ struct DraftsScreen: View {
     }
 
     private var headline: String {
-        !model.review.isEmpty ? "To sign" : model.past.isEmpty ? "No drafts yet" : "All signed"
+        !model.review.isEmpty ? "To sign" : model.past.isEmpty ? "No reports yet" : "All signed"
     }
 
     private var summary: String {
         if model.review.isEmpty && model.past.isEmpty { return "Record a call, then tap Complete." }
-        if model.review.isEmpty { return "\(plural(model.past.count, "signed call")). Tap one to read its reports." }
+        if model.review.isEmpty { return "\(plural(model.past.count, "signed call")). Tap one to read its report." }
         return "\(plural(model.review.count, "call")) waiting for you to check and sign. Nothing is final until you do."
     }
 
@@ -303,7 +304,7 @@ struct DraftsScreen: View {
 }
 
 /// One completed call in a list. A waiting one carries a yellow dot and says what it needs; a signed one says
-/// when it was signed. Used on AI Drafts and on Home.
+/// when it was signed. Used on Reports and on Home.
 struct CallRow: View {
     var call: Call
     var waiting: Bool
@@ -314,13 +315,13 @@ struct CallRow: View {
             HStack(spacing: 12) {
                 if waiting { Circle().fill(Color.yellow).frame(width: 10, height: 10) }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(!call.draft.patient.isEmpty ? call.draft.patient : call.drafted ? "Patient not recorded" : "Call at \(clock(call.start))")
+                    Text(Nemsis.title(of: call.report ?? [:]) ?? "Call at \(clock(call.start))")
                         .font(geist(19, 500)).foregroundStyle(Color.ink).lineLimit(1)
                     Text("\(day(call.start)), \(span(call.seconds))").font(geist(15)).foregroundStyle(Color.dim).lineLimit(1)
                 }
                 Spacer()
                 if waiting {
-                    Text(call.drafted ? "Check and sign" : "Writing reports").font(geist(15, 600)).foregroundStyle(Color.yellow)
+                    Text(call.drafted ? "Check and sign" : "Finishing transcript").font(geist(15, 600)).foregroundStyle(Color.yellow)
                 } else {
                     Text("Signed \(clock(call.signedAt ?? call.start))").font(geist(15, 500).monospacedDigit()).foregroundStyle(Color.green)
                 }
@@ -336,75 +337,52 @@ struct CallRow: View {
     }
 }
 
-/// A completed call waiting for sign-off, opened from AI Drafts. It shows everything a signed call shows, and
-/// here the handoff lines can still be corrected and the call signed.
+/// A completed call waiting for sign-off, opened from Reports. Summary is its NEMSIS record, where any answer can
+/// be typed over; Transcript is what was said. From here the call is signed.
 struct ReviewSheet: View {
     let id: Call.ID
     @Environment(Model.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var signing = false
-    @Namespace private var pick
+    @State private var tab = ReportTab.summary
 
     var body: some View {
-        @Bindable var model = model
         // Looked up afresh on every draw: the list shifts when another call is completed or this one is signed.
-        if let i = model.review.firstIndex(where: { $0.id == id }) {
-            let call = model.review[i]
+        if let call = model.review.first(where: { $0.id == id }) {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(day(call.start)).font(doto(fit(40, 28))).lineLimit(1).minimumScaleFactor(0.6)
-                        Text(call.drafted ? call.draftNote ?? "AI draft, not signed. Tap any line to correct it. Yellow lines need you." : "Writing the reports on this \(deviceName).")
-                            .font(geist(15, 500)).foregroundStyle(call.drafted && call.draftNote == nil ? Color.dim : .yellow)
+                        Text(call.drafted ? "Not signed. Check the report, correct anything, then sign." : "Finishing the transcript on this \(deviceName).")
+                            .font(geist(15, 500)).foregroundStyle(call.drafted ? Color.dim : .yellow)
                     }
                     Spacer()
                     Button("Close") { dismiss() }.buttonStyle(Pill(fill: nil, height: 44, size: 16))
                 }
+                ReportTabs(tab: $tab)
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 36) {
-                        if call.drafted {
-                            part("Nurse handoff") {
-                                field("Patient", $model.review[i].draft.patient)
-                                field("Latest vitals", $model.review[i].draft.latestVitals)
-                                field("Given", $model.review[i].draft.given)
-                                field("Allergies", $model.review[i].draft.allergies)
-                                ForEach(call.silentMarks) { mark in
-                                    let n = mark.mark ?? 0
-                                    field("\(clock(mark.time)), nothing heard", Binding { call.markNotes[n] ?? "" } set: { model.review[i].markNotes[n] = $0 },
-                                          mark: "Mark \(n)", prompt: "What happened here?")
-                                }
-                            }
-                            part("PCR") {
-                                formatChoice(call)
-                                PCRView(call: call)
-                            }
-                        }
-                        part("Transcript") {
-                            if call.transcript.isEmpty { Text("Nothing was heard on this call.").font(geist(fit(22, 19))).foregroundStyle(Color.dim) }
-                            if call.markCount > 0 {
-                                Text("Dropped a mark by accident? Swipe it left to delete it.").font(geist(15, 500)).foregroundStyle(Color.dim)
-                            }
-                            ForEach(Array(call.recordings.enumerated()), id: \.offset) { n, recording in
-                                RecordingHeading(number: n + 1, recording: recording)
-                                TranscriptRows(recording: recording, color: .ink) { model.deleteMark($0, in: call.id) }
-                            }
-                        }
-                        .smooth(call.markCount)
+                    switch tab {
+                    case .summary:
+                        SummaryView(report: call.report ?? [:]) { model.answer($0, $1, in: id) }
+                    case .transcript:
+                        CallTranscript(call: call, deleteMark: { model.deleteMark($0, in: id) }).smooth(call.markCount)
                     }
                 }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
-                // Nothing is signed while its narrative is still being rewritten.
-                let rewriting = model.rewriting[id] != nil
-                Button(!call.drafted ? "Writing reports" : rewriting ? "Writing the narrative" : "Sign off") { signing = true }
+                Button(call.drafted ? "Sign off" : "Finishing the transcript") { signing = true }
                     .buttonStyle(Pill(grow: true))
-                    .disabled(!call.drafted || rewriting)
+                    .disabled(!call.drafted)
             }
             .padding(.horizontal, fit(40, 20)).padding(.top, fit(36, 28)).padding(.bottom, fit(32, 12))
             .font(geist(17))
             .foregroundStyle(Color.ink)
             .background(Color.bg.ignoresSafeArea())
             .preferredColorScheme(.dark)
+            .onDisappear {
+                model.hush()   // a line being played stops when the screen closes
+                model.save()   // answers typed into the report
+            }
             .sheet(isPresented: $signing) {
                 SignatureSheet { signature in
                     model.signOff(id, signature)
@@ -417,68 +395,30 @@ struct ReviewSheet: View {
             Color.bg.ignoresSafeArea().onAppear { dismiss() }
         }
     }
+}
 
-    private func part(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+/// What was said on a completed call, recording by recording. A tap on a line plays it from the call's audio.
+struct CallTranscript: View {
+    var call: Call
+    var deleteMark: ((Item.ID) -> Void)? = nil   // when given, a mark slides left to be deleted
+    @Environment(Model.self) private var model
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(title).font(doto(fit(26, 22)))
-            content()
-        }
-    }
-
-    /// The layout of the PCR narrative, chosen here before signing. Picking one rewrites the narrative in it from
-    /// the transcript; one already written for this call comes back at once. The line underneath says what the
-    /// format is, that it is being written, or why it could not be.
-    private func formatChoice(_ call: Call) -> some View {
-        let busy = model.rewriting[call.id]
-        let shown = busy ?? call.narrativeFormat
-        let trouble = model.narrativeTrouble[call.id]
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("Narrative format").font(geist(15, 600)).foregroundStyle(Color.dim)
-            HStack(spacing: 4) {
-                ForEach(NarrativeFormat.allCases) { format in
-                    let on = format == shown
-                    Button { model.setNarrativeFormat(format, for: call.id) } label: {
-                        Text(format.name).font(geist(fit(16, 15), 600)).lineLimit(1)
-                            .foregroundStyle(on ? Color.bg : .dim)
-                            .padding(.horizontal, fit(24, 6))
-                            .frame(maxWidth: phone ? .infinity : nil)
-                            .frame(height: 44)
-                            .background { if on { Capsule().fill(Color.ink).matchedGeometryEffect(id: "format", in: pick) } }   // slides to the new format
-                            .contentShape(Capsule())
-                    }
-                    .accessibilityLabel("\(format.name) narrative: \(format.detail)")
-                    .accessibilityAddTraits(on ? .isSelected : [])
-                }
+            if call.transcript.isEmpty { Text("Nothing was heard on this call.").font(geist(fit(22, 19))).foregroundStyle(Color.dim) }
+            if call.audio != nil {
+                Text("Tap a line to hear it again.").font(geist(15, 500)).foregroundStyle(Color.dim)
             }
-            .buttonStyle(.plain)
-            .padding(4)
-            .background(Color.panel, in: Capsule())
-            .overlay(Capsule().strokeBorder(Color.line))
-            .smooth(shown, 0.28)
-            .disabled(busy != nil)
-            Text(busy.map { "Writing the narrative as \($0.name) on this \(deviceName). The rest of the report is unchanged." } ?? trouble ?? shown.detail)
-                .font(geist(15, 500)).foregroundStyle(busy == nil && trouble == nil ? Color.dim : .yellow)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    /// A handoff line. While it is empty it is drawn in yellow: the AI could not fill it, so it needs the medic.
-    private func field(_ label: String, _ text: Binding<String>, mark: String? = nil, prompt: String = "Add it, or leave blank and ask") -> some View {
-        let missing = text.wrappedValue.isEmpty
-        return VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 12) {
-                Text(missing && mark == nil ? "\(label): not heard" : label).font(geist(15, 600)).foregroundStyle(missing ? Color.yellow : .dim)
-                if let mark {
-                    HStack(spacing: 6) {
-                        Flag(size: 14)
-                        Text(mark).font(doto(15)).foregroundStyle(Color.yellow)
-                    }
-                }
+            if deleteMark != nil, call.markCount > 0 {
+                Text("Dropped a mark by accident? Swipe it left to delete it.").font(geist(15, 500)).foregroundStyle(Color.dim)
             }
-            TextField(label, text: text, prompt: Text(prompt).foregroundColor(.dim))
-                .font(geist(fit(23, 19), 500)).tint(.yellow).frame(height: 49)
-            if missing { DottedRule(color: .yellow) } else { Color.ghost.frame(height: 1) }
+            ForEach(Array(call.recordings.enumerated()), id: \.offset) { n, recording in
+                RecordingHeading(number: n + 1, recording: recording)
+                TranscriptRows(recording: recording, color: .ink, deleteMark: deleteMark,
+                               play: call.audio == nil ? nil : { model.listen(to: $0, in: call) }, playing: model.playing)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -491,6 +431,8 @@ struct TranscriptRows: View {
     var liveLine: UUID? = nil   // the line still being spoken, if any
     var listening = false       // a recording is running: live words are lighter until Whisper's line takes their place
     var deleteMark: ((Item.ID) -> Void)? = nil   // when given, a mark row slides left to be deleted
+    var play: ((Item) -> Void)? = nil            // when given, a tap on a spoken line plays it from the call's audio
+    var playing: Item.ID? = nil                  // the line being played
 
     var body: some View {
         ForEach(recording.items) { item in
@@ -527,8 +469,15 @@ struct TranscriptRows: View {
                         + Text(" ●").font(geist(14)).foregroundColor(.red.opacity(blink(t))), size: fit(26, 21))
                 }
             } else if !item.text.isEmpty {
-                said(item.time, Text(item.text).foregroundColor(tone(of: item)))
+                let row = said(item.time, Text(item.text).foregroundColor(tone(of: item)), playing: item.id == playing)
                     .accessibilityHint(item.unsure ? "Read with care: this line may not be right." : "")
+                if let play {
+                    Button { play(item) } label: { row.contentShape(Rectangle()) }
+                        .buttonStyle(.plain)
+                        .accessibilityHint(item.id == playing ? "Playing. Tap to stop." : "Tap to hear this line.")
+                } else {
+                    row
+                }
             }
             }
             // A new line or mark rises into place; a deleted mark slides away and fades.
@@ -548,9 +497,15 @@ struct TranscriptRows: View {
         return listening && item.source == .whisper ? .ink : color
     }
 
-    private func said(_ time: Date, _ text: Text, size: CGFloat = fit(22, 18)) -> some View {
+    private func said(_ time: Date, _ text: Text, size: CGFloat = fit(22, 18), playing: Bool = false) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: fit(16, 10)) {
-            stamp(time)
+            if playing {
+                // The line being played back shows a speaker where its time was.
+                Image(systemName: "speaker.wave.2.fill").font(.system(size: fit(16, 14), weight: .semibold)).foregroundStyle(Color.ink)
+                    .frame(width: fit(64, 50), alignment: .leading)
+            } else {
+                stamp(time)
+            }
             text.font(geist(size, 500)).lineSpacing(size * 0.35).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -570,61 +525,15 @@ struct RecordingHeading: View {
     }
 }
 
-/// The four parts of the PCR: two columns on iPad, one on iPhone.
-struct PCRView: View {
-    var call: Call
-
-    var body: some View {
-        let parts = call.pcr
-        if phone {
-            VStack(alignment: .leading, spacing: 28) { ForEach(0..<4, id: \.self) { part(parts[$0]) } }
-        } else {
-            Grid(alignment: .topLeading, horizontalSpacing: 48, verticalSpacing: 36) {
-                ForEach([0, 2], id: \.self) { row in
-                    GridRow { ForEach(row..<row + 2, id: \.self) { part(parts[$0]) } }
-                }
-            }
-        }
-    }
-
-    private func part(_ part: (title: String, body: String)) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(part.title).font(geist(15, 600)).foregroundStyle(Color.dim)
-            if part.body.isEmpty {
-                Text("Not heard").font(geist(fit(22, 19))).foregroundStyle(Color.yellow)
-            } else {
-                timed(part.body).font(geist(fit(22, 19))).lineSpacing(9).contentTransition(.opacity)
-            }
-        }
-        .smooth(part.body)   // a narrative rewritten in another format crossfades
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Dims the leading clock time ("14:05 ...") on each line, so the reading stands out. In a narrative laid out
-    /// in a format, section headings are set apart and a section that was not heard is yellow, like any empty line.
-    private func timed(_ body: String) -> Text {
-        body.split(separator: "\n", omittingEmptySubsequences: false).enumerated().reduce(Text("")) { text, line in
-            let isTimed = line.element.count > 6 && line.element.prefix(5).contains(":")
-            let newline = Text(line.offset == 0 ? "" : "\n")
-            if NarrativeFormat.isHeading(line.element) {
-                return text + newline + Text(line.element).font(geist(15, 600)).foregroundColor(.dim)
-            }
-            if line.element == NarrativeFormat.notHeard { return text + newline + Text(line.element).foregroundColor(.yellow) }
-            return isTimed
-                ? text + newline + Text(line.element.prefix(6)).foregroundColor(.dim) + Text(line.element.dropFirst(6))
-                : text + newline + Text(line.element)
-        }
-    }
-}
-
 // MARK: A past call
 
-/// A signed call, opened from Home, read only: transcript, PCR, nurse handoff, then the signature.
+/// A signed call, opened from Home or Reports, read only: its NEMSIS record and signature, and what was said.
 struct PastCallView: View {
     var call: Call
     var edit: (() -> Void)? = nil   // when given, an Edit button sends the call back to be corrected and signed again
+    @Environment(Model.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var copied = false
+    @State private var tab = ReportTab.summary
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -644,64 +553,32 @@ struct PastCallView: View {
                 }
                 Button("Done") { dismiss() }.buttonStyle(Pill(fill: nil, height: 44, size: 16))
             }
+            ReportTabs(tab: $tab)
             ScrollView {
-                VStack(alignment: .leading, spacing: 36) {
-                    part("Transcript") {
-                        if call.transcript.isEmpty { Text("Nothing was heard on this call.").font(geist(fit(22, 19))).foregroundStyle(Color.dim) }
-                        ForEach(Array(call.recordings.enumerated()), id: \.offset) { n, recording in
-                            RecordingHeading(number: n + 1, recording: recording)
-                            TranscriptRows(recording: recording, color: .ink)
+                switch tab {
+                case .summary:
+                    VStack(alignment: .leading, spacing: 36) {
+                        SummaryView(report: call.report ?? [:])
+                        VStack(alignment: .leading, spacing: 18) {
+                            Text("Signature").font(doto(fit(26, 22)))
+                            if call.signature != nil {
+                                SignatureView(signature: call.signature).frame(width: 240, height: 64, alignment: .leading)
+                            }
+                            Text(call.signature == nil ? "Signed \(clock(call.signedAt ?? call.start)), before signatures were required" : "Signed \(clock(call.signedAt ?? call.start))")
+                                .font(geist(15, 500).monospacedDigit()).foregroundStyle(Color.green)
                         }
                     }
-                    part("PCR") { PCRView(call: call) }
-                    part("Nurse handoff") {
-                        line("Patient", call.draft.patient)
-                        line("Latest vitals", call.draft.latestVitals)
-                        line("Given", call.draft.given)
-                        line("Allergies", call.draft.allergies)
-                        ForEach(call.silentMarks) { mark in
-                            line("\(clock(mark.time)), Mark \(mark.mark ?? 0)", call.markNotes[mark.mark ?? 0] ?? "")
-                        }
-                    }
-                    part("Signature") {
-                        if call.signature != nil {
-                            SignatureView(signature: call.signature).frame(width: 240, height: 64, alignment: .leading)
-                        }
-                        Text(call.signature == nil ? "Signed \(clock(call.signedAt ?? call.start)), before signatures were required" : "Signed \(clock(call.signedAt ?? call.start))")
-                            .font(geist(15, 500).monospacedDigit()).foregroundStyle(Color.green)
-                    }
+                case .transcript:
+                    CallTranscript(call: call)
                 }
             }
             .scrollIndicators(.hidden)
-            Button(copied ? "Copied" : "Copy PCR") {
-                UIPasteboard.general.string = call.pcrText
-                copied = true
-                Task {
-                    try? await Task.sleep(for: .seconds(1.8))
-                    copied = false
-                }
-            }
-            .buttonStyle(Pill(grow: true))
         }
         .padding(.horizontal, fit(40, 20)).padding(.top, fit(36, 28)).padding(.bottom, fit(32, 12))
         .font(geist(17))
         .foregroundStyle(Color.ink)
         .background(Color.bg.ignoresSafeArea())
         .preferredColorScheme(.dark)
-    }
-
-    private func part(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(title).font(doto(fit(26, 22)))
-            content()
-        }
-    }
-
-    /// A handoff line as it was signed. One the medic left empty says so.
-    private func line(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(geist(15, 600)).foregroundStyle(Color.dim)
-            Text(value.isEmpty ? "Left blank" : value).font(geist(fit(22, 19))).foregroundStyle(value.isEmpty ? Color.dim : .ink)
-        }
+        .onDisappear { model.hush() }   // a line being played stops when the screen closes
     }
 }

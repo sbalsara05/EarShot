@@ -147,7 +147,7 @@ struct SettingsScreen: View {
             .background(Color.bg, in: Capsule())
             .overlay(Capsule().strokeBorder(Color.line))
             Text(note).font(geist(17)).lineSpacing(4).foregroundStyle(noteColor).padding(.top, 18)
-            Text("Either way the audio is transcribed and drafted the same. The clip's button and marks work with both.")
+            Text("Either way the audio is transcribed the same. The clip's button and marks work with both.")
                 .font(geist(17)).lineSpacing(4).foregroundStyle(Color.dim).padding(.top, 10)
             Text("Transcript by").font(geist(17, 500)).foregroundStyle(Color.dim).padding(.top, 28).padding(.bottom, 8)
             Text(model.recordBy.map { "Whisper \($0)" } ?? "This \(deviceName) only").font(geist(19, 600))

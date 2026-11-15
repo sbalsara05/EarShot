@@ -1,9 +1,10 @@
 import AVFoundation
 import CoreLocation
+import Opus
 import SwiftUI
 
 enum Tab: String {
-    case home = "Home", live = "Live Call", drafts = "AI Drafts", clip = "Clip", settings = "Settings"
+    case home = "Home", live = "Live Call", drafts = "Reports", clip = "Clip", settings = "Settings"
     /// The four in the tab bar. Settings sits apart from them, behind its own button.
     static let main: [Tab] = [.home, .live, .drafts, .clip]
 }
@@ -46,41 +47,33 @@ struct Call: Identifiable, Codable {
     var id = UUID()
     var start = Date()
     var recordings: [Recording] = []
-    var draft = Draft.blank
-    var drafted = false               // the call was completed, so the paperwork exists
-    var draftNote: String?            // why nothing was drafted, when that happens
+    var drafted = false               // the call was completed and its transcript is finished, so it can be signed
+    var report: [String: String]?     // its NEMSIS record: answers by element, like "ePatient.15": "68" (see `Nemsis`)
     var markNotes: [Int: String] = [:]
     var signedAt: Date?
     var signature: Signature?
-    var format: NarrativeFormat?        // how the narrative is laid out. Nil on calls saved before formats existed: plain
-    var narratives: [String: String]?   // the narrative as written in each format so far, by format, so going back to one is instant
     var whisper: Bool?                  // Whisper wrote this call's record. Nil on calls with live words only
+    var audio: [Take]?                  // the call's audio on disk, oldest first. Nil on calls recorded before audio was kept
 
-    var narrativeFormat: NarrativeFormat { format ?? .plain }
-
-    /// What was said, for the drafting model. Empty when nothing but marks is on the call.
-    var spoken: String { recordings.flatMap(\.items).contains { $0.mark == nil && !$0.text.isEmpty } ? transcript : "" }
+    /// Where a line is in the call's audio: the take it was said in, and how many seconds into it.
+    func place(of item: Item) -> (take: Take, from: TimeInterval, to: TimeInterval)? {
+        // Whisper's lines carry the times of their first and last words. A live line only has when its words
+        // first showed, a moment after they were said, so more is played either side of it.
+        let sure = item.source == .whisper
+        guard !item.text.isEmpty, let take = audio?.last(where: { $0.start <= item.time.addingTimeInterval(0.1) }) else { return nil }
+        let from = item.time.timeIntervalSince(take.start) - (sure ? 0.3 : 2)
+        return (take, max(0, from), (sure ? item.end ?? item.time : item.time.addingTimeInterval(6)).timeIntervalSince(take.start) + 0.4)
+    }
 
     var markCount: Int { recordings.reduce(0) { $0 + $1.marks } }
     var seconds: Int { recordings.reduce(0) { $0 + $1.seconds } }
 
-    /// What the drafting model reads: one line per thing said or marked, each with its clock time.
+    /// The call as text: one line per thing said or marked, each with its clock time.
     var transcript: String {
         recordings.flatMap(\.items).filter { $0.mark != nil || $0.place != nil || !$0.text.isEmpty }
             .map { "[\(clock($0.time))] " + ($0.mark.map { "MARK \($0)" } ?? $0.place.map { "LOCATION \($0.line) (\($0.coordinates))" } ?? $0.text) }
             .joined(separator: "\n")
     }
-
-    /// The PCR as titled parts, in the order they are shown.
-    var pcr: [(title: String, body: String)] {
-        [
-            ("Dispatch and scene", draft.dispatchAndScene), ("Vitals by time", draft.vitalsByTime.joined(separator: "\n")),
-            (narrativeFormat == .plain ? "Narrative" : "Narrative, \(narrativeFormat.name)", draft.narrative),
-            ("Treatment by time", draft.treatmentByTime.joined(separator: "\n")),
-        ]
-    }
-
-    var pcrText: String { pcr.map { "\($0.title)\n\($0.body.isEmpty ? "Not heard" : $0.body)" }.joined(separator: "\n\n") }
 
     /// Takes a mark off the call, for one dropped by accident. The marks after it move up a number, so the call
     /// still reads Mark 1, Mark 2, Mark 3 with no gap, and the notes the medic wrote on later marks go with them.
@@ -101,14 +94,6 @@ struct Call: Identifiable, Codable {
         return true
     }
 
-    /// Marks with nothing said within 20 seconds either side. The handoff asks the medic what happened there.
-    var silentMarks: [Item] {
-        recordings.flatMap { recording in
-            recording.items.filter { mark in
-                mark.mark != nil && !recording.items.contains { $0.mark == nil && !$0.text.isEmpty && abs($0.time.timeIntervalSince(mark.time)) < 20 }
-            }
-        }
-    }
 }
 
 @Observable final class Model {
@@ -135,15 +120,16 @@ struct Call: Identifiable, Codable {
     var live = Live.none
 
     var call = Call()                              // the call being worked on
-    var review: [Call] = []                        // completed calls waiting for sign-off, newest first; their reports are drafted or being drafted
+    var review: [Call] = []                        // completed calls waiting for sign-off, newest first
     var past: [Call] = []                          // signed calls, newest first
     var liveLine: UUID?                            // the line still being spoken
     var levels = [Int](repeating: 0, count: 30)    // recent loudness, oldest first
     var problem: String?
-    var rewriting: [Call.ID: NarrativeFormat] = [:]   // calls whose narrative is being written in a newly chosen format
-    var narrativeTrouble: [Call.ID: String] = [:]     // why a call's narrative could not be written in the format last chosen
 
     var recordBy: String?                          // the Whisper model writing the record, like "ems-small.en-ft-q5_0". Nil: live words only
+    var playing: Item.ID?                          // the line being played back from the call's audio
+    @ObservationIgnored private let tape = Tape()
+    @ObservationIgnored private let speaker = Speaker()
     @ObservationIgnored private let transcriber = Transcriber()
     @ObservationIgnored private let scribe = Record()
     @ObservationIgnored private var retired = Set<UUID>()             // live lines Whisper's have replaced; late words for them are dropped
@@ -167,6 +153,9 @@ struct Call: Identifiable, Codable {
             self?.lastClipAudio = Date()
             self?.transcriber.push(buffer)
         }
+        link.onPacket = { [tape] opus, lost in tape.packet(opus, lost: lost) }
+        tape.onTake = { [weak self] id, take in self?.taped(id, take) }
+        speaker.onDone = { [weak self] in self?.playing = nil }
         transcriber.onLevel = { [weak self] level in
             self?.levels.removeFirst()
             self?.levels.append(level)
@@ -176,7 +165,10 @@ struct Call: Identifiable, Codable {
             self?.liveLine = nil
             self?.save()   // each finished line is on disk before the next one starts
         }
-        transcriber.onAudio = { [scribe] pcm in scribe.feed(pcm) }
+        transcriber.onAudio = { [scribe, tape] pcm in
+            scribe.feed(pcm)
+            tape.feed(pcm)
+        }
         scribe.onLines = { [weak self] id, lines, heard in self?.recorded(id, lines, upTo: heard) }
         scribe.load { [weak self] in
             guard let self else { return }
@@ -206,6 +198,46 @@ struct Call: Identifiable, Codable {
             }
         }
         if !call.recordings.isEmpty { call.recordings[call.recordings.count - 1].items.append(Item(id: id, text: text, end: Date())) }
+    }
+
+    /// A stretch of a call's audio has begun to be saved.
+    private func taped(_ id: Call.ID, _ take: Take) {
+        if id == call.id, live != .none {
+            call.audio = (call.audio ?? []) + [take]
+        } else if let i = review.firstIndex(where: { $0.id == id }) {
+            review[i].audio = (review[i].audio ?? []) + [take]
+        } else {
+            return
+        }
+        save()
+    }
+
+    /// Plays a line of a call back from its audio. A second tap on the line stops it.
+    func listen(to item: Item, in call: Call) {
+        let again = playing == item.id
+        hush()
+        guard !again, let place = call.place(of: item) else { return }
+        guard live != .listening else {
+            problem = "Pause the recording to listen back."
+            return
+        }
+        let samples = Tape.samples(of: Tape.url(of: place.take, in: call.id), from: place.from, to: place.to)
+        guard !samples.isEmpty else {
+            problem = "This line's audio could not be found."
+            return
+        }
+        do {
+            try speaker.play(samples)
+            playing = item.id
+        } catch {
+            problem = "The audio could not be played. \(error.localizedDescription)"
+        }
+    }
+
+    /// Stops any line being played back.
+    func hush() {
+        speaker.stop()
+        playing = nil
     }
 
     /// Whisper has read more of a call: the open one, or one waiting for sign-off that it is still catching up on.
@@ -339,8 +371,10 @@ struct Call: Identifiable, Codable {
     private func begin(from source: Transcriber.Source, viaClip: Bool) {
         guard live != .listening, live != .none else { return }
         do {
+            hush()
             try transcriber.start(from: source)
             scribe.begin(for: call.id)
+            tape.begin(for: call.id, from: source)
             if recordBy != nil { call.whisper = true }
             self.source = source
             self.viaClip = viaClip
@@ -371,6 +405,7 @@ struct Call: Identifiable, Codable {
         guard live == .listening else { return }
         transcriber.stop()
         scribe.end()
+        tape.end()
         locator.stop()
         // A recording that ends while the clip is away ended when the clip was last heard, not now.
         call.recordings[call.recordings.count - 1].end = clipReconnecting ? droppedAt : Date()
@@ -475,6 +510,7 @@ struct Call: Identifiable, Codable {
     private func holdForReconnect() {
         transcriber.stop()   // the line being spoken closes; the next words start a new one
         scribe.end()
+        tape.end()
         silenceTimer?.invalidate()
         clipSilent = false
         droppedAt = Date()
@@ -491,6 +527,7 @@ struct Call: Identifiable, Codable {
         do {
             try transcriber.start(from: .clip)
             scribe.begin(for: call.id)
+            tape.begin(for: call.id, from: .clip)
             clipReconnecting = false
             dropTimer?.invalidate()
             watchForSilence()
@@ -564,7 +601,7 @@ struct Call: Identifiable, Codable {
     }
 
     /// Completes the open call: its recording is closed for good and it joins the calls waiting for sign-off, where
-    /// its nurse handoff and PCR are drafted. The Live Call tab is free for a new call straight away.
+    /// it is checked and signed once Whisper has read it to the end. The Live Call tab is free for a new call straight away.
     func complete(show: Bool = true) {
         stop()
         guard live != .none else { return }
@@ -573,91 +610,35 @@ struct Call: Identifiable, Codable {
             return
         }
         var done = call
-        done.draft = .blank
-        done.draftNote = nil
-        done.markNotes = [:]
         done.drafted = false
-        done.format = nil
-        done.narratives = nil
         review.insert(done, at: 0)
         call = Call()
         live = .none
         problem = nil   // any recording trouble belonged to the call that just ended
         if show { tab = .drafts }
         save()
-        draft(done.id)
+        finishUp(done.id)
     }
 
-    /// Writes the reports for a call waiting for sign-off. Until it finishes, the call shows as "Writing reports".
-    private func draft(_ id: Call.ID) {
-        guard let waiting = review.first(where: { $0.id == id }) else { return }
-        let wanted = waiting.format ?? NarrativeFormat.preferred   // the format the crew last chose
+    /// Waits for Whisper to read a completed call to its end, then marks it ready to sign. Until then the call
+    /// shows as "Finishing transcript".
+    /// ponytail: this is where the step that fills the NEMSIS fields from the transcript goes, once it is built.
+    private func finishUp(_ id: Call.ID) {
         Task { @MainActor in
-            // The reports are written from the finished record, so Whisper reads the call to its end first.
             await scribe.finished(id)
             guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // removed meanwhile
             Self.settle(&review[i])
-            save()
-            let transcript = review[i].spoken
-            var written = Draft.blank, note: String?
-            var format = NarrativeFormat.plain, narratives: [String: String] = [:]
-            do {
-                written = try await writeDraft(from: transcript)
-                narratives[NarrativeFormat.plain.rawValue] = written.narrative
-                // The draft comes with a plain narrative. If the crew uses another format, write it in that one too.
-                // If that fails the plain one stands, and the format can still be chosen before signing.
-                if wanted != .plain, let laidOut = try? await writeNarrative(from: transcript, as: wanted) {
-                    narratives[wanted.rawValue] = laidOut
-                    written.narrative = laidOut
-                    format = wanted
-                }
-            } catch {
-                note = "Nothing was drafted. \(error.localizedDescription) Fill in the lines yourself."
-            }
-            guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // signed or removed meanwhile
-            review[i].draft = written
-            review[i].draftNote = note
-            review[i].format = format
-            review[i].narratives = narratives
             review[i].drafted = true
             save()
         }
     }
 
-    /// The medic chose a narrative format for a call waiting for sign-off. A format already written for this call is
-    /// shown at once; a new one is written from the transcript first. The choice becomes the crew's format for the
-    /// next calls. If it cannot be written, the call keeps the narrative it had and `narrativeTrouble` says why.
-    func setNarrativeFormat(_ format: NarrativeFormat, for id: Call.ID) {
-        guard let i = review.firstIndex(where: { $0.id == id }), review[i].drafted, rewriting[id] == nil else { return }
-        narrativeTrouble[id] = nil
-        guard format != review[i].narrativeFormat else { return }
-        // Keep the narrative being left, so coming back to its format brings back the same words.
-        var narratives = review[i].narratives ?? [:]
-        if !review[i].draft.narrative.isEmpty { narratives[review[i].narrativeFormat.rawValue] = review[i].draft.narrative }
-        review[i].narratives = narratives
-        if let written = narratives[format.rawValue] {
-            show(written, as: format, for: id)
-            return
-        }
-        rewriting[id] = format
-        let transcript = review[i].spoken
-        Task { @MainActor in
-            defer { rewriting[id] = nil }
-            do {
-                show(try await writeNarrative(from: transcript, as: format), as: format, for: id)
-            } catch {
-                narrativeTrouble[id] = "The narrative could not be written as \(format.name), so it is unchanged. \(error.localizedDescription)"
-            }
-        }
-    }
-
-    private func show(_ narrative: String, as format: NarrativeFormat, for id: Call.ID) {
-        guard let i = review.firstIndex(where: { $0.id == id }) else { return }   // signed or removed meanwhile
-        review[i].narratives = (review[i].narratives ?? [:]).merging([format.rawValue: narrative]) { _, new in new }
-        review[i].draft.narrative = narrative
-        review[i].format = format
-        NarrativeFormat.preferred = format
-        save()
+    /// The medic typed an answer into a call's report. An emptied answer is forgotten. Saved when the report closes.
+    func answer(_ element: String, _ value: String, in id: Call.ID) {
+        guard let i = review.firstIndex(where: { $0.id == id }) else { return }
+        var report = review[i].report ?? [:]
+        report[element] = value.isEmpty ? nil : value
+        review[i].report = report
     }
 
     /// Signing off moves a call from the ones waiting to the signed ones.
@@ -671,7 +652,7 @@ struct Call: Identifiable, Codable {
     }
 
     /// Deletes a mark from a call waiting for sign-off. It was dropped by accident, for example by a click on the clip
-    /// that was not meant. The handoff line that asked what happened at that mark goes with it.
+    /// that was not meant.
     func deleteMark(_ id: Item.ID, in call: Call.ID) {
         guard let i = review.firstIndex(where: { $0.id == call }), review[i].removeMark(id) else { return }
         save()
@@ -690,6 +671,8 @@ struct Call: Identifiable, Codable {
     /// Throws away the call being recorded, with its recording.
     func discard() {
         stop()
+        hush()
+        Tape.erase(call.id)
         call = Call()
         problem = nil
         live = .none
@@ -697,6 +680,8 @@ struct Call: Identifiable, Codable {
     }
 
     func delete(at offsets: IndexSet) {
+        hush()
+        for i in offsets { Tape.erase(past[i].id) }
         past.remove(atOffsets: offsets)
         save()
     }
@@ -746,8 +731,9 @@ struct Call: Identifiable, Codable {
                     live = open.recordings.isEmpty ? .ready : .between
                 }
             }
-            // Drafting that was cut off when the app closed is started again.
-            for waiting in review where !waiting.drafted { draft(waiting.id) }
+            Tape.keep(only: Set((past + review).map(\.id) + [call.id]))
+            // A call whose transcript was still being finished when the app closed is taken up again.
+            for waiting in review where !waiting.drafted { finishUp(waiting.id) }
         } catch {
             // Never overwrite a file that could not be read: set it aside so its calls can be recovered.
             let aside = Self.file.deletingLastPathComponent().appending(path: "calls-unreadable-\(Int(Date().timeIntervalSince1970)).json")
@@ -760,29 +746,61 @@ struct Call: Identifiable, Codable {
     /// Runs at launch in debug builds. Fails loudly if the transcript or saving rules break.
     static func selfCheck() {
         let t = Date()
+        // Call audio: two seconds of a tone, saved as an .opus file with a lost packet in it, comes back packet for
+        // packet, and half a second asked for from the middle is half a second of samples.
+        let pcm = AVAudioFormat(opusPCMFormat: .int16, sampleRate: 16000, channels: 1)!
+        let scratch = URL.temporaryDirectory.appending(path: "selfcheck.opus")
+        FileManager.default.createFile(atPath: scratch.path, contents: nil)
+        if let encoder = try? Opus.Encoder(format: pcm, application: .voip), let handle = try? FileHandle(forWritingTo: scratch),
+           let writer = try? OggOpus.Writer(handle), let buffer = AVAudioPCMBuffer(pcmFormat: pcm, frameCapacity: 320) {
+            buffer.frameLength = 320
+            var wrote: [Data] = []
+            for n in 0..<100 {
+                for i in 0..<320 { buffer.int16ChannelData?[0][i] = Int16(8000 * sin(Double(n * 320 + i) * 0.17)) }
+                var bytes = [UInt8](repeating: 0, count: 1275)
+                let size = (try? encoder.encode(buffer, to: &bytes)) ?? 0
+                wrote.append(n == 40 ? OggOpus.gap(like: Data(bytes[0..<size])) : Data(bytes[0..<size]))
+                try? writer.add(wrote[n])
+            }
+            try? writer.close()
+            assert((try? Data(contentsOf: scratch)).map(OggOpus.packets) == wrote)
+            assert(wrote.allSatisfy { OggOpus.length(of: $0) == 960 } && wrote[40].count == 1)
+            assert(Tape.samples(of: scratch, from: 0.5, to: 1).count == 8000 && Tape.samples(of: scratch, from: 1.9, to: 5).count == 1600)
+            assert(Tape.samples(of: scratch, from: 3, to: 4).isEmpty)
+        } else {
+            assertionFailure("the call audio check could not start")
+        }
+        try? FileManager.default.removeItem(at: scratch)
+        var taped = Call()
+        taped.audio = [Take(file: "a.opus", start: t), Take(file: "b.opus", start: t.addingTimeInterval(60))]
+        let late = taped.place(of: Item(time: t.addingTimeInterval(70), text: "x", end: t.addingTimeInterval(72), source: .whisper))
+        assert(late?.take.file == "b.opus" && abs((late?.from ?? 0) - 9.7) < 0.001 && abs((late?.to ?? 0) - 12.4) < 0.001)
+        assert(taped.place(of: Item(time: t.addingTimeInterval(1), text: "x"))?.from == 0 && taped.place(of: Item(time: t, mark: 1)) == nil)
+        assert(Call().place(of: Item(time: t, text: "x")) == nil)
         var call = Call()
         call.markNotes = [2: "Moved to stretcher"]
         call.signature = .typed("A. Medic")
         call.recordings = [Recording(items: [
             Item(time: t, text: "BP 120 over 80"), Item(time: t.addingTimeInterval(5), mark: 1), Item(time: t.addingTimeInterval(90), mark: 2),
         ])]
-        assert(call.silentMarks.map(\.mark) == [2])
         assert(call.markCount == 2 && call.transcript.contains("] BP 120 over 80\n[") && call.transcript.hasSuffix("MARK 2"))
         assert(span(59) == "59 sec" && span(125) == "2 min" && plural(1, "mark") == "1 mark" && plural(2, "mark") == "2 marks")
         // A call must survive being written to disk and read back.
         let copy = try? JSONDecoder().decode(Call.self, from: JSONEncoder().encode(call))
         assert(copy?.id == call.id && copy?.transcript == call.transcript && copy?.markNotes[2] == "Moved to stretcher")
         if case .typed("A. Medic")? = copy?.signature {} else { assertionFailure("the signature was lost on disk") }
-        // A narrative format lays its sections out under lettered headings, and says so when one was not heard.
-        let soap = NarrativeFormat.soap.layOut(["Chest pain for 30 minutes.", "BP 150/90.", "", "Aspirin given."])
-        assert(soap.hasPrefix("S - SUBJECTIVE:\nChest pain for 30 minutes.\n\nO - OBJECTIVE:") && soap.contains("A - ASSESSMENT:\nNot heard.\n\nP - PLAN:"))
-        assert(NarrativeFormat.isHeading("R - RX (TREATMENT):") && !NarrativeFormat.isHeading("BP 150/90.") && !NarrativeFormat.isHeading("Not heard."))
-        assert(NarrativeFormat.allCases.allSatisfy { $0 == .plain || $0.sections.map { $0.prefix(1) }.joined() == $0.name })
-        // A call saved before formats existed has none, and reads as plain. A chosen format survives being saved.
-        assert(copy?.narrativeFormat == .plain && call.pcr[2].title == "Narrative")
-        call.format = .draatt
-        let formatted = try? JSONDecoder().decode(Call.self, from: JSONEncoder().encode(call))
-        assert(formatted?.narrativeFormat == .draatt && formatted?.pcr[2].title == "Narrative, DRAATT")
+        // The NEMSIS record: every element is listed once, an answer survives being saved, and a call is named from it.
+        assert(Set(Nemsis.sections.flatMap(\.fields).map(\.id)).count == Nemsis.fieldCount && Nemsis.sections.allSatisfy { s in s.fields.allSatisfy { $0.id.hasPrefix(s.id + ".") } })
+        call.report = ["ePatient.15": "68", "ePatient.13": "Male", "eVitals.06": " "]
+        let reported = try? JSONDecoder().decode(Call.self, from: JSONEncoder().encode(call))
+        assert(reported?.report?["ePatient.15"] == "68" && copy?.report == nil)
+        assert(Nemsis.filled(call.report ?? [:]) == 2 && Nemsis.title(of: call.report ?? [:]) == "68 years, Male" && Nemsis.title(of: [:]) == nil)
+        // A call saved by a build that wrote nurse and PCR drafts still opens.
+        if var old = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(call)) as? [String: Any] {
+            old["draft"] = ["patient": "x", "narrative": "y"]
+            old["format"] = "soap"
+            assert((try? JSONDecoder().decode(Call.self, from: JSONSerialization.data(withJSONObject: old)))?.id == call.id)
+        }
         // The clip's messages must be readable exactly as firmware/BLUETOOTH.md gives them.
         // The level meter: silence and a quiet room show nothing, quiet speech still moves it, and louder never reads lower.
         func tone(_ amplitude: Float) -> AVAudioPCMBuffer {
@@ -806,13 +824,13 @@ struct Call: Identifiable, Codable {
         assert(marker?.type == "marker" && marker?.source == "button")
         assert(hello.flatMap(ClipIntent.init) == .hello(codec: "opus") && marker.flatMap(ClipIntent.init) == .mark)
 
-        // Location: under 50 metres from the last reported place is the same place; a location row reaches the drafting model.
+        // Location: under 50 metres from the last reported place is the same place; a location row is part of the call's text.
         let here = CLLocation(latitude: 42.3398, longitude: -71.0892)
         assert(Locator.isNew(here, since: nil) && !Locator.isNew(CLLocation(latitude: 42.3400, longitude: -71.0892), since: here))
         assert(Locator.isNew(CLLocation(latitude: 42.3410, longitude: -71.0892), since: here))
         var located = Call()
         located.recordings = [Recording(items: [Item(place: Place(latitude: 42.3398, longitude: -71.0892, accuracy: 8, street: "360 Huntington Ave", city: "Boston", state: "MA", zip: "02115"))])]
-        assert(located.transcript.contains("LOCATION 360 Huntington Ave, Boston, MA 02115 (42.33980, -71.08920)") && located.spoken.isEmpty)
+        assert(located.transcript.contains("LOCATION 360 Huntington Ave, Boston, MA 02115 (42.33980, -71.08920)"))
         // Whisper's lines take the place of live words once it has read past them. Live words it wrote nothing for stay,
         // marked; the line being spoken and lines it has not reached are left alone; a mark stays between its words.
         func line(_ from: Double, _ to: Double, _ text: String) -> Item {
@@ -1057,7 +1075,7 @@ struct HomeScreen: View {
                                 Button("Discard call", role: .destructive) { model.discard() }
                                 Button("Keep call", role: .cancel) {}
                             } message: {
-                                Text("Its recordings and drafts will be deleted. This cannot be undone.")
+                                Text("Its recordings will be deleted. This cannot be undone.")
                             }
                     }
                 }
@@ -1118,7 +1136,7 @@ extension HomeScreen {
     var headline: CGFloat { fit(176, hasCalls ? 72 : 104) }
 
     /// Three calls at most. The ones still waiting for sign-off come first, since they need the medic; any room
-    /// left goes to the most recent signed calls. The rest are on the AI Drafts tab.
+    /// left goes to the most recent signed calls. The rest are on the Reports tab.
     var recentCalls: some View {
         let waiting = Array(model.review.prefix(3))
         let signed = Array(model.past.prefix(3 - waiting.count))
