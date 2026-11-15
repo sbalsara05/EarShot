@@ -10,6 +10,7 @@
 		12BED601B5A2FBAA83CEE7C9 /* ClipLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1C4DF6D9C6C2838DCE2131 /* ClipLink.swift */; };
 		2B776581A3212DEB28068FB6 /* Signature.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18D9A4B70409523880ADDFC /* Signature.swift */; };
 		2E556F79F578B919FF9E53D5 /* Geist.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7A685C4A23F84CC7A60156D5 /* Geist.ttf */; };
+		2E63F27F6B52D30836E8764E /* Fill in Frameworks */ = {isa = PBXBuildFile; productRef = 68B584F2F50F9E326CDD8F75 /* Fill */; };
 		30CEFA5FD86855E6A4D334D0 /* Opus in Frameworks */ = {isa = PBXBuildFile; productRef = DBB1AB318544ADCB7B997967 /* Opus */; };
 		3A435505B7D0B4A4AA3BFCA4 /* CallScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06F5CBCC5993083EA36925D /* CallScreens.swift */; };
 		3BFB747F26F82F6AC4447545 /* ggml-ems-small.en-ft-q5_0.bin in Resources */ = {isa = PBXBuildFile; fileRef = 266EE8812D8801590E020024 /* ggml-ems-small.en-ft-q5_0.bin */; };
@@ -20,7 +21,9 @@
 		878D9EE1C03D34879ABDA544 /* Doto.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3B54A6FD7A9CDD5B33581F98 /* Doto.ttf */; };
 		8A68780E5B2AB6DD36343945 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEAF53ABFAEC8D34367ACFED /* Components.swift */; };
 		8B0D82104F53169D3CC0E274 /* Transcribe in Frameworks */ = {isa = PBXBuildFile; productRef = 8CBACC738A817B7FE1671D26 /* Transcribe */; };
+		9376D5258AB0CB09133FA2A4 /* Report.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA6A129670AB5F0EEB9DF60 /* Report.swift */; };
 		98D9917AA5FEBB8DCBF2E47D /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6044FC5A766E4F76FE91669 /* Settings.swift */; };
+		BEAC43C8BA612AC6BA4227B7 /* Qwen3.5-4B-Q4_K_M.gguf in Resources */ = {isa = PBXBuildFile; fileRef = FDEB2A0F7C4BE03B6A64B8C7 /* Qwen3.5-4B-Q4_K_M.gguf */; };
 		D4CAEFADF2070B5754D7B127 /* Location.swift in Sources */ = {isa = PBXBuildFile; fileRef = F949E326EC948B2E81BC2143 /* Location.swift */; };
 		EC0B6D8828F1FD049A500416 /* Nemsis.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68C2DC29C1BDF3C5C9035CEF /* Nemsis.swift */; };
 		F99AAED5F7FFCD762B42F0A1 /* EarshotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65190926CE10F1D5F4E2A146 /* EarshotApp.swift */; };
@@ -34,6 +37,8 @@
 		6273D0FDC33DD6934E7BA9C0 /* OggOpus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OggOpus.swift; sourceTree = "<group>"; };
 		65190926CE10F1D5F4E2A146 /* EarshotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarshotApp.swift; sourceTree = "<group>"; };
 		68C2DC29C1BDF3C5C9035CEF /* Nemsis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nemsis.swift; sourceTree = "<group>"; };
+		6C6A3B978ED460B47BEC325B /* fill */ = {isa = PBXFileReference; lastKnownFileType = folder; name = fill; path = ../fill; sourceTree = SOURCE_ROOT; };
+		6EA6A129670AB5F0EEB9DF60 /* Report.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Report.swift; sourceTree = "<group>"; };
 		7A685C4A23F84CC7A60156D5 /* Geist.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Geist.ttf; sourceTree = "<group>"; };
 		A18D9A4B70409523880ADDFC /* Signature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Signature.swift; sourceTree = "<group>"; };
 		CA1C4DF6D9C6C2838DCE2131 /* ClipLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipLink.swift; sourceTree = "<group>"; };
@@ -45,6 +50,7 @@
 		F06F5CBCC5993083EA36925D /* CallScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallScreens.swift; sourceTree = "<group>"; };
 		F4E08A9751FED1591579C347 /* Record.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Record.swift; sourceTree = "<group>"; };
 		F949E326EC948B2E81BC2143 /* Location.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Location.swift; sourceTree = "<group>"; };
+		FDEB2A0F7C4BE03B6A64B8C7 /* Qwen3.5-4B-Q4_K_M.gguf */ = {isa = PBXFileReference; path = "Qwen3.5-4B-Q4_K_M.gguf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +60,7 @@
 			files = (
 				30CEFA5FD86855E6A4D334D0 /* Opus in Frameworks */,
 				8B0D82104F53169D3CC0E274 /* Transcribe in Frameworks */,
+				2E63F27F6B52D30836E8764E /* Fill in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -81,6 +88,7 @@
 				6273D0FDC33DD6934E7BA9C0 /* OggOpus.swift */,
 				F4E08A9751FED1591579C347 /* Record.swift */,
 				082FE432C47C08908302588B /* Recorder.swift */,
+				6EA6A129670AB5F0EEB9DF60 /* Report.swift */,
 				D6044FC5A766E4F76FE91669 /* Settings.swift */,
 				A18D9A4B70409523880ADDFC /* Signature.swift */,
 				DE322DADE30C1D569C905AE0 /* Tape.swift */,
@@ -101,6 +109,7 @@
 		88D37AC54B0D51722EF4C16F /* Packages */ = {
 			isa = PBXGroup;
 			children = (
+				6C6A3B978ED460B47BEC325B /* fill */,
 				D9BDBB8447B6FDB6CF54FD76 /* transcribe */,
 			);
 			name = Packages;
@@ -111,18 +120,28 @@
 			children = (
 				4274C0A85F145B1D7BDC10FD /* Earshot */,
 				EBAFFCEEF08FDDFEC432C5AA /* Models */,
+				E200BDEC25EC3329D6746C66 /* Models */,
 				88D37AC54B0D51722EF4C16F /* Packages */,
 				373449AA16D97653E16A2BF2 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		EBAFFCEEF08FDDFEC432C5AA /* Models */ = {
+		E200BDEC25EC3329D6746C66 /* Models */ = {
 			isa = PBXGroup;
 			children = (
 				266EE8812D8801590E020024 /* ggml-ems-small.en-ft-q5_0.bin */,
 			);
 			name = Models;
 			path = ../transcribe/Models;
+			sourceTree = "<group>";
+		};
+		EBAFFCEEF08FDDFEC432C5AA /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				FDEB2A0F7C4BE03B6A64B8C7 /* Qwen3.5-4B-Q4_K_M.gguf */,
+			);
+			name = Models;
+			path = ../fill/Models;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -145,6 +164,7 @@
 			packageProductDependencies = (
 				DBB1AB318544ADCB7B997967 /* Opus */,
 				8CBACC738A817B7FE1671D26 /* Transcribe */,
+				68B584F2F50F9E326CDD8F75 /* Fill */,
 			);
 			productName = Earshot;
 			productReference = D417CBEB2EF403CE505CD8E9 /* Earshot.app */;
@@ -176,6 +196,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				8AAD084B90EC5FFC0067D78E /* XCRemoteSwiftPackageReference "swift-opus" */,
+				0F4425FD037E4B1F15EB1160 /* XCLocalSwiftPackageReference "../fill" */,
 				12B49A31D947A83259670E18 /* XCLocalSwiftPackageReference "../transcribe" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -195,6 +216,7 @@
 			files = (
 				878D9EE1C03D34879ABDA544 /* Doto.ttf in Resources */,
 				2E556F79F578B919FF9E53D5 /* Geist.ttf in Resources */,
+				BEAC43C8BA612AC6BA4227B7 /* Qwen3.5-4B-Q4_K_M.gguf in Resources */,
 				3BFB747F26F82F6AC4447545 /* ggml-ems-small.en-ft-q5_0.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -237,6 +259,7 @@
 				84501C3B6DEEBFD6DDA82D4A /* OggOpus.swift in Sources */,
 				3E7BD88A2B7D7295DDF2A177 /* Record.swift in Sources */,
 				5EA0B41AFDD9F5C0689BA5CC /* Recorder.swift in Sources */,
+				9376D5258AB0CB09133FA2A4 /* Report.swift in Sources */,
 				98D9917AA5FEBB8DCBF2E47D /* Settings.swift in Sources */,
 				2B776581A3212DEB28068FB6 /* Signature.swift in Sources */,
 				47F49904FE7908C5B0A0431C /* Tape.swift in Sources */,
@@ -433,6 +456,10 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		0F4425FD037E4B1F15EB1160 /* XCLocalSwiftPackageReference "../fill" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../fill;
+		};
 		12B49A31D947A83259670E18 /* XCLocalSwiftPackageReference "../transcribe" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../transcribe;
@@ -451,6 +478,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		68B584F2F50F9E326CDD8F75 /* Fill */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Fill;
+		};
 		8CBACC738A817B7FE1671D26 /* Transcribe */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Transcribe;

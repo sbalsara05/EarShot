@@ -1,4 +1,5 @@
 import SwiftUI
+import Fill
 
 // MARK: Live Call
 
@@ -306,6 +307,7 @@ struct DraftsScreen: View {
 /// One completed call in a list. A waiting one carries a yellow dot and says what it needs; a signed one says
 /// when it was signed. Used on Reports and on Home.
 struct CallRow: View {
+    @Environment(Model.self) private var model
     var call: Call
     var waiting: Bool
     var open: () -> Void
@@ -321,7 +323,7 @@ struct CallRow: View {
                 }
                 Spacer()
                 if waiting {
-                    Text(call.drafted ? "Check and sign" : "Finishing transcript").font(geist(15, 600)).foregroundStyle(Color.yellow)
+                    Text(call.drafted ? "Check and sign" : model.filling[call.id] != nil ? "Filling report" : "Finishing transcript").font(geist(15, 600)).foregroundStyle(Color.yellow)
                 } else {
                     Text("Signed \(clock(call.signedAt ?? call.start))").font(geist(15, 500).monospacedDigit()).foregroundStyle(Color.green)
                 }
@@ -353,7 +355,7 @@ struct ReviewSheet: View {
                 HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(day(call.start)).font(doto(fit(40, 28))).lineLimit(1).minimumScaleFactor(0.6)
-                        Text(call.drafted ? "Not signed. Check the report, correct anything, then sign." : "Finishing the transcript on this \(deviceName).")
+                        Text(call.drafted ? "Not signed. Check the report, correct anything, then sign." : model.filling[id] != nil ? "Filling the report from the transcript on this \(deviceName)." : "Finishing the transcript on this \(deviceName).")
                             .font(geist(15, 500)).foregroundStyle(call.drafted ? Color.dim : .yellow)
                     }
                     Spacer()
@@ -363,16 +365,17 @@ struct ReviewSheet: View {
                 ScrollView {
                     switch tab {
                     case .summary:
-                        SummaryView(report: call.report ?? [:]) { model.answer($0, $1, in: id) }
+                        SummaryView(call: call, status: model.filling[id], edit: { model.answer($0, $1, in: id) }, hear: { model.listen(to: $0, in: call) }, playing: model.playing,
+                                    refill: call.drafted ? { Task { await model.fill(id) } } : nil)
                     case .transcript:
                         CallTranscript(call: call, deleteMark: { model.deleteMark($0, in: id) }).smooth(call.markCount)
                     }
                 }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
-                Button(call.drafted ? "Sign off" : "Finishing the transcript") { signing = true }
+                Button(model.filling[id] != nil ? "Filling the report" : call.drafted ? "Sign off" : "Finishing the transcript") { signing = true }
                     .buttonStyle(Pill(grow: true))
-                    .disabled(!call.drafted)
+                    .disabled(!call.drafted || model.filling[id] != nil)
             }
             .padding(.horizontal, fit(40, 20)).padding(.top, fit(36, 28)).padding(.bottom, fit(32, 12))
             .font(geist(17))
@@ -534,6 +537,7 @@ struct PastCallView: View {
     @Environment(Model.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var tab = ReportTab.summary
+    @State private var xml: URL?   // the report as a NEMSIS file, written when the screen opens
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -544,6 +548,10 @@ struct PastCallView: View {
                         .font(geist(15, 500)).foregroundStyle(Color.dim)
                 }
                 Spacer()
+                if let xml {
+                    ShareLink(item: xml) { Text(phone ? "XML" : "Export XML") }.buttonStyle(Pill(fill: nil, height: 44, size: 16))
+                        .accessibilityLabel("Export the report as NEMSIS XML")
+                }
                 if let edit {
                     Button("Edit") {
                         edit()
@@ -558,7 +566,7 @@ struct PastCallView: View {
                 switch tab {
                 case .summary:
                     VStack(alignment: .leading, spacing: 36) {
-                        SummaryView(report: call.report ?? [:])
+                        SummaryView(call: call, hear: { model.listen(to: $0, in: call) }, playing: model.playing)
                         VStack(alignment: .leading, spacing: 18) {
                             Text("Signature").font(doto(fit(26, 22)))
                             if call.signature != nil {
@@ -579,6 +587,10 @@ struct PastCallView: View {
         .foregroundStyle(Color.ink)
         .background(Color.bg.ignoresSafeArea())
         .preferredColorScheme(.dark)
-        .onDisappear { model.hush() }   // a line being played stops when the screen closes
+        .onAppear { xml = call.xml(model.standing) }
+        .onDisappear {
+            model.hush()   // a line being played stops when the screen closes
+            if let xml { try? FileManager.default.removeItem(at: xml) }   // the exported copy is not left lying about
+        }
     }
 }

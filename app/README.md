@@ -3,8 +3,10 @@
 The iPhone and iPad app. It records a call, shows a live transcript with marks, and lays the call out as
 a NEMSIS report for the medic to check, correct and sign.
 
-Before the first build, run `../transcribe/fetch.sh` once. It builds whisper.cpp and pulls the Whisper model from
-Git LFS; Whisper writes the transcript (see [`transcribe/README.md`](../transcribe/README.md)).
+Before the first build, run `../transcribe/fetch.sh` and `../fill/fetch.sh` once each. The first builds whisper.cpp
+and pulls the Whisper model from Git LFS; Whisper writes the transcript (see [`transcribe/README.md`](../transcribe/README.md)).
+The second builds llama.cpp and downloads the 2.7 GB language model that fills the report from the transcript
+(see [`fill/README.md`](../fill/README.md)). Without the second the app still builds, and reports are filled by hand.
 
 It connects to the clip over Bluetooth, following [`firmware/BLUETOOTH.md`](../firmware/BLUETOOTH.md).
 The link lives in `Earshot/ClipLink.swift`. It has been run against the ESP32-S3 Feather stand-in on an
@@ -100,13 +102,16 @@ To keep your team and bundle identifier between regenerations, set `DEVELOPMENT_
    on in the same recording. A recording keeps going when the app is not on screen.
 3. **Complete**, and confirm, closes the recording for good. The call moves to the Reports tab under
    **Needs sign-off**, and a new call can start straight away.
-4. Open a waiting call. **Summary** is its NEMSIS report: a card for each section (Times, Patient, Scene,
-   Situation, History, Vitals, Medications, Procedures, Disposition, Narrative), each field named by its
-   NEMSIS element. Nothing fills the fields in yet (the step that reads the transcript into them is not
-   built), so each reads n/a until it is typed in.
+4. When the transcript is finished the report is filled from it, on the device: a minute or two, shown as
+   "Filling report". Then open the call. **Summary** is its NEMSIS report: a card for each section (Times, Patient,
+   Scene, Situation, History, Vitals, Medications, Procedures, Disposition, Narrative), with a card for each set
+   of vitals, each medication and each procedure. An answer the transcript gave carries a small time chip: tap it
+   to see the line it came from and hear it. Yellow answers are the ones to look at. Anything can be typed over,
+   and what could not be found reads n/a. **Fill again** reads the transcript again; answers you typed stay.
 5. **Transcript** is what was said. Tap a line to hear it again. A mark dropped by accident (a stray click
    on the clip) can be deleted here: swipe it left and tap **Delete**. The marks after it move up a number.
 6. **Sign off** by drawing a signature or typing your name. The call moves to **Signed**.
+7. On a signed call, **Export XML** shares the report as a NEMSIS 3.5.1 file.
 
 The Reports tab shows how many calls are waiting for sign-off, and lists every signed call below
 them. Home lists three calls: those waiting for sign-off first, then the most recent signed ones. Signed calls open with a tap and delete with a swipe; **Edit**
@@ -149,7 +154,8 @@ xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS
 | `Earshot/EarshotApp.swift` | App state, saving to disk, the header and tabs, Home, Clip |
 | `Earshot/CallScreens.swift` | Live Call, Reports, and the past-call screen |
 | `Earshot/Recorder.swift` | Audio to live words (microphone or clip) |
-| `Earshot/Nemsis.swift` | The NEMSIS report: its sections and fields, and the Summary screen |
+| `Earshot/Nemsis.swift` | The Summary screen: the NEMSIS report as cards |
+| `Earshot/Report.swift` | Filling a call's report from its transcript, and exporting it as XML (the work is in `fill/`) |
 | `Earshot/Record.swift` | Whisper's side of a call: the same audio, read into the lines that replace the live words |
 | `Earshot/Tape.swift` | A call's audio on disk: saving it as it arrives, reading a part back, playing a line |
 | `Earshot/OggOpus.swift` | The .opus file format the audio is saved in |
@@ -171,9 +177,10 @@ xcodebuild -project Earshot.xcodeproj -scheme Earshot -destination 'platform=iOS
 - **Audio.** Each call's audio is kept on the device beside its transcript, about 15 MB an hour from the clip
   and 8 MB from the microphone, and is deleted with the call. It is never sent anywhere. Nothing reads it again
   yet: it is there to be heard, and for a later step to re-read a line it doubts.
-- **The report.** No field is filled from the transcript yet, no XML is written, and each call holds one set
-  of vitals, one medication and one procedure. The field numbers should be checked against the NEMSIS 3.5
-  data dictionary before XML is produced.
+- **The report.** Filled from the transcript, but only what was plainly said and can be traced to a line; the
+  rest is for the medic. The XML passes the NEMSIS schema; fields NEMSIS wants as codes (impression, procedure,
+  allergies) go out as "not recorded". See [`fill/README.md`](../fill/README.md) for what was measured and what was not.
+  The fill has been run on a Mac and in the simulator's screens, not yet timed on an iPad.
 - **Languages.** English (US) only.
 
 Calls are stored only on the device, encrypted while it is locked, and kept out of iCloud backups.
