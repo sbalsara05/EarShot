@@ -32,7 +32,6 @@ public enum Nemsis {
 
     public struct Section: Identifiable {
         public let id: String       // the NEMSIS section, like "ePatient"
-        public let emoji: String
         public let title: String
         public var repeats = false  // more than one set in a call
         public let fields: [Field]
@@ -42,7 +41,7 @@ public enum Nemsis {
     public static let doseUnits = ["mg", "mcg", "g", "mL", "L", "L/min", "units", "puffs"]
 
     public static let sections: [Section] = [
-        Section(id: "eTimes", emoji: "🕐", title: "Times", fields: [
+        Section(id: "eTimes", title: "Times", fields: [
             Field("eTimes.03", "Unit notified"),
             Field("eTimes.05", "En route", .time, key: "en_route", "the crew says they are on the way to the call"),
             Field("eTimes.06", "Arrived on scene", .time, key: "on_scene", "the crew says they have arrived at the scene"),
@@ -50,7 +49,7 @@ public enum Nemsis {
             Field("eTimes.09", "Left scene", .time, key: "left_scene", "the crew says they are leaving the scene or starting transport"),
             Field("eTimes.11", "Arrived at destination", .time, key: "at_destination", "the crew says they have arrived at the hospital (\"we're at the E D\")"),
         ]),
-        Section(id: "ePatient", emoji: "🧑", title: "Patient", fields: [
+        Section(id: "ePatient", title: "Patient", fields: [
             Field("ePatient.03", "First name", key: "first_name", "the patient's first name"),
             Field("ePatient.02", "Last name", key: "last_name", "the patient's last name"),
             Field("ePatient.15", "Age", .number(1...120), key: "age", "the patient's age, as a number"),
@@ -58,12 +57,12 @@ public enum Nemsis {
             Field("ePatient.25", "Sex", .choice(["Female", "Male"]), key: "sex", "the patient's sex, when said (male, female, man, woman)"),
             Field("ePatient.17", "Date of birth"),
         ]),
-        Section(id: "eScene", emoji: "📍", title: "Scene", fields: [
+        Section(id: "eScene", title: "Scene", fields: [
             Field("eScene.09", "Location type", .choice(["Home", "Street or highway", "Business", "Healthcare facility", "School", "Public place", "Other"]), key: "location_type", "the kind of place the patient was found"),
             Field("eScene.15", "Street address"), Field("eScene.17", "City"), Field("eScene.18", "State"), Field("eScene.19", "ZIP code"),
             Field("eScene.06", "Patients at scene", .choice(["Single", "Multiple", "None"])),
         ]),
-        Section(id: "eSituation", emoji: "🩺", title: "Situation", fields: [
+        Section(id: "eSituation", title: "Situation", fields: [
             Field("eSituation.04", "Complaint", key: "complaint", "the main complaint, in the words used"),
             Field("eSituation.05", "Duration of complaint", .number(1...365), key: "duration", "how long today's complaint has lasted, as the number said (\"an hour\" is 1)"),
             Field("eSituation.06", "Duration units", .choice(["Seconds", "Minutes", "Hours", "Days", "Weeks", "Months", "Years"]), key: "duration_units", "the unit of that duration"),
@@ -72,13 +71,13 @@ public enum Nemsis {
             Field("eSituation.07", "Where on the body", .choice(["Abdomen", "Back", "Chest", "Extremity-Lower", "Extremity-Upper", "General/Global", "Genitalia", "Head", "Neck"]), key: "body_area", "where on the body the complaint is"),
             Field("eSituation.11", "Primary impression", .judged, key: "impression", "what the crew says they think is wrong (their working diagnosis)"),
         ]),
-        Section(id: "eHistory", emoji: "📋", title: "History", fields: [
+        Section(id: "eHistory", title: "History", fields: [
             Field("eHistory.06", "Medication allergies", key: "allergies", "what the patient is allergic to, or \"none\" if they say no allergies"),
             Field("eHistory.12", "Current medications", key: "home_medications", "medicines the patient takes at home"),
             Field("eHistory.08", "Medical and surgical history", key: "history", "illnesses and operations the patient had before today, not today's complaint"),
             Field("eHistory.17", "Alcohol or drug use"),
         ]),
-        Section(id: "eVitals", emoji: "❤️", title: "Vitals", repeats: true, fields: [
+        Section(id: "eVitals", title: "Vitals", repeats: true, fields: [
             Field("eVitals.01", "Taken at", .time),
             Field("eVitals.06", "Systolic BP", .number(30...300), key: "bp_systolic", "blood pressure, the first (higher) number"),
             Field("eVitals.07", "Diastolic BP", .number(10...200), key: "bp_diastolic", "blood pressure, the second (lower) number"),
@@ -90,24 +89,24 @@ public enum Nemsis {
             Field("eVitals.23", "Glasgow Coma Score", .number(3...15), key: "gcs", "GCS total"),
             Field("eVitals.27", "Pain, 0 to 10", .number(0...10), key: "pain", "pain score out of ten"),
         ]),
-        Section(id: "eMedications", emoji: "💊", title: "Medications given", repeats: true, fields: [
+        Section(id: "eMedications", title: "Medications given", repeats: true, fields: [
             Field("eMedications.03", "Medication", .drug), Field("eMedications.05", "Dose", .number(0.001...10000)),
             Field("eMedications.06", "Dose units", .choice(doseUnits)), Field("eMedications.04", "Route", .choice(routes)),
             Field("eMedications.01", "Given at", .time), Field("eMedications.07", "Response", .choice(["Improved", "Unchanged", "Worse"])),
         ]),
-        Section(id: "eProcedures", emoji: "🛠️", title: "Procedures", repeats: true, fields: [
+        Section(id: "eProcedures", title: "Procedures", repeats: true, fields: [
             Field("eProcedures.03", "Procedure", .judged), Field("eProcedures.01", "Done at", .time),
             Field("eProcedures.05", "Attempts", .number(1...10)), Field("eProcedures.06", "Successful", .choice(["Yes", "No"])),
             Field("eProcedures.08", "Response", .choice(["Improved", "Unchanged", "Worse"])),
         ]),
-        Section(id: "eDisposition", emoji: "🏥", title: "Disposition", fields: [
+        Section(id: "eDisposition", title: "Disposition", fields: [
             Field("eDisposition.01", "Destination", key: "destination", "the hospital or place the patient is taken to"),
             Field("eDisposition.30", "Transport disposition"),
             Field("eDisposition.17", "Transport mode from scene", .choice(["Emergent", "Non-emergent"]), key: "transport_mode", "Emergent if lights and sirens are said; Non-emergent if said to be without"),
             Field("eDisposition.19", "Acuity at release", .choice(["Critical", "Emergent", "Lower acuity"])),
             Field("eDisposition.20", "Why this destination"),
         ]),
-        Section(id: "eNarrative", emoji: "📝", title: "Narrative", fields: [
+        Section(id: "eNarrative", title: "Narrative", fields: [
             Field("eNarrative.01", "Patient care report narrative", long: true),
         ]),
     ]

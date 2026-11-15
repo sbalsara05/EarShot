@@ -59,7 +59,6 @@ struct SummaryView: View {
         VStack(alignment: .leading, spacing: fit(20, 16)) {
             let filled = Nemsis.filled(report), check = (call.evidence ?? [:]).values.filter(\.check).count
             HStack(spacing: 10) {
-                Text("🚑").font(.system(size: 22))
                 Text("NEMSIS report").font(geist(17, 600))
                 Spacer()
                 if check > 0 { Text("\(check) to check").font(geist(15, 600).monospacedDigit()).foregroundStyle(Color.yellow) }
@@ -93,7 +92,6 @@ struct SummaryView: View {
         let filled = Nemsis.filled(report, in: section, set: set)
         return VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(section.emoji).font(.system(size: fit(28, 24)))
                 Text(section.repeats && Nemsis.sets(of: section, in: report) > 1 ? "\(section.title) \(set)" : section.title).font(doto(fit(26, 22)))
                 Text(section.id).font(geist(14, 500).monospaced()).foregroundStyle(Color.mid)
                 Spacer()
