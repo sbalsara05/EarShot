@@ -21,6 +21,7 @@
 		878D9EE1C03D34879ABDA544 /* Doto.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3B54A6FD7A9CDD5B33581F98 /* Doto.ttf */; };
 		8A68780E5B2AB6DD36343945 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEAF53ABFAEC8D34367ACFED /* Components.swift */; };
 		8B0D82104F53169D3CC0E274 /* Transcribe in Frameworks */ = {isa = PBXBuildFile; productRef = 8CBACC738A817B7FE1671D26 /* Transcribe */; };
+		92B27624E4B7F918E22ED332 /* Sample.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD7215CC47F4A18869177004 /* Sample.swift */; };
 		9376D5258AB0CB09133FA2A4 /* Report.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA6A129670AB5F0EEB9DF60 /* Report.swift */; };
 		98D9917AA5FEBB8DCBF2E47D /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6044FC5A766E4F76FE91669 /* Settings.swift */; };
 		BEAC43C8BA612AC6BA4227B7 /* Qwen3.5-4B-Q4_K_M.gguf in Resources */ = {isa = PBXBuildFile; fileRef = FDEB2A0F7C4BE03B6A64B8C7 /* Qwen3.5-4B-Q4_K_M.gguf */; };
@@ -42,6 +43,7 @@
 		7A685C4A23F84CC7A60156D5 /* Geist.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Geist.ttf; sourceTree = "<group>"; };
 		A18D9A4B70409523880ADDFC /* Signature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Signature.swift; sourceTree = "<group>"; };
 		CA1C4DF6D9C6C2838DCE2131 /* ClipLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipLink.swift; sourceTree = "<group>"; };
+		CD7215CC47F4A18869177004 /* Sample.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sample.swift; sourceTree = "<group>"; };
 		D417CBEB2EF403CE505CD8E9 /* Earshot.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Earshot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D6044FC5A766E4F76FE91669 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
 		D9BDBB8447B6FDB6CF54FD76 /* transcribe */ = {isa = PBXFileReference; lastKnownFileType = folder; name = transcribe; path = ../transcribe; sourceTree = SOURCE_ROOT; };
@@ -89,6 +91,7 @@
 				F4E08A9751FED1591579C347 /* Record.swift */,
 				082FE432C47C08908302588B /* Recorder.swift */,
 				6EA6A129670AB5F0EEB9DF60 /* Report.swift */,
+				CD7215CC47F4A18869177004 /* Sample.swift */,
 				D6044FC5A766E4F76FE91669 /* Settings.swift */,
 				A18D9A4B70409523880ADDFC /* Signature.swift */,
 				DE322DADE30C1D569C905AE0 /* Tape.swift */,
@@ -260,6 +263,7 @@
 				3E7BD88A2B7D7295DDF2A177 /* Record.swift in Sources */,
 				5EA0B41AFDD9F5C0689BA5CC /* Recorder.swift in Sources */,
 				9376D5258AB0CB09133FA2A4 /* Report.swift in Sources */,
+				92B27624E4B7F918E22ED332 /* Sample.swift in Sources */,
 				98D9917AA5FEBB8DCBF2E47D /* Settings.swift in Sources */,
 				2B776581A3212DEB28068FB6 /* Signature.swift in Sources */,
 				47F49904FE7908C5B0A0431C /* Tape.swift in Sources */,

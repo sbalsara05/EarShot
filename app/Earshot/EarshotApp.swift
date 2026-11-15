@@ -191,6 +191,9 @@ struct Call: Identifiable, Codable {
         locator.onLevel = { [weak self] level in self?.location = level }
         location = locator.level
         load()
+        #if DEBUG
+        seedSample()   // one made-up call with a full transcript, to try the report on (see Sample.swift)
+        #endif
         link.resume()
         locator.ask()   // asked at first launch, before any call, so a recording never stops for the question
     }
