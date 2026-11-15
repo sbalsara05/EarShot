@@ -2,7 +2,7 @@ import Foundation
 
 /// Audio in, lines out, for one unbroken stretch of audio.
 ///
-///   feed(audio) ─► Chunker cuts at pauses ─► Whisper reads each chunk ─► onLines(new lines, heard up to)
+///   feed(audio) ─► Level turns quiet audio up ─► Chunker cuts at pauses ─► Whisper reads each chunk ─► onLines(new lines, heard up to)
 ///
 /// Feed it 16 kHz mono audio from any thread as it arrives, then call `finish`. Lines come back on `queue`, each
 /// timed in milliseconds since the first sample. `heard up to` says how far into the audio Whisper has got, so
@@ -14,6 +14,9 @@ public final class Scribe {
     public var queue = DispatchQueue.main
 
     private let whisper: Whisper
+    /// Turn quiet audio up before it is chunked and read (see `Level`). Set before the first `feed`.
+    public var levels = true
+    private var level = Level()
     private let chunker = Chunker()
     private let work = DispatchQueue(label: "earshot.scribe")           // the chunker
     private let reading = DispatchQueue(label: "earshot.scribe.whisper") // Whisper, which is slow
@@ -24,7 +27,7 @@ public final class Scribe {
 
     public func feed(_ pcm: [Int16]) {
         work.async {
-            for chunk in self.chunker.push(pcm) { self.read(chunk) }
+            for chunk in self.chunker.push(self.levels ? self.level.apply(pcm) : pcm) { self.read(chunk) }
             // Nothing being said and nothing waiting: say how far the silence has got, about once a second.
             let heard = self.chunker.heardMs
             if !self.chunker.isSpeaking, self.waiting == 0, heard - self.lastQuiet >= 1000 {

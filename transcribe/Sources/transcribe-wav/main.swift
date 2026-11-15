@@ -3,12 +3,12 @@ import Transcribe
 
 // Transcribes a WAV file the way the app transcribes a call, and prints the lines.
 //
-//   swift run -c release transcribe-wav Models/ggml-small.en.bin call.wav [--beam 1] [--no-drugs] [--no-retries] [--cpu] [--json]
+//   swift run -c release transcribe-wav Models/ggml-small.en.bin call.wav [--beam 1] [--no-drugs] [--no-retries] [--no-level] [--cpu] [--json]
 
 let arguments = CommandLine.arguments.dropFirst()
 let paths = arguments.filter { !$0.hasPrefix("--") }
 guard paths.count == 2 else {
-    print("usage: transcribe-wav <model.bin> <audio.wav> [--beam N] [--no-drugs] [--no-retries] [--cpu] [--json]")
+    print("usage: transcribe-wav <model.bin> <audio.wav> [--beam N] [--no-drugs] [--no-retries] [--no-level] [--cpu] [--json]")
     exit(2)
 }
 func flag(_ name: String) -> Bool { arguments.contains(name) }
@@ -56,6 +56,7 @@ do {
 
     let scribe = Scribe(whisper)
     scribe.queue = DispatchQueue(label: "out")
+    scribe.levels = !flag("--no-level")
     var all: [Line] = [], spent = 0.0, slowest = 0.0
     scribe.onLines = { lines, _ in all += lines }
     scribe.onTimed = { length, took in spent += took; slowest = max(slowest, took / length) }

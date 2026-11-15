@@ -68,6 +68,7 @@ It says how sure Whisper was, not whether it was right.
 | Model | small.en fine-tuned on EMS speech, on the graphics chip | `Models/`, `Whisper.swift` |
 | Candidates kept while writing (`beam`) | 5 | `Whisper.swift` |
 | A chunk ends after | 0.7 s of quiet, or 25 s | `Chunker.swift` |
+| Quiet audio is turned up | until speech peaks near -9 dB, up to 36 dB, without lifting room noise past -47 dB | `Level.swift` |
 | Quietest sound sent to Whisper | about -55 dB, and 4 dB over the room | `Chunker.swift` |
 | Drug names leaned toward | 321, in `Resources/drugs.txt` | `Bias.swift` |
 
