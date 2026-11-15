@@ -38,6 +38,8 @@ final class FillTests: XCTestCase {
         XCTAssertNil(filled.answers["eVitals.14"], "2 liters is not a breathing rate")
         XCTAssertNil(filled.answers["eVitals.06"], "120 was never said")
         XCTAssertEqual(filled.answers["eVitals.01"]?.value, "10:00:10")
+        XCTAssertEqual(Check.text(NSNumber(value: 98.4)), "98.4")
+        XCTAssertEqual(Check.text(NSNumber(value: 158.0)), "158")
         XCTAssertEqual(filled.dropped.count, 6)   // five items, and the script writes no narrative
     }
 

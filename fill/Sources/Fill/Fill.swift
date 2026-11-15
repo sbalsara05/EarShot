@@ -387,7 +387,7 @@ enum Check {
 
     static func text(_ number: NSNumber) -> String {
         let value = number.doubleValue
-        return value == value.rounded() ? String(Int(value)) : String(value)
+        return value == value.rounded() ? String(Int(value)) : String(format: "%g", value)   // "98.4", not "98.40000000000001"
     }
 }
 
