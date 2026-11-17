@@ -28,7 +28,7 @@ namespace earshot {
 
 enum class ClipState : uint8_t { NotListening, Listening };
 
-enum class Input : uint8_t { ShortPress, LongPress, DoubleTap, CmdStart, CmdStop, CmdMarker, CmdFind };
+enum class Input : uint8_t { ShortPress, LongPress, DoubleTap, CmdStart, CmdStop, CmdMarker, CmdFind, CmdReportReady };
 
 enum class Effect : uint8_t {
   None,

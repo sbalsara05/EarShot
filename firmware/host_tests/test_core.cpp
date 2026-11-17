@@ -363,14 +363,40 @@ class FakeHal : public Hal {
   int beeps = 0;              // times a beep started
   int beeps_with_mic_on = 0;  // must stay 0: a beep would land in the recording
   int beep_dones = 0;
+  std::vector<std::pair<uint32_t, uint32_t> > segs;  // every beep: when it began, how long it lasted
+  uint32_t beep_began = 0;
   void beep(bool on) override {
     if (on && !beeping) {
       ++beeps;
       if (mic_on) ++beeps_with_mic_on;
+      beep_began = now;
     }
+    if (!on && beeping) segs.push_back(std::make_pair(beep_began, now - beep_began));
     beeping = on;
   }
+  // The beeps that began at or after `from`, as lengths in ms.
+  std::vector<uint32_t> beepsSince(uint32_t from) const {
+    std::vector<uint32_t> out;
+    for (size_t i = 0; i < segs.size(); ++i)
+      if (segs[i].first >= from) out.push_back(segs[i].second);
+    return out;
+  }
   void beepDone() override { ++beep_dones; }
+  // voice lines: a board with recordings, each 800 ms long, or (by default) none
+  bool has_sounds = false;
+  std::vector<Sound> played;
+  int played_with_mic_on = 0;  // must stay 0
+  uint32_t soundMs(Sound) override { return has_sounds ? 800 : 0; }
+  void playSound(Sound s) override {
+    played.push_back(s);
+    if (mic_on) ++played_with_mic_on;
+  }
+  uint32_t warmup = 0;  // what beepPrepare() reports: the Atom's speaker needs a moment after power-up
+  int prepares = 0;
+  uint32_t beepPrepare() override {
+    ++prepares;
+    return warmup;
+  }
   bool networkUp() override { return net; }
   void log(const char*) override {}
 };
@@ -383,7 +409,13 @@ struct AppRig {
   // answers. Here the stand-in app ends a recording that is running and starts one otherwise.
   bool app_answers;
   uint32_t toggles_seen;
-  AppRig() : app(hal, tr, ClipConfig(), 99), app_answers(true), toggles_seen(0) {}
+  // Sounds are off unless a test is about them, so the other tests see only what they test.
+  explicit AppRig(bool sounds = false) : app(hal, tr, config(sounds), 99), app_answers(true), toggles_seen(0) {}
+  static ClipConfig config(bool sounds) {
+    ClipConfig c;
+    c.sounds = sounds;
+    return c;
+  }
 
   void run(uint32_t ms) {
     uint32_t end = hal.now + ms;
@@ -1409,6 +1441,303 @@ static void test_wifi_link_loss_kind() {
   }
 }
 
+// Beep lengths within one tick (10 ms here) of what was asked.
+static bool near(uint32_t got, uint32_t want) { return got + 20 >= want && got <= want + 20; }
+
+static void test_sounds() {
+  printf("sounds: pairing, connected, recording, mark, paused, recording stopped\n");
+  {  // pairing mode: a short beep every second until a tablet connects, then one long beep
+    AppRig r(true);
+    r.tr.up = false;                                     // no tablet yet
+    r.app.begin();
+    r.run(3000);
+    std::vector<uint32_t> b = r.hal.beepsSince(0);
+    CHECK(b.size() >= 2 && b.size() <= 4);               // about one a second
+    for (size_t i = 0; i < b.size(); ++i) CHECK(near(b[i], 120));
+    CHECK(r.hal.led == LedColor::Off || r.hal.led == LedColor::Blue);
+    r.tr.up = true;                                      // the tablet appears
+    uint32_t t = r.hal.now;
+    r.run(4000);
+    CHECK(r.app.linkOpen());
+    b = r.hal.beepsSince(t);
+    bool long_beep = false;
+    for (size_t i = 0; i < b.size(); ++i) long_beep = long_beep || near(b[i], 1500);
+    CHECK(long_beep);
+    uint32_t after = r.hal.now;
+    r.run(3000);                                         // connected: quiet
+    CHECK(r.hal.beepsSince(after).empty());
+    CHECK(!r.hal.beeping);
+  }
+  {  // the whole flow
+    AppRig r(true);
+    r.app.begin();
+    r.run(2500);                                         // connected, and the long beep is over
+    CHECK(r.app.linkOpen());
+    r.longPress();                                       // no recording yet: no sound from the clip
+    uint32_t t = r.hal.now;
+    r.command("start");                                  // the app opens a call and starts it
+    CHECK(r.app.state() == ClipState::Listening);
+    CHECK(!r.hal.mic_on);                                // the microphone waits for the beeps
+    r.run(1000);
+    std::vector<uint32_t> b = r.hal.beepsSince(t);
+    CHECK_EQ(b.size(), 2u);                              // long, then short
+    CHECK(b.size() == 2 && near(b[0], 600) && near(b[1], 150));
+    CHECK(r.hal.mic_on);                                 // and then it comes on
+    CHECK_EQ(r.hal.mic_starts, 1);
+
+    r.run(400);
+    int frames = r.audioFrames();
+    t = r.hal.now;
+    r.shortPress();                                      // a mark: one short beep
+    r.run(300);
+    CHECK_EQ(r.app.stats().markers, 1);
+    b = r.hal.beepsSince(t);
+    CHECK(b.size() == 1 && near(b[0], 150));
+    CHECK(r.hal.mic_on);                                 // back on after it
+    CHECK_EQ(r.hal.mic_starts, 2);
+    r.run(300);
+    CHECK(r.audioFrames() > frames);
+
+    t = r.hal.now;
+    r.doubleTap();                                       // the app answers "stop": two short
+    CHECK(r.app.state() == ClipState::NotListening);
+    r.run(500);
+    b = r.hal.beepsSince(t);
+    CHECK(b.size() == 2 && near(b[0], 150) && near(b[1], 150));
+    CHECK(!r.hal.mic_on);
+
+    t = r.hal.now;
+    r.doubleTap();                                       // "start" again, after a pause: short, long
+    r.run(1000);
+    b = r.hal.beepsSince(t);
+    CHECK(b.size() == 2 && near(b[0], 150) && near(b[1], 600));
+    CHECK(r.hal.mic_on);
+
+    t = r.hal.now;
+    r.longPress();                                       // a hold while recording: long, short
+    CHECK(r.app.state() == ClipState::NotListening);
+    CHECK(!r.hal.mic_on);
+    r.run(1000);
+    b = r.hal.beepsSince(t);
+    CHECK(b.size() == 2 && near(b[0], 600) && near(b[1], 150));
+    CHECK_EQ(r.textCount("\"target\":\"call\""), 2);
+    t = r.hal.now;
+    r.command("stop");                                   // the app's own stop that follows: silent
+    r.run(1000);
+    CHECK(r.hal.beepsSince(t).empty());
+    CHECK_EQ(r.hal.beeps_with_mic_on, 0);
+    t = r.hal.now;
+    r.command("start");                                  // after a hold, a start is a new recording
+    r.run(1000);
+    b = r.hal.beepsSince(t);
+    CHECK(b.size() == 2 && near(b[0], 600) && near(b[1], 150));
+    r.command("stop");                                   // paused...
+    r.run(600);
+    r.longPress();                                       // ...then a hold ends the call:
+    r.run(1500);                                         // long, short ("call ended")
+    t = r.hal.now;
+    r.command("start");                                  // so this is a new recording too
+    r.run(1000);
+    b = r.hal.beepsSince(t);
+    CHECK(b.size() == 2 && near(b[0], 600) && near(b[1], 150));
+  }
+  {  // a speaker that needs warming up: each pattern waits for it, and plays in full
+    AppRig r(true);
+    r.hal.warmup = 200;
+    r.app.begin();
+    r.run(3000);
+    r.command("start");
+    r.run(1500);
+    CHECK(r.hal.mic_on);
+    uint32_t clicked = r.hal.now;
+    r.shortPress();                                      // the mark that used to be lost
+    r.run(500);
+    std::vector<uint32_t> b = r.hal.beepsSince(clicked);
+    CHECK(b.size() == 1 && near(b[0], 150));             // the whole short beep
+    bool waited = false;
+    for (size_t i = 0; i < r.hal.segs.size(); ++i)
+      if (r.hal.segs[i].first >= clicked) {
+        waited = true;
+        // a single click is recognised once the double-click window has closed, then the warm-up
+        CHECK(r.hal.segs[i].first >= clicked + 200);
+        break;
+      }
+    CHECK(waited);
+    CHECK(r.hal.mic_on);                                 // back on after
+    CHECK_EQ(r.hal.beeps_with_mic_on, 0);
+    uint32_t t = r.hal.now;
+    r.doubleTap();                                       // pause: both short beeps heard
+    r.run(800);
+    b = r.hal.beepsSince(t);
+    CHECK(b.size() == 2 && near(b[0], 150) && near(b[1], 150));
+  }
+  {  // a mark from the tablet's screen is silent and leaves the microphone alone
+    AppRig r(true);
+    r.app.begin();
+    r.run(2500);
+    r.command("start");
+    r.run(1000);
+    uint32_t t = r.hal.now;
+    int stops = r.hal.mic_stops;
+    r.command("marker");
+    r.run(300);
+    CHECK_EQ(r.app.stats().markers, 1);
+    CHECK(r.hal.beepsSince(t).empty());
+    CHECK_EQ(r.hal.mic_stops, stops);
+  }
+  {  // the mark is stamped with the moment of the click, not after the beep
+    AppRig r(true);
+    r.app.begin();
+    r.run(2500);
+    r.command("start");
+    r.run(1500);
+    uint32_t clicked = r.hal.now;
+    r.shortPress();
+    std::vector<WsFrame> f = r.frames();
+    for (size_t i = 0; i < f.size(); ++i) {
+      if (f[i].opcode != 0x1 || f[i].payload.find("\"type\":\"marker\"") == std::string::npos) continue;
+      size_t at = f[i].payload.find("\"t_ms\":");
+      uint32_t t = (uint32_t)strtoul(f[i].payload.c_str() + at + 7, NULL, 10);
+      CHECK(t >= clicked && t <= clicked + 60);  // debounce and one frame
+    }
+  }
+  {  // a tablet lost out of range is not pairing mode: no beeps
+    AppRig r(true);
+    r.app.begin();
+    r.run(2500);
+    r.tr.drop();
+    r.tr.up = false;
+    uint32_t t = r.hal.now;
+    r.run(3000);
+    CHECK(!r.app.linkOpen());
+    CHECK(r.hal.beepsSince(t).empty());
+  }
+  {  // sounds off: silent, and the microphone starts at once
+    AppRig r(false);
+    r.app.begin();
+    r.run(2500);
+    r.command("start");
+    CHECK(r.hal.mic_on);
+    r.command("stop");
+    CHECK_EQ(r.hal.beeps, 0);
+  }
+}
+
+static void test_voice_lines() {
+  printf("voice lines: what the clip says, in order, never into a recording\n");
+  {  // a whole call
+    AppRig r(true);
+    r.hal.has_sounds = true;
+    r.app.begin();
+    r.run(2500);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::ClipConnected);
+    r.hal.played.clear();
+
+    r.longPress();                                       // no call open: "new call"...
+    r.command("start");                                  // ...then the app starts it: "recording"
+    r.run(2500);
+    CHECK(r.hal.played.size() == 2 && r.hal.played[0] == Sound::NewCall && r.hal.played[1] == Sound::Recording);
+    CHECK(r.app.state() == ClipState::Listening);
+    CHECK(r.hal.mic_on);                                 // on once both have played
+    r.hal.played.clear();
+
+    r.shortPress();                                      // "marked"
+    r.run(1200);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::Marked);
+    CHECK(r.hal.mic_on);
+    r.hal.played.clear();
+
+    r.doubleTap();                                       // the app answers stop: "paused"
+    r.run(1200);
+    r.doubleTap();                                       // and start: "recording"
+    r.run(1500);
+    CHECK(r.hal.played.size() == 2 && r.hal.played[0] == Sound::Paused && r.hal.played[1] == Sound::Recording);
+    r.hal.played.clear();
+
+    r.longPress();                                       // a hold while recording: "call ended"
+    r.run(1500);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::CallEnded);
+    CHECK(!r.hal.mic_on);
+    r.hal.played.clear();
+
+    r.longPress();                                       // the next hold opens a call: "new call"
+    r.run(1500);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::NewCall);
+    r.command("start");
+    r.run(1500);
+    r.command("stop");                                   // paused...
+    r.run(1500);
+    r.hal.played.clear();
+    r.longPress();                                       // ...a hold while paused ends the call
+    r.run(1500);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::CallEnded);
+    r.hal.played.clear();
+
+    r.command("report_ready");                           // the app's report: said now
+    r.run(1500);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::ReportReady);
+    CHECK_EQ(r.hal.played_with_mic_on, 0);
+  }
+  {  // "report ready" during a recording waits until it stops
+    AppRig r(true);
+    r.hal.has_sounds = true;
+    r.app.begin();
+    r.run(2500);
+    r.command("start");
+    r.run(1500);
+    r.hal.played.clear();
+    int stops = r.hal.mic_stops;
+    r.command("report_ready");
+    r.run(2000);
+    CHECK(r.hal.played.empty());                         // not while recording
+    CHECK_EQ(r.hal.mic_stops, stops);
+    r.command("stop");
+    r.run(2500);
+    CHECK(r.hal.played.size() == 2 && r.hal.played[0] == Sound::Paused && r.hal.played[1] == Sound::ReportReady);
+  }
+  {  // the link: lost, back, disconnected; and presses with no tablet
+    AppRig r(true);
+    r.hal.has_sounds = true;
+    r.app.begin();
+    r.run(2500);
+    r.hal.played.clear();
+    r.tr.drop();                                         // out of range
+    r.tr.up = false;
+    r.run(1500);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::ClipLost);
+    r.hal.played.clear();
+    r.doubleTap();                                       // presses with no tablet
+    r.run(1500);
+    r.longPress();
+    r.run(1500);
+    CHECK(r.hal.played.size() == 2 && r.hal.played[0] == Sound::NoTablet && r.hal.played[1] == Sound::NoTablet);
+    CHECK_EQ(r.app.stats().call_toggles, 0);             // and nothing was sent
+    r.hal.played.clear();
+    r.tr.up = true;                                      // back in range
+    r.run(4000);
+    CHECK(r.app.linkOpen());
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::ClipBack);
+  }
+  {  // a deliberate disconnect (packet link: the tablet hangs up)
+    FakeHal hal;
+    hal.has_sounds = true;
+    FakeLink link;
+    ClipConfig cfg;
+    cfg.sounds = true;
+    ClipApp app(hal, link, cfg);
+    app.begin();
+    link.connect();
+    for (int i = 0; i < 300; ++i) app.tick();
+    CHECK(!hal.played.empty() && hal.played.back() == Sound::ClipConnected);
+    link.disconnect();
+    for (int i = 0; i < 300; ++i) app.tick();
+    CHECK(hal.played.back() == Sound::ClipDisconnected);
+    link.connect();
+    for (int i = 0; i < 300; ++i) app.tick();
+    CHECK(hal.played.back() == Sound::ClipConnected);    // not "back": it left on purpose
+  }
+}
+
 int main() {
   test_button();
   test_fsm();
@@ -1424,6 +1753,8 @@ int main() {
   test_voice_clip();
   test_end_call();
   test_find();
+  test_sounds();
+  test_voice_lines();
   test_light();
   test_wifi_link_loss_kind();
   printf("\n%d checks, %d failed\n", g_checks, g_failed);

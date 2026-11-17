@@ -16,6 +16,27 @@
 
 namespace earshot {
 
+// What the clip says when something happens (ClipConfig::sounds). A board with recordings
+// plays the voice line (cueSound); one without plays the beep pattern (cueSteps), or nothing.
+// Pairing mode and "find" are not here: they are always beeps.
+enum class Cue : uint8_t {
+  Connected,     // a tablet connected                          "Clip connected"     long beep
+  Back,          // the tablet is back after it was lost        "Clip back"          long beep
+  Disconnected,  // the tablet disconnected on purpose          "Clip disconnected"
+  Lost,          // the tablet dropped out of range             "Clip lost, not recording"
+  Recording,     // a recording started                         "Recording"          long, short
+  Resumed,       // a paused recording carried on               "Recording"          short, long
+  Paused,        // the tablet paused the recording             "Paused"             two short
+  Mark,          // a single click dropped a mark               "Marked"             one short
+  NewCall,       // a hold with no call open                    "New call"
+  CallEnded,     // a hold with a call open                     "Call ended..."      long, short
+  ReportReady,   // the tablet says the call's report is ready  "Report ready to review"
+  NoTablet       // a press while no tablet is connected        "No tablet. Nothing recorded."
+};
+Sound cueSound(Cue cue);
+// The beep pattern as durations in ms, beep first, alternating beep and silence. count 0: none.
+const uint16_t* cueSteps(Cue cue, size_t* count);
+
 struct ClipConfig {
   const char* gateway_host;     // gateway_* and the two timeouts apply to the Wi-Fi link only
   uint16_t gateway_port;
@@ -24,6 +45,7 @@ struct ClipConfig {
   bool poll_button;             // false: the platform detects gestures itself and calls onButtonEvent()
   bool gateway_enabled;         // false: standalone, never tries to reach a tablet (e.g. on wokwi.com)
   AudioEncoder* encoder;        // how frames are encoded for the link; null = uncompressed PCM
+  bool sounds;                  // beep for pairing mode, a connection and each button gesture (Cue); off by default
   uint32_t reconnect_ms;
   uint32_t handshake_timeout_ms;
   uint32_t marker_flash_ms;
@@ -42,6 +64,7 @@ struct ClipConfig {
         poll_button(true),
         gateway_enabled(true),
         encoder(NULL),
+        sounds(false),
         reconnect_ms(2000),
         handshake_timeout_ms(3000),
         marker_flash_ms(200),
@@ -63,9 +86,10 @@ struct ClipStats {
   uint32_t call_toggles;     // holds passed to the tablet: toggle the call
   uint32_t finds;            // times the tablet asked the clip to make itself findable
   uint32_t captures;         // times capture was started
+  uint32_t cues;             // beep patterns played (Cue)
   ClipStats()
       : frames_captured(0), frames_sent(0), frames_dropped(0), audio_bytes_sent(0), markers(0),
-        toggles(0), call_toggles(0), finds(0), captures(0) {}
+        toggles(0), call_toggles(0), finds(0), captures(0), cues(0) {}
 };
 
 class ClipApp {
@@ -104,6 +128,11 @@ class ClipApp {
   void serviceAudio(uint32_t now);
   void serviceFind(uint32_t now);
   void setBeep(bool on);
+  void playCue(Cue cue);
+  void startNextCue();
+  void serviceSound(uint32_t now);
+  bool pairing() const;
+  void startMic();
   void refreshLed(uint32_t now, bool force);
 
   Hal& hal_;
@@ -128,6 +157,17 @@ class ClipApp {
   bool finding_;          // blinking (and beeping) so the clip can be found
   uint32_t find_start_;
   bool beep_on_;
+  bool mic_on_;           // the microphone is running (it is off while a cue plays)
+  bool cue_on_;           // a cue is playing
+  bool cue_played_;       // its recording has been started (after the speaker warmed up)
+  uint32_t cue_ms_;       // the recording's length; 0: it is a beep pattern
+  Cue cue_;
+  uint32_t cue_start_;
+  std::deque<Cue> cues_;  // waiting their turn: each plays in full, in order
+  bool resumable_;        // the last stop was a pause, so the next start resumes
+  bool call_open_;        // the clip's best guess: a call is open on the tablet
+  bool was_lost_;         // the tablet dropped out of range, so its return is "back"
+  bool report_waiting_;   // "report ready" arrived while recording: said once the mic is off
   LedColor led_;
 };
 
