@@ -123,9 +123,13 @@ The clip does its half: it starts advertising again the instant a connection dro
 `hello` again on every new subscription. The app's half:
 
 - **A Disconnect button should call `cancelPeripheralConnection`.** The clip sees that as a
-  deliberate goodbye and goes back to its slow blue "ready to connect" blink. If the iPad
-  just goes out of range, the clip flashes red until it is back. Do not reconnect
-  automatically after a disconnect the user asked for.
+  deliberate goodbye ("Clip disconnected"). Do not reconnect automatically after a disconnect
+  the user asked for.
+- **After any disconnect the clip is in pairing mode and advertising** (the slow blue blink),
+  deliberate or out of range. If it was recording, it keeps recording for 30 s (flashing red),
+  the same time the app holds a recording open: back within that, the recording carries on.
+  After that the clip stops by itself, and on reconnecting the app gets `consent` `stopped`
+  with `"source":"clip"`, then `state` with `listening: false`.
 - **On an unexpected disconnect, reconnect at once.** In `didDisconnectPeripheral`, call `connect` on the same
   peripheral. That request does not time out, so the link returns by itself when the clip is
   back in range or powered again.

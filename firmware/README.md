@@ -18,20 +18,29 @@ toggle the call (end it, or open a new one). The tablet decides what each toggle
 
 | Ring | State | What is happening |
 |---|---|---|
-| Slow blue blink | Not listening | No tablet connected; ready for one. Shown after power-on and after the tablet disconnects on purpose |
+| Slow blue blink | Not listening | Pairing mode: no tablet connected; ready for one, and advertising. After power-on and after any disconnect, deliberate or out of range |
 | Green | Not listening | Mic off. A tablet is connected |
 | Red | Listening | Mic on, audio streams to the tablet |
-| Flashing red | Either | The tablet is gone when it should be there: it dropped out of range, or the clip is listening with no tablet connected (that audio is being dropped) |
+| Flashing red | Listening | The tablet dropped out in the middle of a recording (that audio is being dropped). For up to 30 s; then the recording stops and the clip goes back to pairing mode |
 | White flash | | Marker dropped |
 | Fast white blink | | Find clip (about 3 seconds) |
 
-Solid red always means the microphone is on. Flashing red is the alarm; it returns to green,
-or to solid red if a capture is running, when the tablet is back.
+Solid red always means the microphone is on. Flashing red is the alarm: recording, with no tablet
+to receive it.
+
+After any disconnect the clip goes back to pairing mode and advertises, so the tablet can find it
+again. If it checks and finds it is not advertising (a restart that failed while the old
+connection was being torn down), it starts again within a second; the status line shows
+`NOT-ADVERTISING` and counts `adv_restarts` if that ever happens. A recording that was running
+when the tablet dropped out carries on for 30 s, as long as the app holds its side open: if the
+tablet is back in time the recording continues as if nothing happened. If not, the clip stops it
+(`consent` `stopped` with source `clip`, and "Paused"), and the tablet sees that it stopped when
+it reconnects. The call stays open.
 
 The clip tells a deliberate disconnect from a lost connection by the reason Bluetooth gives
-when the link ends. The tablet hanging up (the app's Disconnect button, the app closing,
-Bluetooth switched off) is deliberate: blue blink. The tablet no longer answering (out of
-range, battery dead) is a loss: flashing red.
+when the link ends, and says which: "Clip disconnected" when the tablet hangs up (the app's
+Disconnect button, the app closing, Bluetooth switched off), "Clip lost, not recording" when it
+stops answering (out of range, battery dead), then "Clip back" when it returns.
 
 | Gesture | When | Effect |
 |---|---|---|
@@ -68,7 +77,7 @@ The tablet's other commands are `marker` (drop a mark) and `find`, below.
 | "No tablet. Nothing recorded." | Any press while no tablet is connected |
 
 Two things stay beeps: pairing mode (a short beep every second while no tablet is connected,
-after power-on or a deliberate disconnect) and **Find clip**.
+after power-on or any disconnect) and **Find clip**.
 
 The microphone is off while the clip speaks, so nothing it says lands in a recording: "Recording"
 plays before the microphone turns on, and a mark leaves a gap of about a second in the audio just

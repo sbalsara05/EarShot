@@ -1361,11 +1361,12 @@ static void test_light() {
   runAndCount(app, hal, 200);
   CHECK(hal.led == LedColor::Green);
 
-  // The tablet goes out of range while idle: red flashes, though the microphone stays off.
+  // The tablet goes out of range while idle: back to pairing mode (the blue blink), so the
+  // tablet can find it again. No red: nothing is being recorded.
   link.vanish();
   c = runAndCount(app, hal, 6000);
-  CHECK(c.red >= 4 && c.off >= 4);
-  CHECK_EQ(c.blue + c.green, 0);
+  CHECK(c.blue >= 2 && c.blue <= 4);
+  CHECK_EQ(c.red + c.green, 0);
   CHECK(!hal.mic_on);
   CHECK(app.state() == ClipState::NotListening);
 
@@ -1416,7 +1417,7 @@ static void test_light() {
 
 static void test_wifi_link_loss_kind() {
   printf("wi-fi link: a server goodbye is deliberate, a dead connection is a loss\n");
-  {  // the connection simply dies: lost, so the light flashes red
+  {  // the connection simply dies: lost. Idle, so the clip goes back to pairing mode
     AppRig r;
     r.app.begin();
     r.run(300);
@@ -1425,10 +1426,11 @@ static void test_wifi_link_loss_kind() {
     r.tr.drop();
     r.run(300);
     CHECK(!r.app.linkOpen());
+    CHECK(r.app.state() == ClipState::NotListening);
     size_t mark = r.hal.led_history.size();
     r.run(4000);
-    CHECK(ledChanges(r.hal, mark, LedColor::Red) >= 2);
-    CHECK_EQ(ledChanges(r.hal, mark, LedColor::Blue), 0);
+    CHECK(ledChanges(r.hal, mark, LedColor::Blue) >= 2);
+    CHECK_EQ(ledChanges(r.hal, mark, LedColor::Red), 0);
   }
   {  // the server sends a WebSocket Close: deliberate, so the light goes to the blue blink
     AppRig r;
@@ -1606,7 +1608,7 @@ static void test_sounds() {
       CHECK(t >= clicked && t <= clicked + 60);  // debounce and one frame
     }
   }
-  {  // a tablet lost out of range is not pairing mode: no beeps
+  {  // a tablet lost out of range: back to pairing mode, beeping once a second
     AppRig r(true);
     r.app.begin();
     r.run(2500);
@@ -1615,7 +1617,63 @@ static void test_sounds() {
     uint32_t t = r.hal.now;
     r.run(3000);
     CHECK(!r.app.linkOpen());
-    CHECK(r.hal.beepsSince(t).empty());
+    std::vector<uint32_t> b = r.hal.beepsSince(t);
+    CHECK(b.size() >= 2 && b.size() <= 4);
+    CHECK_EQ(r.hal.loud_beeps, 0);                       // pairing beeps are the gentle kind
+    r.tr.up = true;
+    r.run(3000);
+    r.command("find");                                   // find: loud, then back to gentle
+    r.run(3500);
+    CHECK(r.hal.loud_beeps >= 10);
+    int loud = r.hal.loud_beeps;
+    r.command("start");
+    r.run(1500);
+    CHECK_EQ(r.hal.loud_beeps, loud);                    // the start beeps are gentle again
+  }
+  {  // lost while recording: 30 s to come back, then the recording stops and pairing mode
+    AppRig r(true);
+    r.app.begin();
+    r.run(2500);
+    r.command("start");
+    r.run(1500);
+    CHECK(r.hal.mic_on);
+    r.tr.drop();
+    r.tr.up = false;
+    r.run(20000);                                        // 20 s: still recording, light flashing red
+    CHECK(r.app.state() == ClipState::Listening);
+    size_t mark = r.hal.led_history.size();
+    r.run(2000);
+    CHECK(ledChanges(r.hal, mark, LedColor::Red) >= 2);
+    uint32_t t = r.hal.now;
+    r.run(12000);                                        // past 30 s: stopped by the clip itself
+    CHECK(r.app.state() == ClipState::NotListening);
+    CHECK(!r.hal.mic_on);
+    std::vector<uint32_t> b = r.hal.beepsSince(t);
+    CHECK(b.size() >= 4);                                // "paused" (two short), then pairing beeps
+    mark = r.hal.led_history.size();
+    r.run(4000);
+    CHECK(ledChanges(r.hal, mark, LedColor::Blue) >= 2);
+    CHECK_EQ(ledChanges(r.hal, mark, LedColor::Red), 0);
+    r.tr.up = true;                                      // back in range: it reconnects, and
+    r.run(4000);                                         // the tablet learns the clip stopped
+    CHECK(r.app.linkOpen());
+    CHECK(r.textCount("\"event\":\"stopped\",\"source\":\"clip\"") == 1);
+    CHECK(r.textCount("\"state\":\"not_listening\"") >= 1);
+  }
+  {  // lost while recording, back within 30 s: the recording carries on
+    AppRig r(true);
+    r.app.begin();
+    r.run(2500);
+    r.command("start");
+    r.run(1500);
+    r.tr.drop();
+    r.tr.up = false;
+    r.run(10000);
+    r.tr.up = true;
+    r.run(25000);                                        // well past 30 s since the loss
+    CHECK(r.app.linkOpen());
+    CHECK(r.app.state() == ClipState::Listening);
+    CHECK(r.hal.mic_on);
   }
   {  // sounds off: silent, and the microphone starts at once
     AppRig r(false);

@@ -412,14 +412,16 @@ void loop() {
   if (now - last_report >= 5000) {
     last_report = now;
     const earshot::ClipStats& s = g_app->stats();
-    char link[96];
+    char link[128];
 #if LINK_BLUETOOTH
     if (g_ble.connected())
       snprintf(link, sizeof link, "bluetooth=connected link=%s packet=%uB interval=%.1fms failed_sends=%lu",
                g_app->linkOpen() ? "open" : "closed", (unsigned)g_ble.packetBytes(),
                g_ble.intervalMs(), (unsigned long)g_ble.failedSends());
     else
-      snprintf(link, sizeof link, "bluetooth=advertising-as-%s link=closed", g_name);
+      snprintf(link, sizeof link, "bluetooth=%s-as-%s link=closed adv_restarts=%lu",
+               g_ble.advertising() ? "advertising" : "NOT-ADVERTISING", g_name,
+               (unsigned long)g_ble.advertisingRestarts());
 #else
     snprintf(link, sizeof link, "wifi=%s link=%s",
              WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "down",

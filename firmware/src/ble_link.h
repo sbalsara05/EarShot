@@ -36,6 +36,8 @@ class BleLink : public earshot::Link,
 
   // ---- for the status line
   bool connected() const { return connected_; }
+  bool advertising() const;                                   // findable by a tablet right now
+  uint32_t advertisingRestarts() const { return adv_restarts_; }  // times service() had to restart it
   uint16_t packetBytes() const { return payload_; }          // most bytes one packet may carry
   float intervalMs() const { return interval_units_ * 1.25f; }  // how often the two sides talk
   uint32_t failedSends() const { return failed_sends_; }
@@ -69,6 +71,8 @@ class BleLink : public earshot::Link,
   uint32_t subscribed_since_;
   bool warned_small_;
   uint32_t failed_sends_;
+  uint32_t last_adv_check_;
+  uint32_t adv_restarts_;
 };
 
 #endif  // LINK_BLUETOOTH

@@ -9,7 +9,9 @@
 //   {"type":"hello","device":"earshot-clip","fw":"0.11.0",
 //    "audio":{"codec":"opus|pcm","rate":16000,"channels":1,"frame_ms":20,"bitrate":32000}}
 //   {"type":"state","state":"not_listening|listening","listening":bool,"t_ms":N}
-//   {"type":"consent","event":"granted|stopped","source":"button|tablet","t_ms":N}
+//   {"type":"consent","event":"granted|stopped","source":"button|tablet|clip","t_ms":N}
+//                      source "clip": the clip stopped by itself, because the tablet had been
+//                      gone for 30 s while recording
 //   {"type":"marker","id":N,"source":"button|tablet","t_ms":N,"audio_seq":N}
 //   {"type":"toggle","target":"recording","source":"button","t_ms":N}
 //   {"type":"toggle","target":"call","source":"button","t_ms":N}
@@ -78,7 +80,7 @@ static const uint32_t kSampleRate = 16000;
 static const uint32_t kFrameMs = 20;
 static const size_t kFrameSamples = 320;  // kSampleRate * kFrameMs / 1000
 static const size_t kAudioHeaderBytes = 8;
-static const char kFirmwareVersion[] = "0.13.0";
+static const char kFirmwareVersion[] = "0.14.0";
 
 static const char kBleServiceUuid[] = "e5a70001-7c1b-4f0e-9d52-3a6b8c4d2e10";
 static const char kBleAudioUuid[] = "e5a70002-7c1b-4f0e-9d52-3a6b8c4d2e10";

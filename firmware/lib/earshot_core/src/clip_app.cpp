@@ -97,6 +97,7 @@ void ClipApp::init() {
   resumable_ = false;
   call_open_ = false;
   was_lost_ = false;
+  gone_at_ = 0;
   report_waiting_ = false;
   led_ = LedColor::Off;
   memset(frame_, 0, sizeof frame_);
@@ -304,8 +305,16 @@ void ClipApp::serviceLink(uint32_t now) {
   if (!link_->isOpen() && announced_) {
     announced_ = false;
     was_lost_ = link_->lostUnexpectedly();
+    gone_at_ = now;
     hal_.log(was_lost_ ? "tablet link lost" : "tablet disconnected");
     playCue(was_lost_ ? Cue::Lost : Cue::Disconnected);
+  }
+  // Recording with no tablet to hear it: the clip waits as long as the app does for the tablet
+  // to come back, then stops ("Paused"; the call stays open on the tablet) and goes back to
+  // pairing mode. The tablet sees the stop when it reconnects.
+  if (state_ == ClipState::Listening && !linkOpen() && (uint32_t)(now - gone_at_) >= cfg_.lost_grace_ms) {
+    hal_.log("no tablet while recording for too long: recording stopped, back to pairing mode");
+    apply(Input::CmdStop, "clip", now);
   }
 }
 
@@ -344,11 +353,11 @@ void ClipApp::startNextCue() {
   cue_start_ = hal_.millis() + hal_.beepPrepare();
 }
 
-// Pairing mode: not listening, and no tablet, after power-on or a deliberate disconnect (the
-// slow blue blink). A tablet that dropped out of range is the alarm instead, and is silent.
+// Pairing mode: not listening, and no tablet: after power-on, after a disconnect of any kind,
+// and after a recording outlived a lost tablet (the slow blue blink, a beep every second).
+// The clip advertises all the while, so the tablet can find it again.
 bool ClipApp::pairing() const {
-  return cfg_.gateway_enabled && !linkOpen() && state_ != ClipState::Listening &&
-         !link_->lostUnexpectedly();
+  return cfg_.gateway_enabled && !linkOpen() && state_ != ClipState::Listening;
 }
 
 void ClipApp::serviceSound(uint32_t now) {
@@ -457,21 +466,21 @@ void ClipApp::serviceAudio(uint32_t now) {
 
 void ClipApp::refreshLed(uint32_t now, bool force) {
   // What the light says:
-  //   slow blue blink      not listening, no tablet: ready for one to connect. Shown after
-  //                        power-on and after the tablet disconnects on purpose
+  //   slow blue blink      pairing mode: not listening, no tablet, ready for one to connect.
+  //                        After power-on and after any disconnect, deliberate or lost
   //   green                tablet connected, not listening
   //   red                  tablet connected, listening (the microphone is on)
-  //   red, flashing        the tablet is gone when it should be there: it dropped out of
-  //                        range, or the clip is listening with no tablet connected
+  //   red, flashing        listening with no tablet: it dropped out mid-recording. Lasts until
+  //                        it is back, or for lost_grace_ms, then the recording stops and the
+  //                        clip goes back to pairing mode
   //   white flash          marker
   //   fast white blink     "find"
-  // Solid red always means the microphone is on. Flashing red is the alarm: it goes back to
-  // solid red or green when the tablet is back.
+  // Solid red always means the microphone is on. Flashing red is the alarm.
   // A standalone clip (no tablet to connect to) is dark when it is not listening.
   bool listening = state_ == ClipState::Listening;
   bool connected = cfg_.gateway_enabled && linkOpen();
   bool waiting = cfg_.gateway_enabled && !linkOpen();
-  bool alarm = waiting && (listening || link_->lostUnexpectedly());
+  bool alarm = waiting && listening;
   LedColor base = listening ? LedColor::Red : connected ? LedColor::Green : LedColor::Off;
   LedColor want = base;
 

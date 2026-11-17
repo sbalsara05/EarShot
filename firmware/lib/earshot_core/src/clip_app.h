@@ -55,6 +55,9 @@ struct ClipConfig {
   uint32_t find_blink_ms;       // light on for this long, then off for this long
   uint32_t find_beep_ms;        // each beep lasts this long...
   uint32_t find_beep_period_ms; // ...and one starts this often
+  uint32_t lost_grace_ms;       // a recording outlives a lost tablet by this long (the app holds
+                                // its side open as long), then stops and the clip goes back to
+                                // pairing mode
   ButtonTiming button;
   ClipConfig()
       : gateway_host("127.0.0.1"),
@@ -73,7 +76,8 @@ struct ClipConfig {
         find_ms(3200),
         find_blink_ms(125),
         find_beep_ms(200),
-        find_beep_period_ms(300) {}
+        find_beep_period_ms(300),
+        lost_grace_ms(30000) {}
 };
 
 struct ClipStats {
@@ -169,6 +173,7 @@ class ClipApp {
   bool resumable_;        // the last stop was a pause, so the next start resumes
   bool call_open_;        // the clip's best guess: a call is open on the tablet
   bool was_lost_;         // the tablet dropped out of range, so its return is "back"
+  uint32_t gone_at_;      // when the tablet went, while recording without it
   bool report_waiting_;   // "report ready" arrived while recording: said once the mic is off
   LedColor led_;
 };
