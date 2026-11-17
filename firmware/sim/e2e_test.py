@@ -216,6 +216,7 @@ async def raw_audio_pass():
         frame = b"".join(struct.pack("<h", 12345 if (i // 32) % 2 == 0 else -12345) for i in range(320))
         await t.sim_mic_source("laptop")
         await wait_for(lambda: t.sim_status.get("mic") == "ext")
+        await asyncio.sleep(1.6)  # the "connected" beep plays in full before anything else
         await t.send_command("start")
         await wait_for(lambda: t.device_state == "listening")
         await asyncio.sleep(START_BEEPS_S)

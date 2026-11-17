@@ -13,7 +13,12 @@ class WsLink : public Link {
 
   void service(uint32_t now_ms) override;
   bool isOpen() const override { return ws_.isOpen(); }
-  bool lostUnexpectedly() const override { return lost_ && !ws_.isOpen(); }
+  bool lostUnexpectedly() const override {
+    if (ws_.isOpen()) return false;
+    // Closed since the last service(): judge it now, so the app hears it the moment it closes.
+    if (was_open_) return !ws_.peerClosed();
+    return lost_;
+  }
   bool poll(std::string& out) override { return ws_.poll(out); }
   bool sendText(const std::string& text) override { return ws_.sendText(text); }
   bool sendBinary(const uint8_t* head, size_t head_len, const uint8_t* body, size_t body_len) override {

@@ -71,6 +71,8 @@ class Esp32Transport : public earshot::Transport {
 // ---------------------------------------------------------------- hardware
 
 #if EARSHOT_SPEAKER_M5
+#include "sounds_data.h"  // the voice lines (tools/make_sounds.py)
+
 // One cycle of a sine wave, unsigned 8-bit, for M5.Speaker.tone(): a smooth, gentle beep.
 static const uint8_t kSine[32] = {128, 153, 177, 199, 218, 234, 245, 253, 255, 253, 245, 234, 218, 199, 177, 153, 128, 103, 79, 57, 38, 22, 11, 3, 1, 3, 11, 22, 38, 57, 79, 103};
 #endif
@@ -209,6 +211,22 @@ class Esp32Hal : public earshot::Hal {
       M5.Speaker.stop();
     }
   }
+  // Voice lines, recorded in sounds/. playRaw() returns at once; the speaker plays in the
+  // background while the app waits out soundMs().
+  uint32_t soundMs(earshot::Sound sound) override {
+    size_t i = (size_t)sound;
+    if (i >= kSoundClipCount) return 0;
+    return (uint32_t)(kSoundClips[i].count * 1000ULL / SOUND_SAMPLE_RATE) + 60;  // + the speaker's buffer
+  }
+  void playSound(earshot::Sound sound) override {
+    size_t i = (size_t)sound;
+    if (mic_on_ || i >= kSoundClipCount) return;
+    if (!spk_on_) spk_on_ = M5.Speaker.begin();
+    if (!spk_on_) return;
+    M5.Speaker.setVolume(VOICE_VOLUME);
+    Serial.printf("[clip] playing %s\n", kSoundClips[i].file);
+    M5.Speaker.playRaw(kSoundClips[i].samples, kSoundClips[i].count, SOUND_SAMPLE_RATE, false, 1, -1, true);
+  }
   uint32_t beepPrepare() override {
     if (mic_on_ || spk_on_) return 0;  // already powered (pairing mode, a find): no wait
     spk_on_ = M5.Speaker.begin();
@@ -331,7 +349,7 @@ void setup() {
   app_cfg.poll_button = false;  // buttonTask does the detection
   app_cfg.sounds = CLIP_SOUNDS;
 #if EARSHOT_SPEAKER_M5 || defined(BUZZER_PIN)
-  Serial.printf("[clip] sounds: %s\n", CLIP_SOUNDS ? "beeps for pairing mode, connection and each button gesture" : "off (CLIP_SOUNDS 0)");
+  Serial.printf("[clip] sounds: %s\n", CLIP_SOUNDS ? "voice lines for each gesture and connection change, beeps for pairing mode" : "off (CLIP_SOUNDS 0)");
 #endif
 #if AUDIO_OPUS_KBPS > 0
   g_opus = new earshot::OpusAudioEncoder(AUDIO_OPUS_KBPS * 1000UL, 1);

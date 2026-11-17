@@ -225,6 +225,9 @@ followed by `state`), compare the clip's `listening` with the app's:
   keep doing that for now, but still send `start` and `stop`, so the clip, its light and the app
   agree. `firmware/BLUETOOTH.md` ("Using the audio") covers feeding clip audio to the
   transcriber when that work is picked up.
+- **In, small:** when a call's reports finish generating after a hold, write
+  `{"cmd":"report_ready"}` to the commands characteristic. The clip says "Report ready to
+  review" (firmware 0.13.0). Skip it if no clip is connected.
 - **Out:** the Find clip button (`{"cmd":"find"}`), pairing, and anything in `firmware/`.
 
 ## What the clip's light tells you while testing

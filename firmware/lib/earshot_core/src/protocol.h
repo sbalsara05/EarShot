@@ -50,6 +50,8 @@
 //   {"cmd":"find"}     blink and beep for a few seconds so the clip can be found. Works whether
 //                      or not it is listening; while listening it only blinks, so the beep
 //                      never lands in a recording. Sending it again restarts the timer.
+//   {"cmd":"report_ready"}  the call's report is ready: the clip says "Report ready to review"
+//                      (once the microphone is off, if a recording is running). Changes nothing.
 //
 // t_ms is milliseconds since the clip booted (it has no real-time clock). The tablet should
 // stamp wall-clock time on receipt.
@@ -76,7 +78,7 @@ static const uint32_t kSampleRate = 16000;
 static const uint32_t kFrameMs = 20;
 static const size_t kFrameSamples = 320;  // kSampleRate * kFrameMs / 1000
 static const size_t kAudioHeaderBytes = 8;
-static const char kFirmwareVersion[] = "0.12.0";
+static const char kFirmwareVersion[] = "0.13.0";
 
 static const char kBleServiceUuid[] = "e5a70001-7c1b-4f0e-9d52-3a6b8c4d2e10";
 static const char kBleAudioUuid[] = "e5a70002-7c1b-4f0e-9d52-3a6b8c4d2e10";

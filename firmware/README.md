@@ -50,24 +50,37 @@ the microphone. If the patient says no, the medic does not start.
 
 The tablet's other commands are `marker` (drop a mark) and `find`, below.
 
-**Beeps.** The clip says what is happening with its speaker:
+**Voice lines.** The Atom says what is happening through its speaker, from recordings in
+`sounds/`:
 
-| Beeps | When |
+| It says | When |
 |---|---|
-| A short beep every second | Pairing mode: no tablet connected, after power-on or after the tablet disconnected on purpose (the slow blue blink). Silent when the tablet was lost out of range |
-| One long beep (1.5 s) | A tablet connected |
-| Long, then short | A recording starts (the tablet answered `start`), or a hold ends one |
-| Short, then long | A paused recording carries on (a `start` after a pause, not after a hold) |
-| Two short | The tablet paused the recording (it answered `stop`: a double click, or its own Stop button) |
-| One short | A single click dropped a mark (a mark from the tablet's screen is silent) |
+| "Clip connected" | A tablet connected |
+| "Clip disconnected" | The tablet disconnected on purpose |
+| "Clip lost, not recording" | The tablet dropped out of range |
+| "Clip back" | The tablet reconnected after it was lost |
+| "New call" | A hold with no call open (the app opens one and starts it: "Recording" follows) |
+| "Recording" | A recording starts or resumes (the tablet answered `start`) |
+| "Paused" | The tablet paused the recording (it answered `stop`: a double click, or its own Stop button) |
+| "Marked" | A single click dropped a mark (a mark from the tablet's screen is silent) |
+| "Call ended. Writing the report." | A hold with a call open, recording or paused |
+| "Report ready to review" | The tablet sent `report_ready`. Held back until a running recording stops |
+| "No tablet. Nothing recorded." | Any press while no tablet is connected |
 
-The microphone is off while the clip beeps, so no beep lands in the recording: the start beeps
-play before the microphone turns on, and a mark leaves a gap of about 0.4 seconds in
-the audio just after the click. A hold while paused makes no sound, because the clip cannot
-tell whether the tablet opened or ended a call; nor does a reconnect in the middle of a
-recording. `CLIP_SOUNDS 0` in `config.h` turns the beeps off; `SOUND_VOLUME` sets the volume.
-The Feather has no speaker and only beeps through a piezo on `BUZZER_PIN`; the simulator beeps
-through the laptop.
+Two things stay beeps: pairing mode (a short beep every second while no tablet is connected,
+after power-on or a deliberate disconnect) and **Find clip**.
+
+The microphone is off while the clip speaks, so nothing it says lands in a recording: "Recording"
+plays before the microphone turns on, and a mark leaves a gap of about a second in the audio just
+after the click. Lines play in full and in order, so "New call" is followed by "Recording". The
+clip cannot see the call, so it guesses: a hold after any recording since the last hold ends a
+call, otherwise it opens one. It can guess wrong if the call was opened or ended on the iPad's
+screen.
+
+`CLIP_SOUNDS 0` in `config.h` turns all of this off. `VOICE_VOLUME` sets the voice lines' volume,
+`SOUND_VOLUME` the beeps'. To change a line, replace its recording in `sounds/` and run
+`python3 tools/make_sounds.py`. Boards with no recordings play beep patterns instead: the
+Feather through a piezo on `BUZZER_PIN`, the simulator through the laptop.
 
 **Find clip.** The tablet's `find` command makes the clip blink white and beep for 3.2 seconds
 so it can be found, then stop by itself. It works whether or not the clip is listening and never

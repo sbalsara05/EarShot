@@ -80,6 +80,7 @@ the app never has to join packets together.
 {"cmd":"stop"}
 {"cmd":"marker"}
 {"cmd":"find"}
+{"cmd":"report_ready"}
 ```
 
 `start` begins a capture and `stop` ends one; these are how the app answers a `toggle`. The
@@ -89,6 +90,12 @@ clip replies with `consent` and `state` events. Either write type works.
 3.2 seconds, the same time the button shows "Blinking and buzzing", then stops by itself.
 Sending it again restarts the timer. It never starts or stops a capture. While the clip is
 listening it only blinks, so the beep cannot end up in a recording. There is no reply message.
+
+`report_ready` (firmware 0.13.0 and later) tells the clip a call's report has been generated: it
+says "Report ready to review" through its speaker. Send it when report generation for an ended
+call finishes. If the clip is recording the next call by then, it waits until that recording
+stops, so the words never land in it. It changes nothing on the clip and has no reply. Older
+firmware ignores it.
 
 ## App checklist
 

@@ -382,6 +382,15 @@ class FakeHal : public Hal {
     return out;
   }
   void beepDone() override { ++beep_dones; }
+  // voice lines: a board with recordings, each 800 ms long, or (by default) none
+  bool has_sounds = false;
+  std::vector<Sound> played;
+  int played_with_mic_on = 0;  // must stay 0
+  uint32_t soundMs(Sound) override { return has_sounds ? 800 : 0; }
+  void playSound(Sound s) override {
+    played.push_back(s);
+    if (mic_on) ++played_with_mic_on;
+  }
   uint32_t warmup = 0;  // what beepPrepare() reports: the Atom's speaker needs a moment after power-up
   int prepares = 0;
   uint32_t beepPrepare() override {
@@ -1524,7 +1533,8 @@ static void test_sounds() {
     CHECK(b.size() == 2 && near(b[0], 600) && near(b[1], 150));
     r.command("stop");                                   // paused...
     r.run(600);
-    r.longPress();                                       // ...then a hold ends the call
+    r.longPress();                                       // ...then a hold ends the call:
+    r.run(1500);                                         // long, short ("call ended")
     t = r.hal.now;
     r.command("start");                                  // so this is a new recording too
     r.run(1000);
@@ -1613,6 +1623,121 @@ static void test_sounds() {
   }
 }
 
+static void test_voice_lines() {
+  printf("voice lines: what the clip says, in order, never into a recording\n");
+  {  // a whole call
+    AppRig r(true);
+    r.hal.has_sounds = true;
+    r.app.begin();
+    r.run(2500);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::ClipConnected);
+    r.hal.played.clear();
+
+    r.longPress();                                       // no call open: "new call"...
+    r.command("start");                                  // ...then the app starts it: "recording"
+    r.run(2500);
+    CHECK(r.hal.played.size() == 2 && r.hal.played[0] == Sound::NewCall && r.hal.played[1] == Sound::Recording);
+    CHECK(r.app.state() == ClipState::Listening);
+    CHECK(r.hal.mic_on);                                 // on once both have played
+    r.hal.played.clear();
+
+    r.shortPress();                                      // "marked"
+    r.run(1200);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::Marked);
+    CHECK(r.hal.mic_on);
+    r.hal.played.clear();
+
+    r.doubleTap();                                       // the app answers stop: "paused"
+    r.run(1200);
+    r.doubleTap();                                       // and start: "recording"
+    r.run(1500);
+    CHECK(r.hal.played.size() == 2 && r.hal.played[0] == Sound::Paused && r.hal.played[1] == Sound::Recording);
+    r.hal.played.clear();
+
+    r.longPress();                                       // a hold while recording: "call ended"
+    r.run(1500);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::CallEnded);
+    CHECK(!r.hal.mic_on);
+    r.hal.played.clear();
+
+    r.longPress();                                       // the next hold opens a call: "new call"
+    r.run(1500);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::NewCall);
+    r.command("start");
+    r.run(1500);
+    r.command("stop");                                   // paused...
+    r.run(1500);
+    r.hal.played.clear();
+    r.longPress();                                       // ...a hold while paused ends the call
+    r.run(1500);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::CallEnded);
+    r.hal.played.clear();
+
+    r.command("report_ready");                           // the app's report: said now
+    r.run(1500);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::ReportReady);
+    CHECK_EQ(r.hal.played_with_mic_on, 0);
+  }
+  {  // "report ready" during a recording waits until it stops
+    AppRig r(true);
+    r.hal.has_sounds = true;
+    r.app.begin();
+    r.run(2500);
+    r.command("start");
+    r.run(1500);
+    r.hal.played.clear();
+    int stops = r.hal.mic_stops;
+    r.command("report_ready");
+    r.run(2000);
+    CHECK(r.hal.played.empty());                         // not while recording
+    CHECK_EQ(r.hal.mic_stops, stops);
+    r.command("stop");
+    r.run(2500);
+    CHECK(r.hal.played.size() == 2 && r.hal.played[0] == Sound::Paused && r.hal.played[1] == Sound::ReportReady);
+  }
+  {  // the link: lost, back, disconnected; and presses with no tablet
+    AppRig r(true);
+    r.hal.has_sounds = true;
+    r.app.begin();
+    r.run(2500);
+    r.hal.played.clear();
+    r.tr.drop();                                         // out of range
+    r.tr.up = false;
+    r.run(1500);
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::ClipLost);
+    r.hal.played.clear();
+    r.doubleTap();                                       // presses with no tablet
+    r.run(1500);
+    r.longPress();
+    r.run(1500);
+    CHECK(r.hal.played.size() == 2 && r.hal.played[0] == Sound::NoTablet && r.hal.played[1] == Sound::NoTablet);
+    CHECK_EQ(r.app.stats().call_toggles, 0);             // and nothing was sent
+    r.hal.played.clear();
+    r.tr.up = true;                                      // back in range
+    r.run(4000);
+    CHECK(r.app.linkOpen());
+    CHECK(r.hal.played.size() == 1 && r.hal.played[0] == Sound::ClipBack);
+  }
+  {  // a deliberate disconnect (packet link: the tablet hangs up)
+    FakeHal hal;
+    hal.has_sounds = true;
+    FakeLink link;
+    ClipConfig cfg;
+    cfg.sounds = true;
+    ClipApp app(hal, link, cfg);
+    app.begin();
+    link.connect();
+    for (int i = 0; i < 300; ++i) app.tick();
+    CHECK(!hal.played.empty() && hal.played.back() == Sound::ClipConnected);
+    link.disconnect();
+    for (int i = 0; i < 300; ++i) app.tick();
+    CHECK(hal.played.back() == Sound::ClipDisconnected);
+    link.connect();
+    for (int i = 0; i < 300; ++i) app.tick();
+    CHECK(hal.played.back() == Sound::ClipConnected);    // not "back": it left on purpose
+  }
+}
+
 int main() {
   test_button();
   test_fsm();
@@ -1629,6 +1754,7 @@ int main() {
   test_end_call();
   test_find();
   test_sounds();
+  test_voice_lines();
   test_light();
   test_wifi_link_loss_kind();
   printf("\n%d checks, %d failed\n", g_checks, g_failed);

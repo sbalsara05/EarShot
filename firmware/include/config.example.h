@@ -31,13 +31,16 @@
 // characters or fewer.
 // #define CLIP_NAME_PREFIX "ESP-CLIP-"
 
-// Beeps: a short one every second in pairing mode, a long one when a tablet connects, long then
-// short when a recording starts or a hold ends it, two short when the tablet pauses it, short
-// then long when it resumes, one
-// short for a mark. The microphone is off while the clip beeps, which leaves a gap of about 0.4
-// seconds in the audio after a mark. 0 turns them off. SOUND_VOLUME is 0-255 and
-// squared (128 is a quarter of full power); SPEAKER_HZ is the pitch.
+// Sounds: voice lines for each button gesture and connection change (README, "Voice lines"),
+// and a short beep every second in pairing mode. Boards without the recordings beep instead: a
+// long one when a tablet connects, long then short when a recording starts or a hold ends it,
+// two short when the tablet pauses it, short then long when it resumes, one
+// short for a mark. The microphone is off while the clip speaks or beeps, which leaves a gap of
+// about a second in the audio after a mark. 0 turns them off. VOICE_VOLUME (voice lines) and
+// SOUND_VOLUME (beeps) are 0-255 and squared (128 is a quarter of full power); SPEAKER_HZ is the
+// beeps' pitch.
 // #define CLIP_SOUNDS 1
+// #define VOICE_VOLUME 200
 // #define SOUND_VOLUME 120
 // #define SPEAKER_HZ 1047
 

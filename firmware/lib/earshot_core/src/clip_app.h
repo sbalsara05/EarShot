@@ -16,17 +16,25 @@
 
 namespace earshot {
 
-// Beep patterns the clip plays (ClipConfig::sounds). Pairing mode is not here: it is a beep
-// every second for as long as the clip waits for a tablet.
+// What the clip says when something happens (ClipConfig::sounds). A board with recordings
+// plays the voice line (cueSound); one without plays the beep pattern (cueSteps), or nothing.
+// Pairing mode and "find" are not here: they are always beeps.
 enum class Cue : uint8_t {
-  Connected,         // one long beep (1.5 s): a tablet connected
-  Recording,         // long, then short: a recording started
-  Resumed,           // short, then long: a paused recording carried on
-  RecordingStopped,  // the same: a hold ended the recording
-  Paused,            // two short beeps: the tablet paused the recording
-  Mark               // one short beep: a single click dropped a mark
+  Connected,     // a tablet connected                          "Clip connected"     long beep
+  Back,          // the tablet is back after it was lost        "Clip back"          long beep
+  Disconnected,  // the tablet disconnected on purpose          "Clip disconnected"
+  Lost,          // the tablet dropped out of range             "Clip lost, not recording"
+  Recording,     // a recording started                         "Recording"          long, short
+  Resumed,       // a paused recording carried on               "Recording"          short, long
+  Paused,        // the tablet paused the recording             "Paused"             two short
+  Mark,          // a single click dropped a mark               "Marked"             one short
+  NewCall,       // a hold with no call open                    "New call"
+  CallEnded,     // a hold with a call open                     "Call ended..."      long, short
+  ReportReady,   // the tablet says the call's report is ready  "Report ready to review"
+  NoTablet       // a press while no tablet is connected        "No tablet. Nothing recorded."
 };
-// The pattern as durations in ms, beep first, alternating beep and silence.
+Sound cueSound(Cue cue);
+// The beep pattern as durations in ms, beep first, alternating beep and silence. count 0: none.
 const uint16_t* cueSteps(Cue cue, size_t* count);
 
 struct ClipConfig {
@@ -121,6 +129,7 @@ class ClipApp {
   void serviceFind(uint32_t now);
   void setBeep(bool on);
   void playCue(Cue cue);
+  void startNextCue();
   void serviceSound(uint32_t now);
   bool pairing() const;
   void startMic();
@@ -150,9 +159,15 @@ class ClipApp {
   bool beep_on_;
   bool mic_on_;           // the microphone is running (it is off while a cue plays)
   bool cue_on_;           // a cue is playing
-  bool resumable_;        // the last stop was a pause, so the next start resumes
+  bool cue_played_;       // its recording has been started (after the speaker warmed up)
+  uint32_t cue_ms_;       // the recording's length; 0: it is a beep pattern
   Cue cue_;
   uint32_t cue_start_;
+  std::deque<Cue> cues_;  // waiting their turn: each plays in full, in order
+  bool resumable_;        // the last stop was a pause, so the next start resumes
+  bool call_open_;        // the clip's best guess: a call is open on the tablet
+  bool was_lost_;         // the tablet dropped out of range, so its return is "back"
+  bool report_waiting_;   // "report ready" arrived while recording: said once the mic is off
   LedColor led_;
 };
 

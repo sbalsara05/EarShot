@@ -18,19 +18,45 @@ const uint16_t kOneShortSteps[] = {150};
 // Pairing mode: a short beep once a second.
 const uint32_t kPairingPeriodMs = 1000;
 const uint32_t kPairingBeepMs = 120;
+
+const size_t kMaxCues = 4;
 }  // namespace
 
 const uint16_t* cueSteps(Cue cue, size_t* count) {
+  *count = 0;
   switch (cue) {
-    case Cue::Connected: *count = 1; return kConnectedSteps;
+    case Cue::Connected:
+    case Cue::Back: *count = 1; return kConnectedSteps;
     case Cue::Recording:
-    case Cue::RecordingStopped: *count = 3; return kLongShortSteps;
+    case Cue::CallEnded: *count = 3; return kLongShortSteps;
     case Cue::Resumed: *count = 3; return kShortLongSteps;
     case Cue::Paused: *count = 3; return kTwoShortSteps;
-    case Cue::Mark: break;
+    case Cue::Mark: *count = 1; return kOneShortSteps;
+    case Cue::Disconnected:
+    case Cue::Lost:
+    case Cue::NewCall:
+    case Cue::ReportReady:
+    case Cue::NoTablet: break;  // no beep for these: a voice line or nothing
   }
-  *count = 1;
   return kOneShortSteps;
+}
+
+Sound cueSound(Cue cue) {
+  switch (cue) {
+    case Cue::Connected: return Sound::ClipConnected;
+    case Cue::Back: return Sound::ClipBack;
+    case Cue::Disconnected: return Sound::ClipDisconnected;
+    case Cue::Lost: return Sound::ClipLost;
+    case Cue::Recording:
+    case Cue::Resumed: return Sound::Recording;
+    case Cue::Paused: return Sound::Paused;
+    case Cue::Mark: return Sound::Marked;
+    case Cue::NewCall: return Sound::NewCall;
+    case Cue::CallEnded: return Sound::CallEnded;
+    case Cue::ReportReady: return Sound::ReportReady;
+    case Cue::NoTablet: return Sound::NoTablet;
+  }
+  return Sound::Recording;
 }
 
 ClipApp::ClipApp(Hal& hal, Transport& transport, const ClipConfig& config, uint32_t random_seed)
@@ -62,9 +88,14 @@ void ClipApp::init() {
   beep_on_ = false;
   mic_on_ = false;
   cue_on_ = false;
-  resumable_ = false;
+  cue_played_ = false;
+  cue_ms_ = 0;
   cue_ = Cue::Mark;
   cue_start_ = 0;
+  resumable_ = false;
+  call_open_ = false;
+  was_lost_ = false;
+  report_waiting_ = false;
   led_ = LedColor::Off;
   memset(frame_, 0, sizeof frame_);
   memset(packet_, 0, sizeof packet_);
@@ -93,18 +124,34 @@ void ClipApp::tick() {
 void ClipApp::onButtonEvent(ButtonEvent event) { onButtonEvent(event, hal_.millis()); }
 
 void ClipApp::onButtonEvent(ButtonEvent event, uint32_t began_ms) {
+  // With no tablet to hear it, a press is answered "No tablet. Nothing recorded." (a mark while
+  // listening is still stored and sent later; it says the same, since no audio is arriving).
+  bool no_tablet = cfg_.gateway_enabled && !linkOpen();
   switch (event) {
-    case ButtonEvent::ShortPress: apply(Input::ShortPress, "button", began_ms); break;
+    case ButtonEvent::ShortPress:
+      if (no_tablet && state_ != ClipState::Listening) playCue(Cue::NoTablet);
+      apply(Input::ShortPress, "button", began_ms);
+      break;
     case ButtonEvent::LongPress: {
       // A hold toggles the call. The microphone goes off here and now if it was on, tablet or
       // no tablet. Then the tablet is told, and decides: end the call that is open, or open a
       // new one. Sent directly, never queued.
+      bool was_listening = state_ == ClipState::Listening;
       apply(Input::LongPress, "button", began_ms);
-      if (!cfg_.gateway_enabled) break;  // standalone: there is no call
-      if (!linkOpen()) {
-        hal_.log("hold: no tablet connected, so nothing was sent about the call");
+      if (!cfg_.gateway_enabled) {  // standalone: there is no call
+        if (was_listening) playCue(Cue::CallEnded);
         break;
       }
+      if (no_tablet) {
+        hal_.log("hold: no tablet connected, so nothing was sent about the call");
+        playCue(Cue::NoTablet);
+        break;
+      }
+      // The clip cannot see the call, so it goes by what it has seen: a recording since the last
+      // hold means a call is open and this hold ends it; otherwise this hold opens one.
+      bool ending = was_listening || call_open_;
+      call_open_ = !ending;
+      playCue(ending ? Cue::CallEnded : Cue::NewCall);
       uint32_t now = hal_.millis();
       ++stats_.call_toggles;
       link_->sendText(toggleJson("call", "button", now));
@@ -115,8 +162,9 @@ void ClipApp::onButtonEvent(ButtonEvent event, uint32_t began_ms) {
     case ButtonEvent::DoubleTap:
       if (!cfg_.gateway_enabled) {
         apply(Input::DoubleTap, "button", began_ms);  // standalone: no tablet to ask, toggle here
-      } else if (!linkOpen()) {
+      } else if (no_tablet) {
         hal_.log("double click ignored: no tablet connected");
+        playCue(Cue::NoTablet);
       } else {
         // The tablet owns the recording. Tell it about the double click, with the same message
         // whatever state the clip is in, and let it answer "start" or "stop". Sent directly,
@@ -134,6 +182,13 @@ void ClipApp::apply(Input input, const char* source, uint32_t began_ms) {
   // A hold ends the call (or opens one), so whatever starts next is a new recording, not a
   // resume. The clip does not know the call itself; this is how it tells the two apart.
   if (input == Input::LongPress) resumable_ = false;
+  if (input == Input::CmdReportReady) {
+    // The tablet finished the report for a call. Said now, or once the microphone is off if a
+    // recording is running, so it never cuts into one.
+    if (state_ == ClipState::Listening) report_waiting_ = true;
+    else playCue(Cue::ReportReady);
+    return;
+  }
   Transition tr = step(state_, input);
   state_ = tr.next;
 
@@ -153,9 +208,12 @@ void ClipApp::apply(Input input, const char* source, uint32_t began_ms) {
       ++stats_.captures;
       // The start beeps play first and the microphone starts when they end (serviceSound), so
       // they are not in the recording. Without sounds the microphone starts now.
-      if (cfg_.sounds) playCue(resumable_ ? Cue::Resumed : Cue::Recording);
-      else startMic();
+      // The cue plays first and the microphone starts when it ends (serviceSound), so it is not
+      // in the recording. Without sounds the microphone starts now.
+      call_open_ = true;
+      playCue(resumable_ ? Cue::Resumed : Cue::Recording);
       resumable_ = false;
+      if (!cue_on_) startMic();
       break;
     case Effect::Stopped:
       hal_.micStop();
@@ -165,8 +223,14 @@ void ClipApp::apply(Input input, const char* source, uint32_t began_ms) {
       emit(consentJson("stopped", source, now));
       // A hold ends the recording and the call. Any other stop (the tablet answering a double
       // click, or its own Stop button) pauses it, and the call stays open.
-      playCue(input == Input::LongPress ? Cue::RecordingStopped : Cue::Paused);
+      // A hold is announced by onButtonEvent ("call ended", or "no tablet"). Any other stop (the
+      // tablet answering a double click, or its own Stop button) pauses, and the call stays open.
+      if (input != Input::LongPress) playCue(Cue::Paused);
       resumable_ = input != Input::LongPress;
+      if (report_waiting_) {
+        report_waiting_ = false;
+        playCue(Cue::ReportReady);
+      }
       break;
     case Effect::Marker: {
       // A mark belongs to the moment the button went down, not to now: a single click is only
@@ -215,9 +279,8 @@ void ClipApp::announce(uint32_t now) {
   flushPending();
   link_->sendText(stateJson(state_, now));
   hal_.log("tablet link open");
-  // One long beep says a tablet connected. Not while listening (a reconnect mid-recording): the
-  // microphone would have to stop for it.
-  if (state_ != ClipState::Listening) playCue(Cue::Connected);
+  playCue(was_lost_ ? Cue::Back : Cue::Connected);
+  was_lost_ = false;
 }
 
 void ClipApp::serviceLink(uint32_t now) {
@@ -235,7 +298,9 @@ void ClipApp::serviceLink(uint32_t now) {
   flushPending();
   if (!link_->isOpen() && announced_) {
     announced_ = false;
-    hal_.log("tablet link lost");
+    was_lost_ = link_->lostUnexpectedly();
+    hal_.log(was_lost_ ? "tablet link lost" : "tablet disconnected");
+    playCue(was_lost_ ? Cue::Lost : Cue::Disconnected);
   }
 }
 
@@ -246,20 +311,32 @@ void ClipApp::startMic() {
 
 void ClipApp::playCue(Cue cue) {
   if (!cfg_.sounds) return;
-  // Beeps must never end up in a recording, and on the Atom the speaker and the microphone
-  // share one audio chip besides. So the microphone is off while a cue plays, and back on when
-  // it ends if the clip is listening (serviceSound). For a mark that is a gap of about 0.4
-  // seconds in the audio, just after the click.
+  size_t steps = 0;
+  cueSteps(cue, &steps);
+  if (hal_.soundMs(cueSound(cue)) == 0 && steps == 0) return;  // nothing to play on this board
+  if (cues_.size() >= kMaxCues) return;
+  cues_.push_back(cue);  // each one plays in full, in order: "new call", then "recording"
+  ++stats_.cues;
+  if (!cue_on_) startNextCue();
+}
+
+void ClipApp::startNextCue() {
+  cue_ = cues_.front();
+  cues_.pop_front();
+  cue_on_ = true;
+  cue_played_ = false;
+  cue_ms_ = 0;
+  // Nothing the clip says may end up in a recording, and on the Atom the speaker and the
+  // microphone share one audio chip besides. So the microphone is off while a cue plays, and
+  // back on when the last one ends if the clip is listening (serviceSound). For a mark that is
+  // a gap of about a second in the audio, just after the click.
   if (mic_on_) {
     hal_.micStop();
     mic_on_ = false;
   }
-  cue_on_ = true;  // a newer cue cuts off one still playing
-  cue_ = cue;
   setBeep(false);
-  // The pattern starts once the speaker is ready, so even a short beep is heard in full.
+  // The cue starts once the speaker is ready, so even a short one is heard in full.
   cue_start_ = hal_.millis() + hal_.beepPrepare();
-  ++stats_.cues;
 }
 
 // Pairing mode: not listening, and no tablet, after power-on or a deliberate disconnect (the
@@ -273,21 +350,34 @@ void ClipApp::serviceSound(uint32_t now) {
   // One speaker, three users, in this order: a cue, then a find, then pairing mode.
   bool want = false;
   if (cue_on_) {
-    size_t n = 0;
-    const uint16_t* steps = cueSteps(cue_, &n);
     if ((int32_t)(now - cue_start_) < 0) {  // the speaker is still warming up: silence
       setBeep(false);
       return;
     }
+    if (!cue_played_) {
+      cue_played_ = true;
+      cue_ms_ = hal_.soundMs(cueSound(cue_));
+      if (cue_ms_ > 0) hal_.playSound(cueSound(cue_));
+    }
     uint32_t t = (uint32_t)(now - cue_start_);
-    size_t i = 0;
-    while (i < n && t >= steps[i]) t -= steps[i++];
-    if (i < n) {
-      setBeep(i % 2 == 0);
-      return;
+    if (cue_ms_ > 0) {
+      if (t < cue_ms_) return;  // the voice line is playing
+    } else {
+      size_t n = 0;
+      const uint16_t* steps = cueSteps(cue_, &n);
+      size_t i = 0;
+      while (i < n && t >= steps[i]) t -= steps[i++];
+      if (i < n) {
+        setBeep(i % 2 == 0);
+        return;
+      }
     }
     cue_on_ = false;  // finished
     setBeep(false);
+    if (!cues_.empty()) {
+      startNextCue();
+      return;
+    }
     if (state_ == ClipState::Listening) {
       startMic();  // the board powers its speaker down first
       return;
