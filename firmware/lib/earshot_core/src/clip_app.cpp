@@ -86,6 +86,8 @@ void ClipApp::init() {
   finding_ = false;
   find_start_ = 0;
   beep_on_ = false;
+  beep_loud_ = false;
+  find_sound_at_ = 0;
   mic_on_ = false;
   cue_on_ = false;
   cue_played_ = false;
@@ -251,6 +253,9 @@ void ClipApp::apply(Input input, const char* source, uint32_t began_ms) {
       ++stats_.finds;
       finding_ = true;
       find_start_ = now;  // asking again while it is running restarts the timer
+      // The beeps wait for the speaker to warm up, so the first is heard in full. None while
+      // listening: they would land in the recording.
+      find_sound_at_ = now + (state_ == ClipState::Listening ? 0 : hal_.beepPrepare());
       hal_.log(state_ == ClipState::Listening ? "find: blinking (no beep while listening)"
                                               : "find: blinking and beeping");
       return;  // state did not change
@@ -389,15 +394,27 @@ void ClipApp::serviceSound(uint32_t now) {
     return;
   }
   if (finding_) {
-    uint32_t elapsed = (uint32_t)(now - find_start_);
-    want = (elapsed % cfg_.find_beep_period_ms) < cfg_.find_beep_ms;
+    // Find: loud, fast beeps, so the clip can be found under a seat or in a pile of kit.
+    if ((int32_t)(now - find_sound_at_) < 0) {
+      setBeep(false);
+      return;
+    }
+    uint32_t elapsed = (uint32_t)(now - find_sound_at_);
+    setBeep((elapsed % cfg_.find_beep_period_ms) < cfg_.find_beep_ms, true);
+    return;
   } else if (cfg_.sounds && pairing()) {
     want = (now % kPairingPeriodMs) < kPairingBeepMs;
   }
   setBeep(want);
 }
 
-void ClipApp::setBeep(bool on) {
+void ClipApp::setBeep(bool on, bool loud) {
+  if (on && loud != beep_loud_) {  // switching between the gentle and the loud beep
+    if (beep_on_) hal_.beep(false);
+    beep_on_ = false;
+    beep_loud_ = loud;
+    hal_.beepLoud(loud);
+  }
   if (on == beep_on_) return;
   beep_on_ = on;
   hal_.beep(on);

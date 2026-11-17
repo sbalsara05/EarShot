@@ -365,9 +365,13 @@ class FakeHal : public Hal {
   int beep_dones = 0;
   std::vector<std::pair<uint32_t, uint32_t> > segs;  // every beep: when it began, how long it lasted
   uint32_t beep_began = 0;
+  bool loud = false;
+  int loud_beeps = 0;
+  void beepLoud(bool l) override { loud = l; }
   void beep(bool on) override {
     if (on && !beeping) {
       ++beeps;
+      if (loud) ++loud_beeps;
       if (mic_on) ++beeps_with_mic_on;
       beep_began = now;
     }
@@ -1100,7 +1104,8 @@ static void test_find() {
     r.run(2000);                                         // 3.5 s since the command
     CHECK(!r.app.finding());
     CHECK(!r.hal.beeping);
-    CHECK(r.hal.beeps >= 7 && r.hal.beeps <= 9);         // 3.2 s at one per 400 ms
+    CHECK(r.hal.beeps >= 10 && r.hal.beeps <= 12);       // 3.2 s at one per 300 ms
+    CHECK_EQ(r.hal.loud_beeps, r.hal.beeps);             // every one the loud kind
     CHECK_EQ(r.hal.beep_dones, 1);                       // the speaker is released once, at the end
     CHECK(r.hal.led == LedColor::Green);
     CHECK_EQ(r.hal.mic_starts, 0);                       // find never turns the microphone on

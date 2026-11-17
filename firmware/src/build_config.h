@@ -68,6 +68,12 @@
 #ifndef SPEAKER_HZ
 #define SPEAKER_HZ 1047         // pitch of the Atom's beeps (a high C): softer than BEEP_HZ
 #endif
+#ifndef FIND_VOLUME
+#define FIND_VOLUME 255         // 0-255: "find" is meant to be heard across a room
+#endif
+#ifndef FIND_HZ
+#define FIND_HZ 2700            // a piercing pitch for "find", near the ear's most sensitive
+#endif
 #ifndef SPEAKER_WARMUP_MS
 #define SPEAKER_WARMUP_MS 200   // silence after the Atom's speaker powers up, before a beep is heard
 #endif

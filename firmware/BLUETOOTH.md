@@ -86,8 +86,9 @@ the app never has to join packets together.
 `start` begins a capture and `stop` ends one; these are how the app answers a `toggle`. The
 clip replies with `consent` and `state` events. Either write type works.
 
-`find` is for the Clip tab's **Find clip** button. The clip blinks its light white and beeps for
-3.2 seconds, the same time the button shows "Blinking and buzzing", then stops by itself.
+`find` is for the Clip tab's **Find clip** button. The clip blinks its light white and beeps
+loudly (fast, piercing beeps at full volume) for 3.2 seconds, the same time the button shows
+"Blinking", then stops by itself.
 Sending it again restarts the timer. It never starts or stops a capture. While the clip is
 listening it only blinks, so the beep cannot end up in a recording. There is no reply message.
 

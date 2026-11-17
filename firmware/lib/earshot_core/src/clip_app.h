@@ -72,8 +72,8 @@ struct ClipConfig {
         wait_period_ms(2000),
         find_ms(3200),
         find_blink_ms(125),
-        find_beep_ms(120),
-        find_beep_period_ms(400) {}
+        find_beep_ms(200),
+        find_beep_period_ms(300) {}
 };
 
 struct ClipStats {
@@ -127,7 +127,7 @@ class ClipApp {
   void announce(uint32_t now);
   void serviceAudio(uint32_t now);
   void serviceFind(uint32_t now);
-  void setBeep(bool on);
+  void setBeep(bool on, bool loud = false);
   void playCue(Cue cue);
   void startNextCue();
   void serviceSound(uint32_t now);
@@ -157,6 +157,8 @@ class ClipApp {
   bool finding_;          // blinking (and beeping) so the clip can be found
   uint32_t find_start_;
   bool beep_on_;
+  bool beep_loud_;        // the beep playing (or next) is the loud "find" one
+  uint32_t find_sound_at_;  // find's beeps start here, once the speaker is ready
   bool mic_on_;           // the microphone is running (it is off while a cue plays)
   bool cue_on_;           // a cue is playing
   bool cue_played_;       // its recording has been started (after the speaker warmed up)

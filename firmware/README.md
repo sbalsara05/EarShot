@@ -88,7 +88,7 @@ changes that. While listening the clip only blinks, so the beep cannot land in a
 
 | Board | Find does |
 |---|---|
-| Atom VoiceS3R | Blinks the ring and beeps the built-in speaker (not yet tried on the board) |
+| Atom VoiceS3R | Blinks the ring and beeps the built-in speaker loudly: fast 2.7 kHz square-wave beeps at full volume (`FIND_HZ`, `FIND_VOLUME`), far louder than the clip's other sounds |
 | ESP32-S3 Feather | Blinks the onboard light. It has no speaker; for a beep, wire a piezo buzzer from a free pin to GND and set `BUZZER_PIN` in `include/config.h` |
 | Simulator | Blinks the ring and beeps through the laptop (the **Find clip** button) |
 
