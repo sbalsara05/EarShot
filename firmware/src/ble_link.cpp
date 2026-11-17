@@ -28,7 +28,9 @@ BleLink::BleLink()
       payload_(0),
       subscribed_since_(0),
       warned_small_(false),
-      failed_sends_(0) {}
+      failed_sends_(0),
+      last_adv_check_(0),
+      adv_restarts_(0) {}
 
 bool BleLink::begin(const char* name) {
   rx_ = xQueueCreate(8, sizeof(Command));
@@ -87,10 +89,15 @@ void BleLink::onDisconnect(NimBLEServer*, NimBLEConnInfo&, int reason) {
   events_subscribed_ = false;
   audio_subscribed_ = false;
   ++session_;
-  NimBLEDevice::startAdvertising();  // be findable again straight away
-  Serial.printf("[clip] bluetooth: %s (reason 0x%x), advertising again\n",
-                deliberate ? "the tablet disconnected" : "connection lost", reason);
+  // Be findable again straight away. This can fail while the stack is still tearing the
+  // connection down; service() checks every second and starts it then.
+  bool ok = NimBLEDevice::startAdvertising();
+  Serial.printf("[clip] bluetooth: %s (reason 0x%x), %s\n",
+                deliberate ? "the tablet disconnected" : "connection lost", reason,
+                ok ? "advertising again" : "advertising will restart shortly");
 }
+
+bool BleLink::advertising() const { return NimBLEDevice::getAdvertising()->isAdvertising(); }
 
 void BleLink::onConnParamsUpdate(NimBLEConnInfo& info) { interval_units_ = info.getConnInterval(); }
 
@@ -117,6 +124,18 @@ void BleLink::onWrite(NimBLECharacteristic* chr, NimBLEConnInfo&) {
 // ---------------------------------------------------------------- main loop side
 
 void BleLink::service(uint32_t now) {
+  // With no tablet, the clip must always be findable: whatever stopped the advertising (a
+  // failed restart after a lost connection, the stack), start it again, once a second at most.
+  if (!connected_ && (uint32_t)(now - last_adv_check_) >= 1000) {
+    last_adv_check_ = now;
+    if (!advertising()) {
+      bool ok = NimBLEDevice::startAdvertising();
+      ++adv_restarts_;
+      Serial.printf("[clip] bluetooth: was not advertising; %s\n",
+                    ok ? "advertising again" : "could not restart it, will try again");
+    }
+  }
+
   uint32_t session = session_;
   if (session != seen_session_) {
     // Someone new subscribed, or the tablet went away. Read as closed for this pass so the

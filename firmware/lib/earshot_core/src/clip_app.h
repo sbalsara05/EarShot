@@ -55,6 +55,9 @@ struct ClipConfig {
   uint32_t find_blink_ms;       // light on for this long, then off for this long
   uint32_t find_beep_ms;        // each beep lasts this long...
   uint32_t find_beep_period_ms; // ...and one starts this often
+  uint32_t lost_grace_ms;       // a recording outlives a lost tablet by this long (the app holds
+                                // its side open as long), then stops and the clip goes back to
+                                // pairing mode
   ButtonTiming button;
   ClipConfig()
       : gateway_host("127.0.0.1"),
@@ -72,8 +75,9 @@ struct ClipConfig {
         wait_period_ms(2000),
         find_ms(3200),
         find_blink_ms(125),
-        find_beep_ms(120),
-        find_beep_period_ms(400) {}
+        find_beep_ms(200),
+        find_beep_period_ms(300),
+        lost_grace_ms(30000) {}
 };
 
 struct ClipStats {
@@ -127,7 +131,7 @@ class ClipApp {
   void announce(uint32_t now);
   void serviceAudio(uint32_t now);
   void serviceFind(uint32_t now);
-  void setBeep(bool on);
+  void setBeep(bool on, bool loud = false);
   void playCue(Cue cue);
   void startNextCue();
   void serviceSound(uint32_t now);
@@ -157,6 +161,8 @@ class ClipApp {
   bool finding_;          // blinking (and beeping) so the clip can be found
   uint32_t find_start_;
   bool beep_on_;
+  bool beep_loud_;        // the beep playing (or next) is the loud "find" one
+  uint32_t find_sound_at_;  // find's beeps start here, once the speaker is ready
   bool mic_on_;           // the microphone is running (it is off while a cue plays)
   bool cue_on_;           // a cue is playing
   bool cue_played_;       // its recording has been started (after the speaker warmed up)
@@ -167,6 +173,7 @@ class ClipApp {
   bool resumable_;        // the last stop was a pause, so the next start resumes
   bool call_open_;        // the clip's best guess: a call is open on the tablet
   bool was_lost_;         // the tablet dropped out of range, so its return is "back"
+  uint32_t gone_at_;      // when the tablet went, while recording without it
   bool report_waiting_;   // "report ready" arrived while recording: said once the mic is off
   LedColor led_;
 };

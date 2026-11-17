@@ -74,6 +74,8 @@ class Esp32Transport : public earshot::Transport {
 #include "sounds_data.h"  // the voice lines (tools/make_sounds.py)
 
 // One cycle of a sine wave, unsigned 8-bit, for M5.Speaker.tone(): a smooth, gentle beep.
+// One cycle of a square wave, the loudest shape at a given volume: the "find" beep.
+static const uint8_t kSquare[16] = {255, 255, 255, 255, 255, 255, 255, 255, 1, 1, 1, 1, 1, 1, 1, 1};
 static const uint8_t kSine[32] = {128, 153, 177, 199, 218, 234, 245, 253, 255, 253, 245, 234, 218, 199, 177, 153, 128, 103, 79, 57, 38, 22, 11, 3, 1, 3, 11, 22, 38, 57, 79, 103};
 #endif
 
@@ -202,15 +204,21 @@ class Esp32Hal : public earshot::Hal {
     if (on) {
       if (mic_on_) return;
       if (!spk_on_) spk_on_ = M5.Speaker.begin();
-      if (spk_on_) {
+      if (!spk_on_) return;
+      if (loud_) {
+        // "Find": a square wave at full volume, near the pitch the ear is most sensitive to.
+        M5.Speaker.setVolume(FIND_VOLUME);
+        M5.Speaker.tone(FIND_HZ, 5000, -1, true, kSquare, sizeof kSquare);
+      } else {
+        // Everything else: a smooth sine at a gentle pitch. Until beep(false); 5 s is a backstop.
         M5.Speaker.setVolume(SOUND_VOLUME);
-        // A smooth sine at a gentle pitch, until beep(false); 5 s is only a backstop.
         M5.Speaker.tone(SPEAKER_HZ, 5000, -1, true, kSine, sizeof kSine);
       }
     } else if (spk_on_) {
       M5.Speaker.stop();
     }
   }
+  void beepLoud(bool loud) override { loud_ = loud; }
   // Voice lines, recorded in sounds/. playRaw() returns at once; the speaker plays in the
   // background while the app waits out soundMs().
   uint32_t soundMs(earshot::Sound sound) override {
@@ -269,6 +277,7 @@ class Esp32Hal : public earshot::Hal {
   uint8_t primed_ = 0;
   int16_t bufs_[3][earshot::kFrameSamples];
   bool spk_on_ = false;
+  bool loud_ = false;  // the next beep is the loud "find" one
 #else
   uint32_t next_frame_ms_ = 0;
   uint32_t phase_ = 0;
@@ -403,14 +412,16 @@ void loop() {
   if (now - last_report >= 5000) {
     last_report = now;
     const earshot::ClipStats& s = g_app->stats();
-    char link[96];
+    char link[128];
 #if LINK_BLUETOOTH
     if (g_ble.connected())
       snprintf(link, sizeof link, "bluetooth=connected link=%s packet=%uB interval=%.1fms failed_sends=%lu",
                g_app->linkOpen() ? "open" : "closed", (unsigned)g_ble.packetBytes(),
                g_ble.intervalMs(), (unsigned long)g_ble.failedSends());
     else
-      snprintf(link, sizeof link, "bluetooth=advertising-as-%s link=closed", g_name);
+      snprintf(link, sizeof link, "bluetooth=%s-as-%s link=closed adv_restarts=%lu",
+               g_ble.advertising() ? "advertising" : "NOT-ADVERTISING", g_name,
+               (unsigned long)g_ble.advertisingRestarts());
 #else
     snprintf(link, sizeof link, "wifi=%s link=%s",
              WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "down",

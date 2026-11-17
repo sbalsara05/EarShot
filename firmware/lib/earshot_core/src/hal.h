@@ -41,6 +41,9 @@ class Hal {
   // speaker do nothing.
   virtual void beep(bool on) = 0;
   virtual void beepDone() {}
+  // Which beep the next beep(true) plays: the loud, piercing "find" one (true), or the gentle
+  // one for everything else. Boards with one sound ignore it.
+  virtual void beepLoud(bool loud) { (void)loud; }
   // Powers the speaker up ahead of a beep pattern and returns how long it needs before a beep is
   // heard (the Atom resets its audio chip and switches its amplifier on, and the first moments
   // after that are lost). 0 when it is already on, or the board has nothing to prepare.
