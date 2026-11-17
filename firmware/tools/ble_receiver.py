@@ -14,7 +14,7 @@ reconnects by itself when the clip goes away and comes back, so it doubles as a 
     --app          stand in for the app's button handling: answer each double click (toggle
                    the recording) with start, or stop if one is running; print each mark; and
                    on a hold (toggle the call) end the open call and save it to its own files
-                   in build/calls/, or open a new call if none is open
+                   in build/calls/, or open a new call and start recording if none is open
     --wav FILE     where to save the decoded audio (default: build/ble_received.wav)
     --transcribe   transcribe the saved audio with Whisper at the end
 
@@ -97,8 +97,10 @@ class Receiver:
             elif self.call_open:
                 self.save_call()
             else:
+                # As the iPad app does (Model.toggleCall): open a call and start recording in it.
                 self.call_open = True
-                print(f"{stamp()}  NEW CALL opened: double-click the clip to start recording")
+                print(f"{stamp()}  NEW CALL opened, recording")
+                self.answer("start")
         elif ev.get("type") == "toggle" and self.answer:
             # A double click: toggle the recording. Decide as the app would.
             self.call_open = True  # a recording with no call open starts a new call
@@ -150,7 +152,7 @@ class Receiver:
         print(f"{stamp()}  END CALL: saved {folder / name}.wav and .json "
               f"({summary['recordings']} recording(s), {summary['audio_seconds']} s, {len(self.call_marks)} mark(s))")
         print(f"{stamp()}  (the app would also generate the reports here)")
-        print(f"{stamp()}  ready for a new call: hold again to open one, or double-click to start recording")
+        print(f"{stamp()}  ready for a new call: hold again to open one and record")
         self.pcm = bytearray()
         self.call_recordings = 0
         self.call_marks = []

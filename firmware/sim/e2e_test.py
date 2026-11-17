@@ -20,6 +20,10 @@ def check(label, ok, detail=""):
         failures += 1
 
 
+# The clip beeps long-short when a capture starts, and turns its microphone on after (0.9 s).
+START_BEEPS_S = 1.0
+
+
 async def wait_for(pred, timeout=3.0):
     loop = asyncio.get_running_loop()
     end = loop.time() + timeout
@@ -52,9 +56,10 @@ async def main():
         check("ring is green: connected, not listening", t.sim_led == "green", t.sim_led)
 
         print("find clip")
+        before = t.sim_beeps  # pairing mode and the connection have beeped already
         await t.send_command("find")
-        check("clip beeps when the tablet asks to find it", await wait_for(lambda: t.sim_beeps >= 3, 2.0),
-              f"{t.sim_beeps} beeps")
+        check("clip beeps when the tablet asks to find it",
+              await wait_for(lambda: t.sim_beeps - before >= 3, 2.0), f"{t.sim_beeps - before} beeps")
         check("find does not start a capture",
               t.device_state == "not_listening" and t.audio_bytes == 0 and not consent_events(t))
         await asyncio.sleep(2.6)
@@ -82,7 +87,7 @@ async def main():
         await t.sim_input("double")
         check("tablet answers start; clip reports listening",
               await wait_for(lambda: t.device_state == "listening" and t.listening))
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(START_BEEPS_S + 1.0)
         check("audio now arrives", t.audio_frames > 30, f"{t.audio_frames} frames, {t.audio_bytes} bytes")
         check("clip says it is sending Opus at 32 kbit/s", t.codec == "opus" and t.bitrate == 32000,
               f"{t.codec} {t.bitrate}")
@@ -138,7 +143,7 @@ async def main():
         print("tablet commands")
         await t.send_command("start")
         check("tablet can start a capture", await wait_for(lambda: t.device_state == "listening"))
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(START_BEEPS_S + 0.5)
         check("audio flows again", t.audio_frames > n)
         check("a new capture restarts the frame counter without a false loss", t.lost_frames == 0)
         await t.send_command("marker")
@@ -213,6 +218,7 @@ async def raw_audio_pass():
         await wait_for(lambda: t.sim_status.get("mic") == "ext")
         await t.send_command("start")
         await wait_for(lambda: t.device_state == "listening")
+        await asyncio.sleep(START_BEEPS_S)
         for _ in range(50):
             await t.sim_audio(frame)
             await asyncio.sleep(0.02)
@@ -221,7 +227,8 @@ async def raw_audio_pass():
         got = bytes(t._received)
         peaks = sum(1 for (x,) in struct.iter_unpack("<h", got) if abs(x) == 12345)
         total = len(got) // 2
-        check("raw audio arrives sample for sample", total > 8000 and peaks > 0.7 * total,
+        # every sample fed in arrives unchanged (silence the mic sent around them does not count)
+        check("raw audio arrives sample for sample", peaks >= 0.95 * 50 * 320,
               f"{peaks} of {total} samples match")
     finally:
         await t.stop()

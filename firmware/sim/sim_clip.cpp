@@ -299,6 +299,7 @@ int main(int argc, char** argv) {
   std::string host = "127.0.0.1";
   int opus_kbps = 32;
   ClipConfig cfg;
+  cfg.sounds = true;  // beeps play through the laptop, as on the clip
   SimHal hal;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];

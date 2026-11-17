@@ -76,7 +76,7 @@ static const uint32_t kSampleRate = 16000;
 static const uint32_t kFrameMs = 20;
 static const size_t kFrameSamples = 320;  // kSampleRate * kFrameMs / 1000
 static const size_t kAudioHeaderBytes = 8;
-static const char kFirmwareVersion[] = "0.11.0";
+static const char kFirmwareVersion[] = "0.12.0";
 
 static const char kBleServiceUuid[] = "e5a70001-7c1b-4f0e-9d52-3a6b8c4d2e10";
 static const char kBleAudioUuid[] = "e5a70002-7c1b-4f0e-9d52-3a6b8c4d2e10";

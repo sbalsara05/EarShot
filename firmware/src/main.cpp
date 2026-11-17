@@ -70,6 +70,11 @@ class Esp32Transport : public earshot::Transport {
 
 // ---------------------------------------------------------------- hardware
 
+#if EARSHOT_SPEAKER_M5
+// One cycle of a sine wave, unsigned 8-bit, for M5.Speaker.tone(): a smooth, gentle beep.
+static const uint8_t kSine[32] = {128, 153, 177, 199, 218, 234, 245, 253, 255, 253, 245, 234, 218, 199, 177, 153, 128, 103, 79, 57, 38, 22, 11, 3, 1, 3, 11, 22, 38, 57, 79, 103};
+#endif
+
 class Esp32Hal : public earshot::Hal {
  public:
   Esp32Hal()
@@ -194,14 +199,25 @@ class Esp32Hal : public earshot::Hal {
   void beep(bool on) override {
     if (on) {
       if (mic_on_) return;
-      if (!spk_on_) {
-        spk_on_ = M5.Speaker.begin();
-        M5.Speaker.setVolume(255);
+      if (!spk_on_) spk_on_ = M5.Speaker.begin();
+      if (spk_on_) {
+        M5.Speaker.setVolume(SOUND_VOLUME);
+        // A smooth sine at a gentle pitch, until beep(false); 5 s is only a backstop.
+        M5.Speaker.tone(SPEAKER_HZ, 5000, -1, true, kSine, sizeof kSine);
       }
-      if (spk_on_) M5.Speaker.tone(BEEP_HZ, 5000);  // until beep(false); 5 s is only a backstop
     } else if (spk_on_) {
       M5.Speaker.stop();
     }
+  }
+  uint32_t beepPrepare() override {
+    if (mic_on_ || spk_on_) return 0;  // already powered (pairing mode, a find): no wait
+    spk_on_ = M5.Speaker.begin();
+    if (!spk_on_) {
+      Serial.println("[clip] speaker failed to start");
+      return 0;
+    }
+    M5.Speaker.setVolume(SOUND_VOLUME);
+    return SPEAKER_WARMUP_MS;
   }
   void beepDone() override {
     if (!spk_on_) return;
@@ -209,6 +225,7 @@ class Esp32Hal : public earshot::Hal {
     M5.Speaker.end();
     spk_on_ = false;
   }
+
 #elif defined(BUZZER_PIN)
   // A piezo buzzer on a spare pin.
   void beep(bool on) override {
@@ -312,6 +329,10 @@ void setup() {
 
   earshot::ClipConfig app_cfg;
   app_cfg.poll_button = false;  // buttonTask does the detection
+  app_cfg.sounds = CLIP_SOUNDS;
+#if EARSHOT_SPEAKER_M5 || defined(BUZZER_PIN)
+  Serial.printf("[clip] sounds: %s\n", CLIP_SOUNDS ? "beeps for pairing mode, connection and each button gesture" : "off (CLIP_SOUNDS 0)");
+#endif
 #if AUDIO_OPUS_KBPS > 0
   g_opus = new earshot::OpusAudioEncoder(AUDIO_OPUS_KBPS * 1000UL, 1);
   if (g_opus->ok()) {
@@ -377,10 +398,10 @@ void loop() {
              WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "down",
              g_app->linkOpen() ? "open" : "closed");
 #endif
-    Serial.printf("[clip] state=%s %s captured=%lu sent=%lu dropped=%lu markers=%lu rec_toggles=%lu call_toggles=%lu finds=%lu captures=%lu\n",
+    Serial.printf("[clip] state=%s %s captured=%lu sent=%lu dropped=%lu markers=%lu cues=%lu rec_toggles=%lu call_toggles=%lu finds=%lu captures=%lu\n",
                   earshot::stateName(g_app->state()), link, (unsigned long)s.frames_captured,
                   (unsigned long)s.frames_sent, (unsigned long)s.frames_dropped,
-                  (unsigned long)s.markers, (unsigned long)s.toggles, (unsigned long)s.call_toggles, (unsigned long)s.finds,
+                  (unsigned long)s.markers, (unsigned long)s.cues, (unsigned long)s.toggles, (unsigned long)s.call_toggles, (unsigned long)s.finds,
                   (unsigned long)s.captures);
 #if AUDIO_OPUS_KBPS > 0
     // Each frame is 20 ms long, so encoding one must take well under 20 ms to keep up.

@@ -70,7 +70,7 @@ class MockTablet:
         self.toggles = 0          # double clicks the clip has reported (toggle the recording)
         self.call_toggles = 0     # holds the clip has reported (toggle the call)
         self.answer_toggles = True  # answer them the way the app would (start, or stop if listening)
-        self.sim_beeps = 0        # beeps the simulated clip has made ("find")
+        self.sim_beeps = 0        # beeps the simulated clip has made (all of them, not only "find")
         self.server = None
         self._tasks = []
         self._wav = None

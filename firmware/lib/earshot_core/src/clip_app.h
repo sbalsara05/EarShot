@@ -16,6 +16,19 @@
 
 namespace earshot {
 
+// Beep patterns the clip plays (ClipConfig::sounds). Pairing mode is not here: it is a beep
+// every second for as long as the clip waits for a tablet.
+enum class Cue : uint8_t {
+  Connected,         // one long beep (1.5 s): a tablet connected
+  Recording,         // long, then short: a recording started
+  Resumed,           // short, then long: a paused recording carried on
+  RecordingStopped,  // the same: a hold ended the recording
+  Paused,            // two short beeps: the tablet paused the recording
+  Mark               // one short beep: a single click dropped a mark
+};
+// The pattern as durations in ms, beep first, alternating beep and silence.
+const uint16_t* cueSteps(Cue cue, size_t* count);
+
 struct ClipConfig {
   const char* gateway_host;     // gateway_* and the two timeouts apply to the Wi-Fi link only
   uint16_t gateway_port;
@@ -24,6 +37,7 @@ struct ClipConfig {
   bool poll_button;             // false: the platform detects gestures itself and calls onButtonEvent()
   bool gateway_enabled;         // false: standalone, never tries to reach a tablet (e.g. on wokwi.com)
   AudioEncoder* encoder;        // how frames are encoded for the link; null = uncompressed PCM
+  bool sounds;                  // beep for pairing mode, a connection and each button gesture (Cue); off by default
   uint32_t reconnect_ms;
   uint32_t handshake_timeout_ms;
   uint32_t marker_flash_ms;
@@ -42,6 +56,7 @@ struct ClipConfig {
         poll_button(true),
         gateway_enabled(true),
         encoder(NULL),
+        sounds(false),
         reconnect_ms(2000),
         handshake_timeout_ms(3000),
         marker_flash_ms(200),
@@ -63,9 +78,10 @@ struct ClipStats {
   uint32_t call_toggles;     // holds passed to the tablet: toggle the call
   uint32_t finds;            // times the tablet asked the clip to make itself findable
   uint32_t captures;         // times capture was started
+  uint32_t cues;             // beep patterns played (Cue)
   ClipStats()
       : frames_captured(0), frames_sent(0), frames_dropped(0), audio_bytes_sent(0), markers(0),
-        toggles(0), call_toggles(0), finds(0), captures(0) {}
+        toggles(0), call_toggles(0), finds(0), captures(0), cues(0) {}
 };
 
 class ClipApp {
@@ -104,6 +120,10 @@ class ClipApp {
   void serviceAudio(uint32_t now);
   void serviceFind(uint32_t now);
   void setBeep(bool on);
+  void playCue(Cue cue);
+  void serviceSound(uint32_t now);
+  bool pairing() const;
+  void startMic();
   void refreshLed(uint32_t now, bool force);
 
   Hal& hal_;
@@ -128,6 +148,11 @@ class ClipApp {
   bool finding_;          // blinking (and beeping) so the clip can be found
   uint32_t find_start_;
   bool beep_on_;
+  bool mic_on_;           // the microphone is running (it is off while a cue plays)
+  bool cue_on_;           // a cue is playing
+  bool resumable_;        // the last stop was a pause, so the next start resumes
+  Cue cue_;
+  uint32_t cue_start_;
   LedColor led_;
 };
 

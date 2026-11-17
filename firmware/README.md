@@ -50,6 +50,25 @@ the microphone. If the patient says no, the medic does not start.
 
 The tablet's other commands are `marker` (drop a mark) and `find`, below.
 
+**Beeps.** The clip says what is happening with its speaker:
+
+| Beeps | When |
+|---|---|
+| A short beep every second | Pairing mode: no tablet connected, after power-on or after the tablet disconnected on purpose (the slow blue blink). Silent when the tablet was lost out of range |
+| One long beep (1.5 s) | A tablet connected |
+| Long, then short | A recording starts (the tablet answered `start`), or a hold ends one |
+| Short, then long | A paused recording carries on (a `start` after a pause, not after a hold) |
+| Two short | The tablet paused the recording (it answered `stop`: a double click, or its own Stop button) |
+| One short | A single click dropped a mark (a mark from the tablet's screen is silent) |
+
+The microphone is off while the clip beeps, so no beep lands in the recording: the start beeps
+play before the microphone turns on, and a mark leaves a gap of about 0.4 seconds in
+the audio just after the click. A hold while paused makes no sound, because the clip cannot
+tell whether the tablet opened or ended a call; nor does a reconnect in the middle of a
+recording. `CLIP_SOUNDS 0` in `config.h` turns the beeps off; `SOUND_VOLUME` sets the volume.
+The Feather has no speaker and only beeps through a piezo on `BUZZER_PIN`; the simulator beeps
+through the laptop.
+
 **Find clip.** The tablet's `find` command makes the clip blink white and beep for 3.2 seconds
 so it can be found, then stop by itself. It works whether or not the clip is listening and never
 changes that. While listening the clip only blinks, so the beep cannot land in a recording.

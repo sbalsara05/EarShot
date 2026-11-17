@@ -54,6 +54,21 @@
 #define BEEP_HZ 2700            // around where small speakers and piezo buzzers are loudest
 #endif
 
+// ---- beeps for pairing mode, a connection and each button gesture (see README). Boards with
+// no speaker stay silent whatever this says.
+#ifndef CLIP_SOUNDS
+#define CLIP_SOUNDS 1
+#endif
+#ifndef SOUND_VOLUME
+#define SOUND_VOLUME 120        // 0-255, the Atom's speaker. It is squared: 255 is full power,
+#endif                          // 128 a quarter of it
+#ifndef SPEAKER_HZ
+#define SPEAKER_HZ 1047         // pitch of the Atom's beeps (a high C): softer than BEEP_HZ
+#endif
+#ifndef SPEAKER_WARMUP_MS
+#define SPEAKER_WARMUP_MS 200   // silence after the Atom's speaker powers up, before a beep is heard
+#endif
+
 // ---- board: pins and microphone
 #if defined(EARSHOT_BOARD_FEATHER)
 // Adafruit ESP32-S3 Feather. No microphone and no LED ring, so:
