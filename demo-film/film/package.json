@@ -1,0 +1,30 @@
+{
+  "name": "earshot-demo-film",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render:own": "remotion render src/index.ts FilmB out/film_own-media.mp4",
+    "render:slots": "remotion render src/index.ts FilmA out/film_EMT-slots.mp4"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@fontsource/doto": "^5.3.0",
+    "@fontsource/geist": "^5.3.0",
+    "@react-three/fiber": "^9.8.2",
+    "@remotion/bundler": "^4.0.544",
+    "@remotion/cli": "^4.0.544",
+    "@remotion/renderer": "^4.0.544",
+    "@remotion/three": "^4.0.544",
+    "@types/react": "^19.3.0",
+    "@types/three": "^0.187.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "^4.0.544",
+    "three": "^0.187.0",
+    "typescript": "^7.0.2"
+  }
+}

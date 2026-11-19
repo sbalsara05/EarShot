@@ -1,0 +1,24 @@
+kenney-interface-sounds/addons/kenney_interface_sounds/click_003.wav
+kenney-ui-audio/addons/kenney_ui_audio/click1.wav
+kenney-ui-audio/addons/kenney_ui_audio/click2.wav
+kenney-ui-audio/addons/kenney_ui_audio/click3.wav
+kenney-ui-audio/addons/kenney_ui_audio/click4.wav
+kenney-ui-audio/addons/kenney_ui_audio/click5.wav
+kenney-ui-audio/addons/kenney_ui_audio/rollover2.wav
+kenney-ui-audio/addons/kenney_ui_audio/switch13.wav
+kenney-ui-audio/addons/kenney_ui_audio/switch14.wav
+kenney-ui-audio/addons/kenney_ui_audio/switch26.wav
+kenney-ui-audio/addons/kenney_ui_audio/switch28.wav
+kenney-ui-audio/addons/kenney_ui_audio/switch7.wav
+sonicpi/etc/samples/drum_cymbal_hard.flac
+sonicpi/etc/samples/drum_tom_lo_hard.flac
+sonicpi/etc/samples/drum_tom_lo_soft.flac
+sonicpi/etc/samples/perc_impact1.flac
+vcsl/Idiophones/Struck Idiophones/Glockenspiel/glock_soft_C6_01.wav
+vcsl/Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav
+vcsl/Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_F5_soft_01.wav
+vcsl/Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_G4_soft_01.wav
+vcsl/Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_A4_v2_rr1_Main.wav
+vcsl/Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_C5_v2_rr1_Main.wav
+vcsl/Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_D4_v2_rr1_Main.wav
+vcsl/Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_F4_v2_rr1_Main.wav
